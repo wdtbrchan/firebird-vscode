@@ -109,11 +109,18 @@ export function activate(context: vscode.ExtensionContext) {
             // Get active connection configuration
             const activeConn = databaseTreeDataProvider.getActiveConnection();
             
+            // Show loading state immediately
+            ResultsPanel.createOrShow(context.extensionUri);
+            ResultsPanel.currentPanel?.showLoading();
+
             const results = await Database.executeQuery(query, activeConn);
             
-            // Show results in WebviewPanel (Editor Tab)
-            ResultsPanel.createOrShow(context.extensionUri);
-            ResultsPanel.currentPanel?.update(results);
+            // Show results or success message in WebviewPanel
+            if (Array.isArray(results) && results.length > 0) {
+                 ResultsPanel.currentPanel?.update(results);
+            } else {
+                 ResultsPanel.currentPanel?.showSuccess('Query executed successfully. No rows returned.');
+            }
             
         } catch (err: any) {
              vscode.window.showErrorMessage('Error executing query: ' + err.message);
