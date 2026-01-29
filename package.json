@@ -79,6 +79,18 @@
         "icon": "$(check)"
       },
       {
+        "command": "firebird.commit",
+        "title": "Commit Transaction",
+        "icon": "$(check)",
+        "enablement": "editorLangId == sql"
+      },
+      {
+        "command": "firebird.rollback",
+        "title": "Rollback Transaction",
+        "icon": "$(discard)",
+        "enablement": "editorLangId == sql"
+      },
+      {
         "command": "firebird.disconnectDatabase",
         "title": "Disconnect Database",
         "icon": "$(debug-disconnect)"
@@ -114,6 +126,18 @@
         {
           "command": "firebird.addDatabase",
           "when": "view == firebird.databases",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "firebird.commit",
+          "when": "editorLangId == sql",
+          "group": "navigation"
+        },
+        {
+          "command": "firebird.rollback",
+          "when": "editorLangId == sql",
           "group": "navigation"
         }
       ],

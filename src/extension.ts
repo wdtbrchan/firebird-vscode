@@ -26,8 +26,28 @@ export function activate(context: vscode.ExtensionContext) {
         await databaseTreeDataProvider.editDatabase(conn);
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.selectDatabase', (conn: DatabaseConnection) => {
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.selectDatabase', async (conn: DatabaseConnection) => {
+        // Rollback current transaction (if any) before switching context
+        await Database.rollback();
         databaseTreeDataProvider.setActive(conn);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.commit', async () => {
+        try {
+            await Database.commit();
+            vscode.window.setStatusBarMessage('Firebird: Transaction Committed', 3000);
+        } catch (err: any) {
+            vscode.window.showErrorMessage('Commit failed: ' + err.message);
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.rollback', async () => {
+        try {
+            await Database.rollback();
+            vscode.window.setStatusBarMessage('Firebird: Transaction Rolled Back', 3000);
+        } catch (err: any) {
+             vscode.window.showErrorMessage('Rollback failed: ' + err.message);
+        }
     }));
 
     let disposable = vscode.commands.registerCommand('firebird.runQuery', async () => {
@@ -109,5 +129,5 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-    Database.detach();
+    Database.detach(); // Ensures rollback/detach on close
 }

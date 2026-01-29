@@ -4,6 +4,9 @@ import * as iconv from 'iconv-lite';
 
 export class Database {
     private static db: Firebird.Database | undefined;
+    private static transaction: Firebird.Transaction | undefined;
+    private static autoRollbackTimer: NodeJS.Timeout | undefined;
+    private static currentOptions: Firebird.Options | undefined;
 
     public static async executeQuery(query: string, connection?: { host: string, port: number, database: string, user: string, password?: string, role?: string, charset?: string }): Promise<any[]> {
         const config = vscode.workspace.getConfiguration('firebird');
@@ -24,15 +27,20 @@ export class Database {
             throw new Error('Database path is not configured. Please select a database in the explorer or set "firebird.database" in settings.');
         }
 
+        // Check if we need to switch database or if we are already connected to a different one
+        if (this.db && this.currentOptions) {
+            if (this.currentOptions.host !== options.host ||
+                this.currentOptions.database !== options.database) {
+                 await this.rollback(); // Switch implies rollback of potential old work
+            }
+        }
+
+        this.currentOptions = options;
+        this.resetAutoRollback();
+
         return new Promise((resolve, reject) => {
-            Firebird.attach(options, (err, db) => {
-                if (err) {
-                    // Try detach just in case
-                   if(db) db.detach();
-                   return reject(err);
-                }
-                
-                // Encode the query string to the target charset, then to 'binary' string
+            const runQuery = (tr: Firebird.Transaction) => {
+                 // Encode the query string to the target charset, then to 'binary' string
                 // so the driver (patched to use 'binary') sends the correct bytes.
                 let queryBuffer: Buffer;
                 if (iconv.encodingExists(encodingConf)) {
@@ -42,8 +50,7 @@ export class Database {
                 }
                 const queryString = queryBuffer.toString('binary');;
 
-                db.query(queryString, [], (err, result) => {
-                    db.detach(); // Always detach after query
+                tr.query(queryString, [], (err, result) => {
                     if (err) {
                         return reject(err);
                     }
@@ -75,14 +82,91 @@ export class Database {
                     
                     resolve(result);
                 });
-            });
+            };
+
+            if (this.transaction) {
+                runQuery(this.transaction);
+            } else {
+                // Attach if not attached
+                const doAttach = (cb: (db: Firebird.Database) => void) => {
+                    if (this.db) {
+                        cb(this.db);
+                    } else {
+                        Firebird.attach(options, (err, db) => {
+                            if (err) return reject(err);
+                            this.db = db;
+                            cb(db);
+                        });
+                    }
+                };
+
+                doAttach((db) => {
+                    db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err, tr) => {
+                        if (err) return reject(err);
+                        this.transaction = tr;
+                        runQuery(tr);
+                    });
+                });
+            }
         });
     }
 
-    public static detach() {
-        if (this.db) {
-            this.db.detach();
-            this.db = undefined;
+    public static async commit(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (this.transaction) {
+                this.transaction.commit((err) => {
+                    this.transaction = undefined;
+                    this.cleanupConnection();
+                    if (err) reject(err);
+                    else resolve();
+                });
+            } else {
+                resolve();
+            }
+        });
+    }
+
+    public static async rollback(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (this.transaction) {
+                this.transaction.rollback((err) => {
+                    this.transaction = undefined;
+                    this.cleanupConnection();
+                    if (err) reject(err);
+                    else resolve();
+                });
+            } else {
+                 this.cleanupConnection(); // Ensure connection is closed even if no transaction
+                resolve();
+            }
+        });
+    }
+
+    private static cleanupConnection() {
+        if (this.autoRollbackTimer) {
+            clearTimeout(this.autoRollbackTimer);
+            this.autoRollbackTimer = undefined;
         }
+        if (this.db) {
+            try {
+                this.db.detach();
+            } catch (e) {}
+            this.db = undefined;
+            this.currentOptions = undefined;
+        }
+    }
+
+    private static resetAutoRollback() {
+        if (this.autoRollbackTimer) {
+            clearTimeout(this.autoRollbackTimer);
+        }
+        this.autoRollbackTimer = setTimeout(() => {
+            vscode.window.showInformationMessage('Firebird transaction auto-rollback due to inactivity.');
+            this.rollback();
+        }, 60000); // 60s
+    }
+
+    public static detach() {
+        this.rollback();
     }
 }
