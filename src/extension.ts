@@ -177,6 +177,9 @@ export function activate(context: vscode.ExtensionContext) {
             } else {
                  ResultsPanel.currentPanel?.showSuccess('Query executed successfully. No rows returned.', hasTransaction, contextTitle);
             }
+
+            // Restore focus to the editor so the user can continue typing
+            vscode.window.showTextDocument(editor.document, editor.viewColumn);
             
         } catch (err: any) {
              const hasTransaction = Database.hasActiveTransaction;
