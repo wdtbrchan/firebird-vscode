@@ -6,6 +6,15 @@ import { DatabaseTreeDataProvider, DatabaseConnection } from './explorer/databas
 export function activate(context: vscode.ExtensionContext) {
     console.log('Firebird extension activating...');
 
+    // Initialize context
+    vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', false);
+
+    // Listen for transaction state changes
+    Database.onTransactionChange((hasTransaction) => {
+        vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', hasTransaction);
+        ResultsPanel.currentPanel?.setTransactionStatus(hasTransaction);
+    });
+
     try {
         const databaseTreeDataProvider = new DatabaseTreeDataProvider(context);
         vscode.window.registerTreeDataProvider('firebird.databases', databaseTreeDataProvider);
@@ -114,16 +123,23 @@ export function activate(context: vscode.ExtensionContext) {
             ResultsPanel.currentPanel?.showLoading();
 
             const results = await Database.executeQuery(query, activeConn);
+            const hasTransaction = Database.hasActiveTransaction;
             
             // Show results or success message in WebviewPanel
             if (Array.isArray(results) && results.length > 0) {
-                 ResultsPanel.currentPanel?.update(results);
+                 ResultsPanel.currentPanel?.update(results, hasTransaction);
             } else {
-                 ResultsPanel.currentPanel?.showSuccess('Query executed successfully. No rows returned.');
+                 ResultsPanel.currentPanel?.showSuccess('Query executed successfully. No rows returned.', hasTransaction);
             }
             
         } catch (err: any) {
-             vscode.window.showErrorMessage('Error executing query: ' + err.message);
+             const hasTransaction = Database.hasActiveTransaction;
+             // Show error in the panel if it exists
+             if (ResultsPanel.currentPanel) {
+                 ResultsPanel.currentPanel.showError(err.message, hasTransaction);
+             } else {
+                 vscode.window.showErrorMessage('Error executing query: ' + err.message);
+             }
         }
     });
 

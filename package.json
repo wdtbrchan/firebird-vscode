@@ -132,12 +132,12 @@
       "editor/title": [
         {
           "command": "firebird.commit",
-          "when": "editorLangId == sql",
+          "when": "editorLangId == sql && firebird.hasActiveTransaction",
           "group": "navigation"
         },
         {
           "command": "firebird.rollback",
-          "when": "editorLangId == sql",
+          "when": "editorLangId == sql && firebird.hasActiveTransaction",
           "group": "navigation"
         }
       ],

@@ -8,6 +8,17 @@ export class Database {
     private static autoRollbackTimer: NodeJS.Timeout | undefined;
     private static currentOptions: Firebird.Options | undefined;
 
+    private static onStateChangeHandlers: ((hasTransaction: boolean) => void)[] = [];
+
+    public static onTransactionChange(handler: (hasTransaction: boolean) => void) {
+        this.onStateChangeHandlers.push(handler);
+    }
+
+    private static notifyStateChange() {
+        const isActive = this.hasActiveTransaction;
+        this.onStateChangeHandlers.forEach(h => h(isActive));
+    }
+
     public static async executeQuery(query: string, connection?: { host: string, port: number, database: string, user: string, password?: string, role?: string, charset?: string }): Promise<any[]> {
         const config = vscode.workspace.getConfiguration('firebird');
         
@@ -78,6 +89,35 @@ export class Database {
                             }
                             return newRow;
                          });
+                    } else if (typeof result === 'object' && result !== null) {
+                        // Check if it's a single row return (INSERT RETURNING)
+                        // Heuristic: check if keys are typical column names (not metadata like row_count?)
+                        // node-firebird usually returns { ...columns... } for RETURNING.
+                        // Metadata for update/insert might be missing or different.
+                         const keys = Object.keys(result);
+                         if (keys.length > 0) {
+                             // Assuming it's a data row if it has keys.
+                             // Process encoding for single row too
+                             const row: any = result;
+                             const newRow: any = {};
+                             for (const key in row) {
+                                let val = row[key];
+                                if (val instanceof Buffer) {
+                                    if (iconv.encodingExists(encodingConf)) {
+                                       val = iconv.decode(val, encodingConf);
+                                    } else {
+                                       val = val.toString(); 
+                                    }
+                                } else if (typeof val === 'string') {
+                                    if (iconv.encodingExists(encodingConf)) {
+                                            const buf = Buffer.from(val, 'binary');
+                                            val = iconv.decode(buf, encodingConf);
+                                    }
+                                }
+                                newRow[key] = val;
+                            }
+                            result = [newRow];
+                         }
                     }
                     
                     resolve(result);
@@ -104,6 +144,7 @@ export class Database {
                     db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err, tr) => {
                         if (err) return reject(err);
                         this.transaction = tr;
+                        this.notifyStateChange(); // Notify start
                         runQuery(tr);
                     });
                 });
@@ -116,6 +157,7 @@ export class Database {
             if (this.transaction) {
                 this.transaction.commit((err) => {
                     this.transaction = undefined;
+                    this.notifyStateChange(); // Notify end
                     this.cleanupConnection();
                     if (err) reject(err);
                     else resolve();
@@ -131,6 +173,7 @@ export class Database {
             if (this.transaction) {
                 this.transaction.rollback((err) => {
                     this.transaction = undefined;
+                    this.notifyStateChange(); // Notify end
                     this.cleanupConnection();
                     if (err) reject(err);
                     else resolve();
@@ -168,5 +211,9 @@ export class Database {
 
     public static detach() {
         this.rollback();
+    }
+
+    public static get hasActiveTransaction(): boolean {
+        return !!this.transaction;
     }
 }
