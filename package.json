@@ -1,0 +1,158 @@
+{
+  "name": "firebird-vscode",
+  "displayName": "Firebird SQL",
+  "publisher": "janbr",
+  "description": "Firebird database management extension for VS Code",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Firebird",
+      "properties": {
+        "firebird.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Firebird Server Host"
+        },
+        "firebird.port": {
+          "type": "integer",
+          "default": 3050,
+          "description": "Firebird Server Port"
+        },
+        "firebird.database": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to Firebird database file (.fdb)"
+        },
+        "firebird.user": {
+          "type": "string",
+          "default": "SYSDBA",
+          "description": "Firebird Username"
+        },
+        "firebird.password": {
+          "type": "string",
+          "default": "masterkey",
+          "description": "Firebird Password"
+        },
+        "firebird.role": {
+          "type": "string",
+          "default": "",
+          "description": "Firebird Role (optional)"
+        },
+        "firebird.charset": {
+          "type": "string",
+          "default": "UTF8",
+          "description": "Firebird Charset (e.g. UTF8, WIN1250, NONE)"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "firebird.runQuery",
+        "title": "Firebird: Run Query"
+      },
+      {
+        "command": "firebird.addDatabase",
+        "title": "Add Database",
+        "icon": "$(add)"
+      },
+      {
+        "command": "firebird.removeDatabase",
+        "title": "Remove Database",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "firebird.editDatabase",
+        "title": "Edit Database",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "firebird.selectDatabase",
+        "title": "Select Database",
+        "icon": "$(check)"
+      },
+      {
+        "command": "firebird.disconnectDatabase",
+        "title": "Disconnect Database",
+        "icon": "$(debug-disconnect)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "firebird.runQuery",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == sql"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "firebird-explorer",
+          "title": "Firebird",
+          "icon": "$(database)"
+        }
+      ]
+    },
+    "views": {
+      "firebird-explorer": [
+        {
+          "id": "firebird.databases",
+          "name": "Databases"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "firebird.addDatabase",
+          "when": "view == firebird.databases",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "firebird.selectDatabase",
+          "when": "view == firebird.databases && viewItem == database",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.disconnectDatabase",
+          "when": "view == firebird.databases && viewItem == database-active",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.editDatabase",
+          "when": "view == firebird.databases && viewItem =~ /database/",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.removeDatabase",
+          "when": "view == firebird.databases",
+          "group": "inline"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "iconv-lite": "^0.7.2",
+    "node-firebird": "^1.1.0"
+  }
+}
