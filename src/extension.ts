@@ -68,6 +68,8 @@ export function activate(context: vscode.ExtensionContext) {
 
         const selection = editor.selection;
         let query = editor.document.getText(selection);
+        let queryStartLine = 0;
+        let queryStartChar = 0;
 
         if (!query.trim()) {
             const document = editor.document;
@@ -92,10 +94,6 @@ export function activate(context: vscode.ExtensionContext) {
                     break;
                 }
                 // Also stop if we hit an empty line (safety break, though usually ; defines end)
-                // But user requirement says "; on end", so we stick to that mainly.
-                // However, standard SQL tools often use empty lines as delimiters too if ; is missing.
-                // For strict compliance with user request: "středník na konci", we look for ;.
-                // But we should also stop if we encounter a new block separation (empty line) to prevent running entire file if ; is missing.
                  if (line.trim().length === 0 && i > cursorLine) {
                      endLine = i - 1; 
                      break;
@@ -107,6 +105,14 @@ export function activate(context: vscode.ExtensionContext) {
                 document.lineAt(endLine).range.end
             );
             query = document.getText(range);
+            
+            // Set queryStart for error positioning
+            queryStartLine = startLine;
+            queryStartChar = 0; // effectively 0 since we take whole lines
+        } else {
+            // Selection case
+            queryStartLine = selection.start.line;
+            queryStartChar = selection.start.character;
         }
 
         if (!query.trim()) {
@@ -134,6 +140,32 @@ export function activate(context: vscode.ExtensionContext) {
             
         } catch (err: any) {
              const hasTransaction = Database.hasActiveTransaction;
+             
+             // Try to parse error location
+             const match = /line\s+(\d+),\s+column\s+(\d+)/i.exec(err.message);
+             if (match && editor) {
+                 try {
+                    const errorLineRel = parseInt(match[1], 10);
+                    const errorColRel = parseInt(match[2], 10);
+                    
+                    const absLine = queryStartLine + (errorLineRel - 1);
+                    
+                    let absCol = errorColRel - 1;
+                    if (errorLineRel === 1) {
+                        absCol += queryStartChar;
+                    }
+                    
+                    const pos = new vscode.Position(absLine, absCol);
+                    editor.selection = new vscode.Selection(pos, pos);
+                    editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+                    
+                    // Focus the editor so the user sees the cursor immediately
+                    vscode.window.showTextDocument(editor.document, editor.viewColumn);
+                 } catch (e) {
+                     console.error('Failed to move cursor to error', e);
+                 }
+             }
+
              // Show error in the panel if it exists
              if (ResultsPanel.currentPanel) {
                  ResultsPanel.currentPanel.showError(err.message, hasTransaction);
