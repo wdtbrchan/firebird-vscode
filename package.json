@@ -79,6 +79,16 @@
         "icon": "$(check)"
       },
       {
+        "command": "firebird.createGroup",
+        "title": "New Group",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "firebird.deleteGroup",
+        "title": "Delete Group",
+        "icon": "$(trash)"
+      },
+      {
         "command": "firebird.commit",
         "title": "Commit Transaction",
         "icon": "$(check)",
@@ -127,6 +137,11 @@
           "command": "firebird.addDatabase",
           "when": "view == firebird.databases",
           "group": "navigation"
+        },
+        {
+          "command": "firebird.createGroup",
+          "when": "view == firebird.databases",
+          "group": "navigation"
         }
       ],
       "editor/title": [
@@ -154,12 +169,12 @@
         },
         {
           "command": "firebird.editDatabase",
-          "when": "view == firebird.databases && viewItem =~ /database/",
+          "when": "view == firebird.databases && viewItem == database",
           "group": "inline"
         },
         {
-          "command": "firebird.removeDatabase",
-          "when": "view == firebird.databases",
+          "command": "firebird.deleteGroup",
+          "when": "view == firebird.databases && viewItem == group",
           "group": "inline"
         }
       ]

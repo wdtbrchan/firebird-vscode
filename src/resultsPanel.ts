@@ -55,6 +55,7 @@ export class ResultsPanel {
     }
 
     public showLoading() {
+        this._isLoading = true;
         this._panel.webview.html = `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -72,37 +73,42 @@ export class ResultsPanel {
         </html>`;
     }
 
-    public showSuccess(message: string, hasTransaction: boolean) {
-        this._updateContent([], message, hasTransaction, false);
+    public showSuccess(message: string, hasTransaction: boolean, context?: string) {
+        this._updateContent([], message, hasTransaction, false, context);
     }
 
-    public showError(message: string, hasTransaction: boolean) {
-        this._updateContent([], message, hasTransaction, true);
+    public showError(message: string, hasTransaction: boolean, context?: string) {
+        this._updateContent([], message, hasTransaction, true, context);
     }
 
-    public update(results: any[], hasTransaction: boolean) {
-        this._updateContent(results, undefined, hasTransaction, false);
-    }
-
-    public setTransactionStatus(hasTransaction: boolean) {
-        // Re-render with new status, preserving content
-        // If there was an error, we want to keep showing it potentially?
-        // Actually if we just committed/rolled back, the error is "old" context, but let's reset to empty or success message?
-        // Usually commit/rollback clears the transaction.
-        this._updateContent(this._lastResults, this._lastMessage, hasTransaction, this._lastIsError);
+    public update(results: any[], hasTransaction: boolean, context?: string) {
+        this._updateContent(results, undefined, hasTransaction, false, context);
     }
 
     private _lastIsError: boolean = false;
+    private _isLoading: boolean = false;
+    private _lastContext: string | undefined;
 
-    private _updateContent(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false) {
+    private _updateContent(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string) {
+        this._isLoading = false;
         this._lastResults = results;
         this._lastMessage = message;
         this._showButtons = showButtons;
         this._lastIsError = isError;
-        this._panel.webview.html = this._getHtmlForWebview(results, message, showButtons, isError);
+        this._lastContext = context;
+        this._panel.webview.html = this._getHtmlForWebview(results, message, showButtons, isError, context);
     }
 
-    private _getHtmlForWebview(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false) {
+    public setTransactionStatus(hasTransaction: boolean) {
+        // If loading, don't interrupt the spinner with old content
+        if (this._isLoading) {
+            return;
+        }
+        // Re-render with new status, preserving content
+        this._updateContent(this._lastResults, this._lastMessage, hasTransaction, this._lastIsError, this._lastContext);
+    }
+
+    private _getHtmlForWebview(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string) {
         const script = `
             const vscode = acquireVsCodeApi();
             function commit() { vscode.postMessage({ command: 'commit' }); }
@@ -130,7 +136,7 @@ export class ResultsPanel {
             th, td { border: 1px solid #ccc; padding: 2px 4px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
             th { background-color: #f2f2f2; color: #333; font-weight: 600; }
             tr:nth-child(even) { background-color: #f9f9f9; }
-            .success-message { color: green; font-weight: bold; padding: 10px; }
+            .success-message { color: #0c5460; font-weight: bold; padding: 10px; background-color: #d1ecf1; border: 1px solid #bee5eb; border-radius: 3px; }
             .error-message { color: #d32f2f; font-weight: bold; padding: 10px; background-color: #ffebee; border: 1px solid #ffcdd2; border-radius: 3px; }
             // VS Code theme colors support
             body.vscode-light th { background-color: #e3e3e3; }
@@ -139,11 +145,15 @@ export class ResultsPanel {
             body.vscode-dark tr:nth-child(even) { background-color: #2a2a2a; }
             body.vscode-dark tr:hover { background-color: #2a2d2e; }
             body.vscode-dark .error-message { background-color: #2c0b0e; border-color: #842029; color: #ea868f; }
+            body.vscode-dark .success-message { background-color: #08303e; border-color: #0c5460; color: #66b0ff; }
         `;
 
         const header = `
             <div class="header">
-                <h3>${isError ? 'Error' : (message ? 'Result' : `Query Results (${results.length} rows)`)}</h3>
+                <div>
+                    <h3>${isError ? 'Error' : (message ? 'Result' : `Query Results (${results.length} rows)`)}</h3>
+                    ${context ? `<div style="font-size: 0.8em; color: #666;">${context}</div>` : ''}
+                </div>
                 ${buttonsHtml}
             </div>
         `;

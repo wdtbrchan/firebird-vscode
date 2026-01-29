@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Database } from './db';
 import { ResultsPanel } from './resultsPanel';
-import { DatabaseTreeDataProvider, DatabaseConnection } from './explorer/databaseTreeDataProvider';
+import { DatabaseTreeDataProvider, DatabaseConnection, DatabaseDragAndDropController } from './explorer/databaseTreeDataProvider';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Firebird extension activating...');
@@ -17,7 +17,31 @@ export function activate(context: vscode.ExtensionContext) {
 
     try {
         const databaseTreeDataProvider = new DatabaseTreeDataProvider(context);
-        vscode.window.registerTreeDataProvider('firebird.databases', databaseTreeDataProvider);
+        const dragAndDropController = new DatabaseDragAndDropController(databaseTreeDataProvider);
+        
+        vscode.window.createTreeView('firebird.databases', {
+            treeDataProvider: databaseTreeDataProvider,
+            dragAndDropController: dragAndDropController
+        });
+
+        // Status Bar for Active Database
+        const myStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+        myStatusBarItem.command = 'firebird.databases.focus';
+        context.subscriptions.push(myStatusBarItem);
+
+        const updateStatusBar = () => {
+            const details = databaseTreeDataProvider.getActiveConnectionDetails();
+            if (details) {
+                myStatusBarItem.text = `$(database) ${details.group} / ${details.name}`;
+                myStatusBarItem.show();
+            } else {
+                myStatusBarItem.hide();
+            }
+        };
+
+        // Listen for changes
+        databaseTreeDataProvider.onDidChangeTreeData(() => updateStatusBar());
+        updateStatusBar(); // Initial update
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.addDatabase', async () => {
         await databaseTreeDataProvider.addDatabase();
@@ -39,6 +63,14 @@ export function activate(context: vscode.ExtensionContext) {
         // Rollback current transaction (if any) before switching context
         await Database.rollback();
         databaseTreeDataProvider.setActive(conn);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.createGroup', async () => {
+        await databaseTreeDataProvider.createGroup();
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.deleteGroup', async (group: any) => {
+        await databaseTreeDataProvider.deleteGroup(group);
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.commit', async () => {
@@ -124,6 +156,14 @@ export function activate(context: vscode.ExtensionContext) {
             // Get active connection configuration
             const activeConn = databaseTreeDataProvider.getActiveConnection();
             
+            if (!activeConn) {
+                vscode.window.showWarningMessage('No active database connection selected. Please select a database.');
+                return;
+            }
+
+            const activeDetails = databaseTreeDataProvider.getActiveConnectionDetails();
+            const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
+            
             // Show loading state immediately
             ResultsPanel.createOrShow(context.extensionUri);
             ResultsPanel.currentPanel?.showLoading();
@@ -133,9 +173,9 @@ export function activate(context: vscode.ExtensionContext) {
             
             // Show results or success message in WebviewPanel
             if (Array.isArray(results) && results.length > 0) {
-                 ResultsPanel.currentPanel?.update(results, hasTransaction);
+                 ResultsPanel.currentPanel?.update(results, hasTransaction, contextTitle);
             } else {
-                 ResultsPanel.currentPanel?.showSuccess('Query executed successfully. No rows returned.', hasTransaction);
+                 ResultsPanel.currentPanel?.showSuccess('Query executed successfully. No rows returned.', hasTransaction, contextTitle);
             }
             
         } catch (err: any) {
