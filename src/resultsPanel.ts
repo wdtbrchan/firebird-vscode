@@ -13,6 +13,7 @@ export class ResultsPanel {
     private _currentOffset: number = 0;
     private _limit: number = 1000;
     private _currentContext: string | undefined;
+    private _currentAutoRollbackAt: number | undefined;
 
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
@@ -204,13 +205,12 @@ export class ResultsPanel {
          this._panel.webview.html = this._getHtmlForWebview(results, message, showButtons, isError, context, false);
     }
 
-    public setTransactionStatus(hasTransaction: boolean) {
-        if (this._isLoading) return;
-        // Re-render, preserving hasMore state? 
-        // We don't store hasMore in state variable yet. Let's add it?
-        // Or just re-render with false for hasMore if we don't know?
-        // Better: store _hasMore state.
+    public setTransactionStatus(hasTransaction: boolean, autoRollbackAt?: number) {
         this._showButtons = hasTransaction;
+        this._currentAutoRollbackAt = autoRollbackAt;
+        
+        if (this._isLoading) return;
+        
         this._panel.webview.html = this._getHtmlForWebview(this._lastResults, this._lastMessage, hasTransaction, this._lastIsError, this._lastContext, this._hasMore);
     }
 
@@ -227,14 +227,60 @@ export class ResultsPanel {
                 if(btn) btn.innerText = 'Loading...';
                 vscode.postMessage({ command: 'loadMore' }); 
             }
+            
+            let rollbackDeadline = ${this._currentAutoRollbackAt || 0};
+            
+            function updateTimer() {
+                const span = document.getElementById('rollbackTimer');
+                if (!rollbackDeadline || !span) return;
+                
+                const now = Date.now();
+                const remaining = Math.ceil((rollbackDeadline - now) / 1000);
+                
+                if (remaining > 0) {
+                    span.innerText = 'Auto-rollback: ' + remaining + 's';
+                } else {
+                    span.innerText = '';
+                }
+            }
+
+            if (rollbackDeadline > 0) {
+               const startTimer = () => {
+                    updateTimer(); // Initial update
+                    setInterval(updateTimer, 1000);
+               };
+
+               if (document.readyState === 'loading') {
+                   document.addEventListener('DOMContentLoaded', startTimer);
+               } else {
+                   startTimer();
+               }
+            }
+
+            function updateTimer() {
+                const span = document.getElementById('rollbackTimer');
+                if (!rollbackDeadline || !span) return;
+                
+                const now = Date.now();
+                const remaining = Math.ceil((rollbackDeadline - now) / 1000);
+                
+                if (remaining >= 0) {
+                     // ⏱️ or ⏳
+                    span.innerText = '⏱️ ' + remaining + 's';
+                    span.style.display = 'inline-block';
+                } else {
+                    span.innerText = '';
+                    span.style.display = 'none';
+                }
+            }
         `;
         
         // ... (styles same) ...
-
         const buttonsHtml = showButtons ? `
             <div class="actions">
                 <button class="btn success" onclick="commit()">Commit</button>
                 <button class="btn danger" onclick="rollback()">Rollback</button>
+                <span id="rollbackTimer" style="margin-left: 10px; color: #888; display: inline-block; min-width: 60px; font-family: monospace; font-weight: bold;"></span>
             </div>
         ` : '';
 
@@ -242,7 +288,7 @@ export class ResultsPanel {
             body { font-family: sans-serif; padding: 5px; font-size: 13px; }
             h3 { margin: 0; font-size: 1.1em; flex-grow: 1; }
             .header { display: flex; align-items: center; margin-bottom: 5px; justify-content: space-between; }
-            .actions { display: flex; gap: 10px; }
+            .actions { display: flex; gap: 10px; flex-shrink: 0; align-items: center; }
             .btn { border: none; padding: 5px 10px; color: white; cursor: pointer; border-radius: 3px; font-size: 12px; }
             .btn.success { background-color: #28a745; }
             .btn.success:hover { background-color: #218838; }

@@ -9,12 +9,6 @@ export function activate(context: vscode.ExtensionContext) {
     // Initialize context
     vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', false);
 
-    // Listen for transaction state changes
-    Database.onTransactionChange((hasTransaction) => {
-        vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', hasTransaction);
-        ResultsPanel.currentPanel?.setTransactionStatus(hasTransaction);
-    });
-
     try {
         const databaseTreeDataProvider = new DatabaseTreeDataProvider(context);
         const dragAndDropController = new DatabaseDragAndDropController(databaseTreeDataProvider);
@@ -28,16 +22,63 @@ export function activate(context: vscode.ExtensionContext) {
         const myStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         myStatusBarItem.command = 'firebird.databases.focus';
         context.subscriptions.push(myStatusBarItem);
-
         const updateStatusBar = () => {
             const details = databaseTreeDataProvider.getActiveConnectionDetails();
+            let text = '';
+            
             if (details) {
-                myStatusBarItem.text = `$(database) ${details.group} / ${details.name}`;
+                text = `$(database) ${details.group} / ${details.name}`;
+            }
+
+            if (activeAutoRollbackAt) {
+                 const now = Date.now();
+                 const remaining = Math.ceil((activeAutoRollbackAt - now) / 1000);
+                 if (remaining > 0) {
+                     text += ` $(watch) ${remaining}s`;
+                 } else {
+                     activeAutoRollbackAt = undefined; // Stop showing if passed
+                 }
+            }
+
+            if (text) {
+                myStatusBarItem.text = text;
                 myStatusBarItem.show();
             } else {
                 myStatusBarItem.hide();
             }
         };
+
+        // Timer for updating status bar every second if needed
+        let statusBarTimer: NodeJS.Timeout | undefined;
+        const startStatusBarTimer = () => {
+             if (statusBarTimer) clearInterval(statusBarTimer);
+             statusBarTimer = setInterval(() => {
+                 if (activeAutoRollbackAt) {
+                     updateStatusBar();
+                 } else {
+                     if (statusBarTimer) {
+                         clearInterval(statusBarTimer);
+                         statusBarTimer = undefined;
+                         updateStatusBar(); // One last update to clear timer
+                     }
+                 }
+             }, 1000);
+        };
+
+        // Listen for transaction state changes
+        let activeAutoRollbackAt: number | undefined;
+        Database.onTransactionChange((hasTransaction, autoRollbackAt) => {
+            vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', hasTransaction);
+            ResultsPanel.currentPanel?.setTransactionStatus(hasTransaction, autoRollbackAt);
+            
+            if (hasTransaction && autoRollbackAt) {
+                activeAutoRollbackAt = autoRollbackAt;
+                startStatusBarTimer();
+            } else {
+                activeAutoRollbackAt = undefined; // Will be cleared on next tick or immediately if we call update
+                updateStatusBar();
+            }
+        });
 
         // Listen for changes
         databaseTreeDataProvider.onDidChangeTreeData(() => updateStatusBar());

@@ -11,17 +11,18 @@ export class Database {
     private static db: Firebird.Database | undefined;
     private static transaction: Firebird.Transaction | undefined;
     private static autoRollbackTimer: NodeJS.Timeout | undefined;
+    private static autoRollbackDeadline: number | undefined;
     private static currentOptions: Firebird.Options | undefined;
 
-    private static onStateChangeHandlers: ((hasTransaction: boolean) => void)[] = [];
+    private static onStateChangeHandlers: ((hasTransaction: boolean, autoRollbackAt?: number) => void)[] = [];
 
-    public static onTransactionChange(handler: (hasTransaction: boolean) => void) {
+    public static onTransactionChange(handler: (hasTransaction: boolean, autoRollbackAt?: number) => void) {
         this.onStateChangeHandlers.push(handler);
     }
 
     private static notifyStateChange() {
         const isActive = this.hasActiveTransaction;
-        this.onStateChangeHandlers.forEach(h => h(isActive));
+        this.onStateChangeHandlers.forEach(h => h(isActive, this.autoRollbackDeadline));
     }
 
     public static async executeQuery(query: string, connection?: { host: string, port: number, database: string, user: string, password?: string, role?: string, charset?: string }, queryOptions?: QueryOptions): Promise<any[]> {
@@ -65,7 +66,7 @@ export class Database {
 
         return new Promise((resolve, reject) => {
             const runQuery = (tr: Firebird.Transaction) => {
-                 // Encode the query string to the target charset, then to 'binary' string
+                // Encode the query string to the target charset, then to 'binary' string
                 // so the driver (patched to use 'binary') sends the correct bytes.
                 let queryBuffer: Buffer;
                 if (iconv.encodingExists(encodingConf)) {
@@ -134,6 +135,9 @@ export class Database {
                          }
                     }
                     
+                    if (!Array.isArray(result)) {
+                        result = [];
+                    }
                     resolve(result);
                 });
             };
@@ -211,16 +215,39 @@ export class Database {
             this.db = undefined;
             this.currentOptions = undefined;
         }
+        this.autoRollbackDeadline = undefined;
     }
 
     private static resetAutoRollback() {
         if (this.autoRollbackTimer) {
             clearTimeout(this.autoRollbackTimer);
         }
+        
+        const config = vscode.workspace.getConfiguration('firebird');
+        let timeoutSeconds = config.get<number>('autoRollbackTimeout', 60);
+        // Validating timeoutSeconds to ensure it is a valid positive number
+        if (!timeoutSeconds || typeof timeoutSeconds !== 'number' || isNaN(timeoutSeconds)) {
+             timeoutSeconds = 60;
+        }
+
+        if (timeoutSeconds <= 0) {
+            this.autoRollbackDeadline = undefined;
+            if (this.transaction) {
+                 this.notifyStateChange();
+            }
+            return;
+        }
+
+        this.autoRollbackDeadline = Date.now() + (timeoutSeconds * 1000);
+
         this.autoRollbackTimer = setTimeout(() => {
             vscode.window.showInformationMessage('Firebird transaction auto-rollback due to inactivity.');
             this.rollback();
-        }, 60000); // 60s
+        }, timeoutSeconds * 1000);
+
+        if (this.transaction) {
+            this.notifyStateChange();
+        }
     }
 
     public static detach() {
