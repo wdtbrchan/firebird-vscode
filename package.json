@@ -3,7 +3,7 @@
   "displayName": "Firebird SQL",
   "publisher": "wdtbrchan",
   "description": "Firebird database management extension for VS Code",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -91,7 +91,7 @@
       {
         "command": "firebird.selectDatabase",
         "title": "Select Database",
-        "icon": "$(check)"
+        "icon": "$(plug)"
       },
       {
         "command": "firebird.createGroup",

@@ -101,17 +101,23 @@ export class ConnectionEditor {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Firebird Connection</title>
+            <link href="${this._extensionUri}/node_modules/@vscode/codicons/dist/codicon.css" rel="stylesheet" />
+            <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" >
+            <!-- Fallback for icons if not using codicons directly from node_modules correctly -->
             <style>
                 body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); background-color: var(--vscode-editor-background); }
                 .form-group { margin-bottom: 15px; }
                 label { display: block; margin-bottom: 5px; font-weight: bold; }
                 input, select { width: 100%; padding: 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); }
-                .actions { margin-top: 20px; display: flex; gap: 10px; }
+                .actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
                 button { padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; }
                 button:hover { background: var(--vscode-button-hoverBackground); }
                 button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
-                button.danger { background: #dc3545; color: white; margin-left: auto; }
-                button.danger:hover { background: #c82333; }
+                button.save { background: var(--vscode-charts-green); color: white; }
+                button.save:hover { opacity: 0.9; }
+                button.danger { background: var(--vscode-charts-red); color: white; display: flex; align-items: center; gap: 5px; margin-right: auto; }
+                button.danger:hover { opacity: 0.9; }
+                .spacer { flex-grow: 1; }
             </style>
         </head>
         <body>
@@ -157,9 +163,13 @@ export class ConnectionEditor {
             </div>
 
             <div class="actions">
-                <button onclick="save()">Save</button>
+                ${isEdit ? `
+                <button class="danger" onclick="deleteConnection()">
+                    <span class="codicon codicon-trash"></span> Delete
+                </button>` : ''}
+                ${!isEdit ? '<div class="spacer"></div>' : ''} 
                 <button class="secondary" onclick="cancel()">Cancel</button>
-                ${isEdit ? '<button class="danger" onclick="deleteConnection()">Delete</button>' : ''}
+                <button class="save" onclick="save()">Save</button>
             </div>
 
             <script>

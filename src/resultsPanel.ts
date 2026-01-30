@@ -14,6 +14,7 @@ export class ResultsPanel {
     private _limit: number = 1000;
     private _currentContext: string | undefined;
     private _currentAutoRollbackAt: number | undefined;
+    private _lastExecutionTime: number | undefined;
 
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
@@ -125,10 +126,15 @@ export class ResultsPanel {
                 this.showLoading();
             }
 
+            const start = performance.now();
             const results = await Database.executeQuery(this._currentQuery, this._currentConnection, {
                 limit: this._limit,
                 offset: this._currentOffset
             });
+            const end = performance.now();
+            if (!append) {
+                this._lastExecutionTime = (end - start) / 1000;
+            }
             const hasTransaction = Database.hasActiveTransaction;
 
             const activeDetails = this._currentConnection; 
@@ -218,6 +224,20 @@ export class ResultsPanel {
 
     private _getHtmlForWebview(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string, hasMore: boolean = false) {
         this._hasMore = hasMore;
+        const countText = results ? `${results.length} rows` : '0 rows';
+        const rowsText = hasMore ? `First ${countText}` : countText;
+        const timeText = this._lastExecutionTime !== undefined ? `${this._lastExecutionTime.toFixed(3)}s` : '';
+        const contextText = context || 'Unknown Database';
+        
+        const subtitleParts = [];
+        if (!isError && !message) {
+            subtitleParts.push(rowsText);
+        }
+        if (contextText) subtitleParts.push(contextText);
+        if (timeText && !isError) subtitleParts.push(timeText);
+
+        const subtitle = subtitleParts.join(' • ');
+
         const script = `
             const vscode = acquireVsCodeApi();
             function commit() { vscode.postMessage({ command: 'commit' }); }
@@ -286,9 +306,11 @@ export class ResultsPanel {
 
         const style = `
             body { font-family: sans-serif; padding: 5px; font-size: 13px; }
-            h3 { margin: 0; font-size: 1.1em; flex-grow: 1; }
-            .header { display: flex; align-items: center; margin-bottom: 5px; justify-content: space-between; }
-            .actions { display: flex; gap: 10px; flex-shrink: 0; align-items: center; }
+            h3 { margin: 0; font-size: 1.1em; }
+            .subtitle { font-size: 0.85em; color: #888; margin-top: 2px; }
+            .header-content { display: flex; flex-direction: column; flex-grow: 1; }
+            .header { display: flex; align-items: start; margin-bottom: 5px; justify-content: space-between; }
+            .actions { display: flex; gap: 10px; flex-shrink: 0; align-items: center; margin-top: 0; }
             .btn { border: none; padding: 5px 10px; color: white; cursor: pointer; border-radius: 3px; font-size: 12px; }
             .btn.success { background-color: #28a745; }
             .btn.success:hover { background-color: #218838; }
@@ -315,8 +337,9 @@ export class ResultsPanel {
 
         const header = `
             <div class="header">
-                <div>
-                    <h3>${isError ? 'Error' : (message ? 'Result' : (hasMore ? `Query Results (first ${results.length} rows)` : `Query Results (${results.length} rows)`))}${context ? ` - ${context}` : ''}</h3>
+                <div class="header-content">
+                    <h3>${isError ? 'Error' : (message ? 'Result' : 'Query Results')}</h3>
+                    ${!isError && subtitle ? `<div class="subtitle">${subtitle}</div>` : ''}
                 </div>
                 ${buttonsHtml}
             </div>

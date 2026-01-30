@@ -68,7 +68,11 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
 
             if (element.id === this.activeConnectionId) {
                 treeItem.iconPath = new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.green'));
-                treeItem.description = `(Active) ${treeItem.description}`;
+                // Make label bold by highlighting it
+                treeItem.label = {
+                    label: label,
+                    highlights: [[0, label.length]]
+                };
                 treeItem.contextValue = 'database-active';
             } else {
                  treeItem.iconPath = new vscode.ThemeIcon('database');
@@ -77,7 +81,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             return treeItem;
         } else {
             // It's a group
-            const treeItem = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.Collapsed);
+            const treeItem = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.Expanded);
             treeItem.id = element.id;
             treeItem.contextValue = 'group';
             treeItem.iconPath = new vscode.ThemeIcon('folder');
