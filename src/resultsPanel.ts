@@ -249,9 +249,12 @@ export class ResultsPanel {
             tr:nth-child(even) { background-color: #f9f9f9; }
             .success-message { color: #0c5460; font-weight: bold; padding: 10px; background-color: #d1ecf1; border: 1px solid #bee5eb; border-radius: 3px; }
             .error-message { color: #d32f2f; font-weight: bold; padding: 10px; background-color: #ffebee; border: 1px solid #ffcdd2; border-radius: 3px; }
+            .row-index { background-color: #e0e0e0; color: #555; text-align: right; width: 30px; user-select: none; border-right: 2px solid #ccc; }
             // VS Code theme colors support
             body.vscode-light th { background-color: #e3e3e3; }
+            body.vscode-light .row-index { background-color: #eaeaea; color: #666; }
             body.vscode-dark th { background-color: #252526; color: #ccc; }
+            body.vscode-dark .row-index { background-color: #2d2d2d; color: #888; border-right-color: #3e3e3e; }
             body.vscode-dark td { border-color: #3e3e3e; color: #cccccc; }
             body.vscode-dark tr:nth-child(even) { background-color: #2a2a2a; }
             body.vscode-dark tr:hover { background-color: #2a2d2e; }
@@ -302,10 +305,10 @@ export class ResultsPanel {
 
         // Generate table headers
         const columns = Object.keys(results[0]);
-        const headerRow = columns.map(col => `<th>${col}</th>`).join('');
+        const headerRow = '<th></th>' + columns.map(col => `<th>${col}</th>`).join('');
 
         // Generate rows
-        const rows = results.map(row => {
+        const rows = results.map((row, index) => {
             const cells = columns.map(col => {
                 let val = row[col];
                 if (val instanceof Uint8Array) {
@@ -315,7 +318,7 @@ export class ResultsPanel {
                 }
                 return `<td>${val}</td>`;
             }).join('');
-            return `<tr>${cells}</tr>`;
+            return `<tr><td class="row-index">${index + 1}</td>${cells}</tr>`;
         }).join('');
 
         return `<!DOCTYPE html>
