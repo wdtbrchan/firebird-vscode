@@ -115,7 +115,11 @@ export class ResultsPanel {
 
     private async _loadMore() {
         this._currentOffset += this._limit;
-        await this._fetchAndDisplay(true);
+        try {
+            await this._fetchAndDisplay(true);
+        } catch (e) {
+            console.error('Load more failed', e);
+        }
     }
 
     private async _fetchAndDisplay(append: boolean = false) {
@@ -168,6 +172,7 @@ export class ResultsPanel {
         } catch (err: any) {
             const hasTransaction = Database.hasActiveTransaction;
             this.showError(err.message, hasTransaction);
+            throw err;
         }
     }
 
