@@ -20,3 +20,5 @@ Firebird database management extension for VS Code.
 3. **Open SQL File**: Open a file with the `.sql` extension.
 4. **Run Query**: Write your SQL query and press `CTRL+Enter` (or `CMD+Enter` on macOs).
 5. **View Results**: The results will be displayed in a separate panel.
+
+![Screenshot](docs/screen.png)
