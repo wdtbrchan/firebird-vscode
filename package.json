@@ -21,41 +21,6 @@
     "configuration": {
       "title": "Firebird",
       "properties": {
-        "firebird.host": {
-          "type": "string",
-          "default": "127.0.0.1",
-          "description": "Firebird Server Host"
-        },
-        "firebird.port": {
-          "type": "integer",
-          "default": 3050,
-          "description": "Firebird Server Port"
-        },
-        "firebird.database": {
-          "type": "string",
-          "default": "",
-          "description": "Absolute path to Firebird database file (.fdb)"
-        },
-        "firebird.user": {
-          "type": "string",
-          "default": "SYSDBA",
-          "description": "Firebird Username"
-        },
-        "firebird.password": {
-          "type": "string",
-          "default": "masterkey",
-          "description": "Firebird Password"
-        },
-        "firebird.role": {
-          "type": "string",
-          "default": "",
-          "description": "Firebird Role (optional)"
-        },
-        "firebird.charset": {
-          "type": "string",
-          "default": "UTF8",
-          "description": "Firebird Charset (e.g. UTF8, WIN1250, NONE)"
-        },
         "firebird.maxRows": {
           "type": "integer",
           "default": 1000,
