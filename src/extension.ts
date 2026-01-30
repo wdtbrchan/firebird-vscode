@@ -169,7 +169,7 @@ export function activate(context: vscode.ExtensionContext) {
             
             // Delegate query execution to the panel, which handles pagination
             if (ResultsPanel.currentPanel) {
-                await ResultsPanel.currentPanel.runNewQuery(query, activeConn);
+                await ResultsPanel.currentPanel.runNewQuery(query, activeConn, contextTitle);
             }
 
             // Restore focus to the editor so the user can continue typing

@@ -12,6 +12,7 @@ export class ResultsPanel {
     private _currentConnection: any | undefined;
     private _currentOffset: number = 0;
     private _limit: number = 1000;
+    private _currentContext: string | undefined;
 
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
@@ -99,9 +100,10 @@ export class ResultsPanel {
         this._updateContent([], message, hasTransaction, true, context);
     }
 
-    public async runNewQuery(query: string, connection: any) {
+    public async runNewQuery(query: string, connection: any, context?: string) {
         this._currentQuery = query;
         this._currentConnection = connection;
+        this._currentContext = context;
         this._currentOffset = 0;
         this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
         this._lastResults = [];
@@ -170,7 +172,10 @@ export class ResultsPanel {
          this._lastMessage = undefined;
          this._showButtons = hasTransaction;
          this._lastIsError = false;
+         this._lastIsError = false;
+         // Use the passed context or the stored context context
          if (context) this._lastContext = context;
+         else this._lastContext = this._currentContext;
         
          this._panel.webview.html = this._getHtmlForWebview(results, undefined, hasTransaction, false, this._lastContext, hasMore);
     }
@@ -265,8 +270,7 @@ export class ResultsPanel {
         const header = `
             <div class="header">
                 <div>
-                    <h3>${isError ? 'Error' : (message ? 'Result' : (hasMore ? `Query Results (first ${results.length} rows)` : `Query Results (${results.length} rows)`))}</h3>
-                    ${context ? `<div style="font-size: 0.8em; color: #666;">${context}</div>` : ''}
+                    <h3>${isError ? 'Error' : (message ? 'Result' : (hasMore ? `Query Results (first ${results.length} rows)` : `Query Results (${results.length} rows)`))}${context ? ` - ${context}` : ''}</h3>
                 </div>
                 ${buttonsHtml}
             </div>
