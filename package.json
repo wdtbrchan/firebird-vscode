@@ -55,6 +55,11 @@
           "type": "string",
           "default": "UTF8",
           "description": "Firebird Charset (e.g. UTF8, WIN1250, NONE)"
+        },
+        "firebird.maxRows": {
+          "type": "integer",
+          "default": 1000,
+          "description": "Maximum number of rows to fetch per page in query results."
         }
       }
     },

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { Database } from './db';
 
 export class ResultsPanel {
     public static currentPanel: ResultsPanel | undefined;
@@ -7,6 +8,11 @@ export class ResultsPanel {
     private _lastResults: any[] = [];
     private _lastMessage: string | undefined;
     private _showButtons: boolean = false;
+    private _currentQuery: string | undefined;
+    private _currentConnection: any | undefined;
+    private _currentOffset: number = 0;
+    private _limit: number = 1000;
+
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
         this._panel = panel;
@@ -21,6 +27,9 @@ export class ResultsPanel {
                         return;
                     case 'rollback':
                         vscode.commands.executeCommand('firebird.rollback');
+                        return;
+                    case 'loadMore':
+                        this._loadMore();
                         return;
                 }
             },
@@ -61,14 +70,23 @@ export class ResultsPanel {
         <head>
             <meta charset="UTF-8">
             <style>
-                body { font-family: sans-serif; padding: 20px; display: flex; align-items: center; justify-content: center; height: 100vh; color: #888; }
-                .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-right: 10px; }
+                body { font-family: sans-serif; padding: 20px; display: flex; align-items: center; justify-content: center; height: 100vh; color: #888; flex-direction: column; }
+                .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 15px; }
                 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                .timer { font-size: 0.9em; margin-top: 5px; color: #aaa; }
             </style>
+            <script>
+                const startTime = Date.now();
+                setInterval(() => {
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    document.getElementById('timer').innerText = elapsed.toFixed(1) + 's';
+                }, 100);
+            </script>
         </head>
         <body>
             <div class="loader"></div>
             <div>Executing query...</div>
+            <div id="timer" class="timer">0.0s</div>
         </body>
         </html>`;
     }
@@ -81,39 +99,132 @@ export class ResultsPanel {
         this._updateContent([], message, hasTransaction, true, context);
     }
 
+    public async runNewQuery(query: string, connection: any) {
+        this._currentQuery = query;
+        this._currentConnection = connection;
+        this._currentOffset = 0;
+        this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
+        this._lastResults = [];
+        
+        await this._fetchAndDisplay();
+    }
+
+    private async _loadMore() {
+        this._currentOffset += this._limit;
+        await this._fetchAndDisplay(true);
+    }
+
+    private async _fetchAndDisplay(append: boolean = false) {
+        if (!this._currentQuery) return;
+
+        try {
+            if (!append) {
+                this.showLoading();
+            }
+
+            const results = await Database.executeQuery(this._currentQuery, this._currentConnection, {
+                limit: this._limit,
+                offset: this._currentOffset
+            });
+            const hasTransaction = Database.hasActiveTransaction;
+
+            const activeDetails = this._currentConnection; 
+             // Note: Connection details passed might be raw options or the object from tree. 
+             // Ideally we pass context string or reconstruct it.
+             // For now let's assume calling code handled context title, but here we need to update it mostly for successful APPENDs or REFRESHES.
+             // But actually runQuery command sets context initially.
+            
+            // Heuristic for context title if missing? 
+            // We'll rely on update() being called with accumulated results?
+            // No, we need to accumulate results here if appending.
+
+            if (append) {
+                this._lastResults = [...this._lastResults, ...results];
+            } else {
+                this._lastResults = results;
+            }
+            
+            // Check if we probably have more rows
+            // If we got exactly 'limit' rows, there's a good chance there are more.
+            // If we got less, we are done.
+            // If we got 0, we are done.
+            const hasMore = results.length === this._limit;
+
+            if (this._lastResults.length > 0) {
+                 this._updateContentForTable(this._lastResults, hasTransaction, undefined, hasMore);
+            } else {
+                 this.showSuccess('Query executed successfully. No rows returned.', hasTransaction);
+            }
+
+        } catch (err: any) {
+            const hasTransaction = Database.hasActiveTransaction;
+            this.showError(err.message, hasTransaction);
+        }
+    }
+
+    private _updateContentForTable(results: any[], hasTransaction: boolean, context?: string, hasMore: boolean = false) {
+         this._isLoading = false;
+         // this._lastResults is already updated in _fetchAndDisplay if that was called.
+         // If called from outside (just update()), we trust results passed.
+         this._lastResults = results;
+         this._lastMessage = undefined;
+         this._showButtons = hasTransaction;
+         this._lastIsError = false;
+         if (context) this._lastContext = context;
+        
+         this._panel.webview.html = this._getHtmlForWebview(results, undefined, hasTransaction, false, this._lastContext, hasMore);
+    }
+
+
     public update(results: any[], hasTransaction: boolean, context?: string) {
-        this._updateContent(results, undefined, hasTransaction, false, context);
+        // Legacy update method, or for simple internal updates. 
+        // We assume no pagination if this is called directly? 
+        // Or we just show what we are given.
+        this._updateContentForTable(results, hasTransaction, context, false);
     }
 
     private _lastIsError: boolean = false;
     private _isLoading: boolean = false;
     private _lastContext: string | undefined;
 
+    // Modified signature to generic _updateContent not really valid anymore with new logic, removing it or adapting.
+    // Let's keep a generic internal setter for message based updates.
     private _updateContent(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string) {
-        this._isLoading = false;
-        this._lastResults = results;
-        this._lastMessage = message;
-        this._showButtons = showButtons;
-        this._lastIsError = isError;
-        this._lastContext = context;
-        this._panel.webview.html = this._getHtmlForWebview(results, message, showButtons, isError, context);
+         this._isLoading = false;
+         this._lastResults = results;
+         this._lastMessage = message;
+         this._showButtons = showButtons;
+         this._lastIsError = isError;
+         this._lastContext = context;
+         this._panel.webview.html = this._getHtmlForWebview(results, message, showButtons, isError, context, false);
     }
 
     public setTransactionStatus(hasTransaction: boolean) {
-        // If loading, don't interrupt the spinner with old content
-        if (this._isLoading) {
-            return;
-        }
-        // Re-render with new status, preserving content
-        this._updateContent(this._lastResults, this._lastMessage, hasTransaction, this._lastIsError, this._lastContext);
+        if (this._isLoading) return;
+        // Re-render, preserving hasMore state? 
+        // We don't store hasMore in state variable yet. Let's add it?
+        // Or just re-render with false for hasMore if we don't know?
+        // Better: store _hasMore state.
+        this._showButtons = hasTransaction;
+        this._panel.webview.html = this._getHtmlForWebview(this._lastResults, this._lastMessage, hasTransaction, this._lastIsError, this._lastContext, this._hasMore);
     }
 
-    private _getHtmlForWebview(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string) {
+    private _hasMore: boolean = false;
+
+    private _getHtmlForWebview(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string, hasMore: boolean = false) {
+        this._hasMore = hasMore;
         const script = `
             const vscode = acquireVsCodeApi();
             function commit() { vscode.postMessage({ command: 'commit' }); }
             function rollback() { vscode.postMessage({ command: 'rollback' }); }
+            function loadMore() { 
+                const btn = document.getElementById('loadMoreBtn');
+                if(btn) btn.innerText = 'Loading...';
+                vscode.postMessage({ command: 'loadMore' }); 
+            }
         `;
+        
+        // ... (styles same) ...
 
         const buttonsHtml = showButtons ? `
             <div class="actions">
@@ -151,7 +262,7 @@ export class ResultsPanel {
         const header = `
             <div class="header">
                 <div>
-                    <h3>${isError ? 'Error' : (message ? 'Result' : `Query Results (${results.length} rows)`)}</h3>
+                    <h3>${isError ? 'Error' : (message ? 'Result' : (hasMore ? `Query Results (first ${results.length} rows)` : `Query Results (${results.length} rows)`))}</h3>
                     ${context ? `<div style="font-size: 0.8em; color: #666;">${context}</div>` : ''}
                 </div>
                 ${buttonsHtml}
@@ -224,6 +335,7 @@ export class ResultsPanel {
                     ${rows}
                 </tbody>
             </table>
+            ${hasMore ? `<div style="text-align: center; margin-top: 10px;"><button id="loadMoreBtn" class="btn success" style="background-color: #007acc; width: 100%; padding: 10px;" onclick="loadMore()">Load More Results</button></div>` : ''}
         </body>
         </html>`;
     }

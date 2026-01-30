@@ -166,16 +166,10 @@ export function activate(context: vscode.ExtensionContext) {
             
             // Show loading state immediately
             ResultsPanel.createOrShow(context.extensionUri);
-            ResultsPanel.currentPanel?.showLoading();
-
-            const results = await Database.executeQuery(query, activeConn);
-            const hasTransaction = Database.hasActiveTransaction;
             
-            // Show results or success message in WebviewPanel
-            if (Array.isArray(results) && results.length > 0) {
-                 ResultsPanel.currentPanel?.update(results, hasTransaction, contextTitle);
-            } else {
-                 ResultsPanel.currentPanel?.showSuccess('Query executed successfully. No rows returned.', hasTransaction, contextTitle);
+            // Delegate query execution to the panel, which handles pagination
+            if (ResultsPanel.currentPanel) {
+                await ResultsPanel.currentPanel.runNewQuery(query, activeConn);
             }
 
             // Restore focus to the editor so the user can continue typing

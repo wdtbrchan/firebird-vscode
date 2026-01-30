@@ -2,6 +2,11 @@ import * as vscode from 'vscode';
 import * as Firebird from 'node-firebird';
 import * as iconv from 'iconv-lite';
 
+export interface QueryOptions {
+    limit?: number;
+    offset?: number;
+}
+
 export class Database {
     private static db: Firebird.Database | undefined;
     private static transaction: Firebird.Transaction | undefined;
@@ -19,8 +24,17 @@ export class Database {
         this.onStateChangeHandlers.forEach(h => h(isActive));
     }
 
-    public static async executeQuery(query: string, connection?: { host: string, port: number, database: string, user: string, password?: string, role?: string, charset?: string }): Promise<any[]> {
+    public static async executeQuery(query: string, connection?: { host: string, port: number, database: string, user: string, password?: string, role?: string, charset?: string }, queryOptions?: QueryOptions): Promise<any[]> {
         const config = vscode.workspace.getConfiguration('firebird');
+        
+        let finalQuery = query;
+        if (queryOptions && queryOptions.limit && query.trim().toLowerCase().startsWith('select')) {
+            const start = (queryOptions.offset || 0) + 1;
+            const end = (queryOptions.offset || 0) + queryOptions.limit;
+            // Remove trailing semicolon if present to wrap correctly
+            const cleanQuery = query.trim().replace(/;$/, '');
+            finalQuery = `SELECT * FROM (${cleanQuery}) ROWS ${start} TO ${end}`;
+        }
         
         const encodingConf = connection?.charset || config.get<string>('charset', 'UTF8');
         const options: Firebird.Options = {
@@ -55,9 +69,9 @@ export class Database {
                 // so the driver (patched to use 'binary') sends the correct bytes.
                 let queryBuffer: Buffer;
                 if (iconv.encodingExists(encodingConf)) {
-                    queryBuffer = iconv.encode(query, encodingConf);
+                    queryBuffer = iconv.encode(finalQuery, encodingConf);
                 } else {
-                     queryBuffer = Buffer.from(query, 'utf8'); // Fallback
+                     queryBuffer = Buffer.from(finalQuery, 'utf8'); // Fallback
                 }
                 const queryString = queryBuffer.toString('binary');;
 
