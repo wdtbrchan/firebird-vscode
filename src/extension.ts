@@ -67,9 +67,9 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Listen for transaction state changes
         let activeAutoRollbackAt: number | undefined;
-        Database.onTransactionChange((hasTransaction, autoRollbackAt) => {
+        Database.onTransactionChange((hasTransaction, autoRollbackAt, lastAction) => {
             vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', hasTransaction);
-            ResultsPanel.currentPanel?.setTransactionStatus(hasTransaction, autoRollbackAt);
+            ResultsPanel.currentPanel?.setTransactionStatus(hasTransaction, autoRollbackAt, lastAction);
             
             if (hasTransaction && autoRollbackAt) {
                 activeAutoRollbackAt = autoRollbackAt;

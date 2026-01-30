@@ -15,6 +15,7 @@ export class ResultsPanel {
     private _currentContext: string | undefined;
     private _currentAutoRollbackAt: number | undefined;
     private _lastExecutionTime: number | undefined;
+    private _lastTransactionAction: string | undefined;
 
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
@@ -55,7 +56,7 @@ export class ResultsPanel {
 
         const panel = vscode.window.createWebviewPanel(
             'firebirdResults',
-            'Firebird Results',
+            'Query Results',
             column || vscode.ViewColumn.Two,
             {
                 enableScripts: true,
@@ -109,6 +110,7 @@ export class ResultsPanel {
         this._currentOffset = 0;
         this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
         this._lastResults = [];
+        this._lastTransactionAction = undefined;
         
         await this._fetchAndDisplay();
     }
@@ -182,6 +184,7 @@ export class ResultsPanel {
          // If called from outside (just update()), we trust results passed.
          this._lastResults = results;
          this._lastMessage = undefined;
+         this._lastTransactionAction = undefined; // Clear action on new results
          this._showButtons = hasTransaction;
          this._lastIsError = false;
          this._lastIsError = false;
@@ -216,18 +219,22 @@ export class ResultsPanel {
          this._panel.webview.html = this._getHtmlForWebview(results, message, showButtons, isError, context, false);
     }
 
-    public setTransactionStatus(hasTransaction: boolean, autoRollbackAt?: number) {
+    public setTransactionStatus(hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) {
         this._showButtons = hasTransaction;
         this._currentAutoRollbackAt = autoRollbackAt;
         
+        if (lastAction) {
+             this._lastTransactionAction = lastAction;
+        }
+
         if (this._isLoading) return;
         
-        this._panel.webview.html = this._getHtmlForWebview(this._lastResults, this._lastMessage, hasTransaction, this._lastIsError, this._lastContext, this._hasMore);
+        this._panel.webview.html = this._getHtmlForWebview(this._lastResults, this._lastMessage, hasTransaction, this._lastIsError, this._lastContext, this._hasMore, this._lastTransactionAction);
     }
 
     private _hasMore: boolean = false;
 
-    private _getHtmlForWebview(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string, hasMore: boolean = false) {
+    private _getHtmlForWebview(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string, hasMore: boolean = false, transactionAction?: string) {
         this._hasMore = hasMore;
         const countText = results ? `${results.length} rows` : '0 rows';
         const rowsText = hasMore ? `First ${countText}` : countText;
@@ -240,6 +247,7 @@ export class ResultsPanel {
         }
         if (contextText) subtitleParts.push(contextText);
         if (timeText && !isError) subtitleParts.push(timeText);
+        if (transactionAction) subtitleParts.push(transactionAction);
 
         const subtitle = subtitleParts.join(' • ');
 
@@ -310,27 +318,32 @@ export class ResultsPanel {
         ` : '';
 
         const style = `
-            body { font-family: sans-serif; padding: 5px; font-size: 13px; }
+            body { font-family: sans-serif; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; height: 100vh; }
             h3 { margin: 0; font-size: 1.1em; }
             .subtitle { font-size: 0.85em; color: #888; margin-top: 2px; }
-            .header-content { display: flex; flex-direction: column; flex-grow: 1; }
-            .header { display: flex; align-items: start; margin-bottom: 5px; justify-content: space-between; }
-            .actions { display: flex; gap: 10px; flex-shrink: 0; align-items: center; margin-top: 0; }
+            .header-container { padding: 10px; border-bottom: 1px solid #ccc; flex-shrink: 0; min-height: 40px; display: flex; align-items: center; justify-content: space-between; }
+            .header-content { display: flex; flex-direction: column; }
+            .actions { display: flex; gap: 10px; align-items: center; }
             .btn { border: none; padding: 5px 10px; color: white; cursor: pointer; border-radius: 3px; font-size: 12px; }
             .btn.success { background-color: #28a745; }
             .btn.success:hover { background-color: #218838; }
             .btn.danger { background-color: #dc3545; }
             .btn.danger:hover { background-color: #c82333; }
-            table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 5px; }
+            .content-area { flex-grow: 1; overflow: auto; padding: 5px; }
+            table { border-collapse: collapse; width: 100%; font-size: 12px; }
             th, td { border: 1px solid #ccc; padding: 2px 4px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
-            th { background-color: #f2f2f2; color: #333; font-weight: 600; }
+            th { background-color: #f2f2f2; color: #333; font-weight: 600; top: 0; position: sticky; z-index: 1; }
             tr:nth-child(even) { background-color: #f9f9f9; }
-            .success-message { color: #0c5460; font-weight: bold; padding: 10px; background-color: #d1ecf1; border: 1px solid #bee5eb; border-radius: 3px; }
-            .error-message { color: #d32f2f; font-weight: bold; padding: 10px; background-color: #ffebee; border: 1px solid #ffcdd2; border-radius: 3px; }
+            .success-message { color: #0c5460; font-weight: bold; padding: 10px; background-color: #d1ecf1; border: 1px solid #bee5eb; border-radius: 3px; margin: 10px; }
+            .error-message { color: #d32f2f; font-weight: bold; padding: 10px; background-color: #ffebee; border: 1px solid #ffcdd2; border-radius: 3px; margin: 10px; }
             .row-index { background-color: #e0e0e0; color: #555; text-align: right; width: 30px; user-select: none; border-right: 2px solid #ccc; }
+            
             // VS Code theme colors support
+            body.vscode-light .header-container { background-color: #f3f3f3; border-bottom-color: #e0e0e0; }
             body.vscode-light th { background-color: #e3e3e3; }
             body.vscode-light .row-index { background-color: #eaeaea; color: #666; }
+            
+            body.vscode-dark .header-container { background-color: #252526; border-bottom-color: #3e3e3e; }
             body.vscode-dark th { background-color: #252526; color: #ccc; }
             body.vscode-dark .row-index { background-color: #2d2d2d; color: #888; border-right-color: #3e3e3e; }
             body.vscode-dark td { border-color: #3e3e3e; color: #cccccc; }
@@ -341,9 +354,9 @@ export class ResultsPanel {
         `;
 
         const header = `
-            <div class="header">
+            <div class="header-container">
                 <div class="header-content">
-                    <h3>${isError ? 'Error' : (message ? 'Result' : 'Query Results')}</h3>
+                    ${isError || message ? `<h3>${isError ? 'Error' : message}</h3>` : ''} 
                     ${!isError && subtitle ? `<div class="subtitle">${subtitle}</div>` : ''}
                 </div>
                 ${buttonsHtml}
@@ -361,7 +374,9 @@ export class ResultsPanel {
             </head>
             <body>
                  ${header}
-                <div class="${messageClass}">${message}</div>
+                <div class="content-area">
+                    ${message && !isError ? '' : `<div class="${messageClass}">${message}</div>`}
+                </div>
             </body>
             </html>`;
         }
@@ -376,7 +391,9 @@ export class ResultsPanel {
             </head>
             <body>
                  ${header}
-                <p>No results found or empty result set.</p>
+                <div class="content-area">
+                    <p>No results found or empty result set.</p>
+                </div>
             </body>
             </html>`;
         }
@@ -408,15 +425,17 @@ export class ResultsPanel {
         </head>
         <body>
              ${header}
-            <table>
-                <thead>
-                    <tr>${headerRow}</tr>
-                </thead>
-                <tbody>
-                    ${rows}
-                </tbody>
-            </table>
-            ${hasMore ? `<div style="text-align: center; margin-top: 10px;"><button id="loadMoreBtn" class="btn success" style="background-color: #007acc; width: 100%; padding: 10px;" onclick="loadMore()">Load More Results</button></div>` : ''}
+            <div class="content-area">
+                <table>
+                    <thead>
+                        <tr>${headerRow}</tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+                ${hasMore ? `<div style="text-align: center; margin-top: 10px;"><button id="loadMoreBtn" class="btn success" style="background-color: #007acc; width: 100%; padding: 10px;" onclick="loadMore()">Load More Results</button></div>` : ''}
+            </div>
         </body>
         </html>`;
     }

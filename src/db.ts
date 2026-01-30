@@ -14,15 +14,15 @@ export class Database {
     private static autoRollbackDeadline: number | undefined;
     private static currentOptions: Firebird.Options | undefined;
 
-    private static onStateChangeHandlers: ((hasTransaction: boolean, autoRollbackAt?: number) => void)[] = [];
+    private static onStateChangeHandlers: ((hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) => void)[] = [];
 
-    public static onTransactionChange(handler: (hasTransaction: boolean, autoRollbackAt?: number) => void) {
+    public static onTransactionChange(handler: (hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) => void) {
         this.onStateChangeHandlers.push(handler);
     }
 
-    private static notifyStateChange() {
+    private static notifyStateChange(lastAction?: string) {
         const isActive = this.hasActiveTransaction;
-        this.onStateChangeHandlers.forEach(h => h(isActive, this.autoRollbackDeadline));
+        this.onStateChangeHandlers.forEach(h => h(isActive, this.autoRollbackDeadline, lastAction));
     }
 
     public static async executeQuery(query: string, connection?: { host: string, port: number, database: string, user: string, password?: string, role?: string, charset?: string }, queryOptions?: QueryOptions): Promise<any[]> {
@@ -175,7 +175,7 @@ export class Database {
             if (this.transaction) {
                 this.transaction.commit((err) => {
                     this.transaction = undefined;
-                    this.notifyStateChange(); // Notify end
+                    this.notifyStateChange('Transaction Committed'); // Notify end
                     this.cleanupConnection();
                     if (err) reject(err);
                     else resolve();
@@ -186,12 +186,12 @@ export class Database {
         });
     }
 
-    public static async rollback(): Promise<void> {
+    public static async rollback(reason: string = 'Transaction Rolled Back'): Promise<void> {
         return new Promise((resolve, reject) => {
             if (this.transaction) {
                 this.transaction.rollback((err) => {
                     this.transaction = undefined;
-                    this.notifyStateChange(); // Notify end
+                    this.notifyStateChange(reason); // Notify end
                     this.cleanupConnection();
                     if (err) reject(err);
                     else resolve();
@@ -242,7 +242,7 @@ export class Database {
 
         this.autoRollbackTimer = setTimeout(() => {
             vscode.window.showInformationMessage('Firebird transaction auto-rollback due to inactivity.');
-            this.rollback();
+            this.rollback('Auto-rollback');
         }, timeoutSeconds * 1000);
 
         if (this.transaction) {
