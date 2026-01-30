@@ -2,8 +2,8 @@
   "name": "firebird-vscode",
   "displayName": "Firebird SQL",
   "publisher": "wdtbrchan",
-  "description": "Firebird database management extension for VS Code",
-  "version": "0.1.3",
+  "description": "Firebird database management extension",
+  "version": "0.1.4",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
