@@ -298,9 +298,8 @@ export class ResultsPanel {
                 const remaining = Math.ceil((rollbackDeadline - now) / 1000);
                 
                 if (remaining >= 0) {
-                     // ⏱️ or ⏳
-                    span.innerText = '⏱️ ' + remaining + 's';
-                    span.style.display = 'inline-block';
+                    span.innerText = '(' + remaining + 's)';
+                    span.style.display = 'inline';
                 } else {
                     span.innerText = '';
                     span.style.display = 'none';
@@ -311,9 +310,8 @@ export class ResultsPanel {
         // ... (styles same) ...
         const buttonsHtml = showButtons ? `
             <div class="actions">
+                <button class="btn danger" style="width: 130px;" onclick="rollback()">Rollback <span id="rollbackTimer" style="margin-left: 2px; display: none;"></span></button>
                 <button class="btn success" onclick="commit()">Commit</button>
-                <button class="btn danger" onclick="rollback()">Rollback</button>
-                <span id="rollbackTimer" style="margin-left: 10px; color: #888; display: inline-block; min-width: 60px; font-family: monospace; font-weight: bold;"></span>
             </div>
         ` : '';
 

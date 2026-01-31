@@ -116,6 +116,12 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "firebird.databases",
+        "contents": "No firebird connections found.\n[Add Database](command:firebird.addDatabase)"
+      }
+    ],
     "menus": {
       "view/title": [
         {
@@ -131,12 +137,12 @@
       ],
       "editor/title": [
         {
-          "command": "firebird.commit",
+          "command": "firebird.rollback",
           "when": "editorLangId == sql && firebird.hasActiveTransaction",
           "group": "navigation"
         },
         {
-          "command": "firebird.rollback",
+          "command": "firebird.commit",
           "when": "editorLangId == sql && firebird.hasActiveTransaction",
           "group": "navigation"
         }

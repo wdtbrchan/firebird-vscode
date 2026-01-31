@@ -21,16 +21,23 @@ export interface ConnectionGroup {
     name: string;
 }
 
-export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup> {
-    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | undefined | void> = this._onDidChangeTreeData.event;
+export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | vscode.TreeItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | vscode.TreeItem | undefined | void>();
+    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
     private connections: DatabaseConnection[] = [];
     private groups: ConnectionGroup[] = [];
     private activeConnectionId: string | undefined;
+    private _loading: boolean = true;
 
     constructor(private context: vscode.ExtensionContext) {
         this.loadConnections();
+        // Simulate a short loading delay to ensure the UI renders the loading state
+        // and doesn't flash "No data" if dependent on async activation
+        setTimeout(() => {
+            this._loading = false;
+            this._onDidChangeTreeData.fire();
+        }, 500);
     }
 
     private loadConnections() {
@@ -53,7 +60,11 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this._onDidChangeTreeData.fire();
     }
 
-    getTreeItem(element: DatabaseConnection | ConnectionGroup): vscode.TreeItem {
+    getTreeItem(element: DatabaseConnection | ConnectionGroup | vscode.TreeItem): vscode.TreeItem {
+        if (element instanceof vscode.TreeItem) {
+            return element;
+        }
+
         if ('host' in element) {
             // It's a connection
             const isLocal = element.host === '127.0.0.1' || element.host === 'localhost';
@@ -62,7 +73,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             
             treeItem.description = `${element.host}:${element.port}`;
             treeItem.tooltip = `${element.user}@${element.host}:${element.port}/${element.database}`;
-            treeItem.id = element.id;
             treeItem.id = element.id;
             treeItem.contextValue = 'database'; // Default context
 
@@ -89,7 +99,13 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         }
     }
 
-    getChildren(element?: DatabaseConnection | ConnectionGroup): Thenable<(DatabaseConnection | ConnectionGroup)[]> {
+    getChildren(element?: DatabaseConnection | ConnectionGroup): Thenable<(DatabaseConnection | ConnectionGroup | vscode.TreeItem)[]> {
+        if (this._loading) {
+            const loadingItem = new vscode.TreeItem('Loading...');
+            loadingItem.iconPath = new vscode.ThemeIcon('loading~spin');
+            return Promise.resolve([loadingItem]);
+        }
+
         if (element) {
             if ('host' in element) {
                  return Promise.resolve([]); // Connections have no children
