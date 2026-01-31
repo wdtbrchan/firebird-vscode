@@ -118,6 +118,28 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this.saveConnections();
     }
 
+    async renameGroup(group?: ConnectionGroup) {
+        if (!group) {
+            const items = this.groups.map(g => ({ label: g.name, description: g.id }));
+            const selected = await vscode.window.showQuickPick(items, { placeHolder: 'Select group to rename' });
+            if (!selected) return;
+            group = this.groups.find(g => g.id === selected.description);
+            if (!group) return;
+        }
+
+        const name = await vscode.window.showInputBox({ 
+            prompt: 'New Group Name',
+            value: group.name 
+        });
+        if (!name || name === group.name) return;
+        
+        const targetGroup = this.groups.find(g => g.id === group!.id);
+        if (targetGroup) {
+            targetGroup.name = name;
+            this.saveConnections();
+        }
+    }
+
     async deleteGroup(group: ConnectionGroup) {
          // Move children to root? Or delete them? 
          // Safest: Move to root (ungroup)

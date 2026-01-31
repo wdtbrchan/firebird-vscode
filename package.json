@@ -69,6 +69,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "firebird.renameGroup",
+        "title": "Rename Group",
+        "icon": "$(edit)"
+      },
+      {
         "command": "firebird.commit",
         "title": "Commit Transaction",
         "icon": "$(check)",
@@ -154,6 +159,11 @@
         },
         {
           "command": "firebird.deleteGroup",
+          "when": "view == firebird.databases && viewItem == group",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.renameGroup",
           "when": "view == firebird.databases && viewItem == group",
           "group": "inline"
         }

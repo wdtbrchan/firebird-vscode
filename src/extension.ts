@@ -110,6 +110,10 @@ export function activate(context: vscode.ExtensionContext) {
         await databaseTreeDataProvider.createGroup();
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.renameGroup', async (group: any) => {
+        await databaseTreeDataProvider.renameGroup(group);
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('firebird.deleteGroup', async (group: any) => {
         await databaseTreeDataProvider.deleteGroup(group);
     }));
