@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.2]
+### Fixes
+- **Connection Status**:
+  - Fixed startup behavior to ensure all connections start as disconnected/inactive.
+  - Enabled "Connect" and "Edit" context menu actions for failed connections.
+
 ## [0.2.0]
 ### Features
 - **Databases Tree**:
