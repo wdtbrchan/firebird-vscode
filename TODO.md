@@ -11,3 +11,5 @@
 - [ ] Keyboard shortcut to close Query result
 - [ ] Ability to execute SQL queries in non-SQL files
 - [ ] Check functionality in Cursor editor (statusbar, icons in editor)
+- [ ] Different formats for dates, numbers, null values
+- [ ] Export results to CSV
