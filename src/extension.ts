@@ -3,8 +3,8 @@ import { Database } from './db';
 import { ResultsPanel } from './resultsPanel';
 import { DatabaseTreeDataProvider, DatabaseConnection, DatabaseDragAndDropController, ObjectItem, OperationItem } from './explorer/databaseTreeDataProvider';
 import { MetadataService } from './services/metadataService';
-import { ObjectViewer } from './services/objectViewer';
 import { ScriptParser } from './services/scriptParser';
+import { DDLProvider } from './services/ddlProvider';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Firebird extension activating...');
@@ -20,6 +20,10 @@ export function activate(context: vscode.ExtensionContext) {
             treeDataProvider: databaseTreeDataProvider,
             dragAndDropController: dragAndDropController
         });
+
+        // DDL Provider
+        const ddlProvider = new DDLProvider();
+        context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DDLProvider.scheme, ddlProvider));
 
         // Status Bar for Active Database
         const myStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -134,7 +138,11 @@ export function activate(context: vscode.ExtensionContext) {
                 default: ddl = `-- Unknown object type: ${type}`;
             }
 
-            ObjectViewer.display(ddl, `${name} (Read-only)`);
+            const uri = vscode.Uri.parse(`${DDLProvider.scheme}:///${name}.sql`);
+            ddlProvider.reportContent(uri, ddl);
+            
+            const doc = await vscode.workspace.openTextDocument(uri);
+            await vscode.window.showTextDocument(doc, { preview: true });
         } catch (err: any) {
              vscode.window.showErrorMessage(`Error opening object ${name}: ${err.message}`);
         }
