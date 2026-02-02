@@ -176,6 +176,11 @@
           "group": "inline"
         },
         {
+          "command": "firebird.selectDatabase",
+          "when": "view == firebird.databases && viewItem == database-error",
+          "group": "inline"
+        },
+        {
           "command": "firebird.disconnectDatabase",
           "when": "view == firebird.databases && viewItem == database-active",
           "group": "inline"
@@ -183,6 +188,11 @@
         {
           "command": "firebird.editDatabase",
           "when": "view == firebird.databases && viewItem == database",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.editDatabase",
+          "when": "view == firebird.databases && viewItem == database-error",
           "group": "inline"
         },
         {

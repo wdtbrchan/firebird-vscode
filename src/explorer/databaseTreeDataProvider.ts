@@ -155,7 +155,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         const storedGroups = this.context.globalState.get<ConnectionGroup[]>('firebird.groups');
         this.connections = storedConns || [];
         this.groups = storedGroups || [];
-        this.activeConnectionId = this.context.globalState.get<string>('firebird.activeConnectionId');
+        this.activeConnectionId = undefined;
     }
 
     private saveConnections() {
