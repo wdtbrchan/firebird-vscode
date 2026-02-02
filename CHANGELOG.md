@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3]
+### Fixes
+- **Object Viewer**:
+  - Replaced custom HTML viewer with native VS Code read-only editor.
+  - Fixed issue where data type lengths (e.g., `VARCHAR(12)`) were not displayed correctly.
+  - Enabled native SQL syntax highlighting for object definitions.
+
 ## [0.2.2]
 ### Fixes
 - **Connection Status**:
