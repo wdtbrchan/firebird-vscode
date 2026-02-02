@@ -115,6 +115,59 @@ export class ResultsPanel {
         await this._fetchAndDisplay();
     }
 
+    public async runScript(statements: string[], connection: any, context?: string) {
+        this._currentConnection = connection;
+        this._currentContext = context;
+        this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
+        this._lastResults = [];
+        this._lastTransactionAction = undefined;
+
+        this.showLoading();
+        // Custom loading message for script
+        this._panel.webview.postMessage({ command: 'message', text: 'Executing script...' });
+
+        let executedCount = 0;
+        const total = statements.length;
+
+        try {
+            for (let i = 0; i < total; i++) {
+                const stmt = statements[i];
+                // Update UI to show progress? 
+                // We'll rely on the final result or error.
+                // Or we can try to show intermediate success messages?
+                // For now, let's run them.
+                
+                // If it's the last statement, we want to show its results if it is a SELECT.
+                // If it is DDL/DML, we show success.
+                
+                // We reuse _currentQuery logic partially or direct Database call.
+                this._currentQuery = stmt; // Set strictly for potential error reporting or refresh
+                
+                if (i === total - 1) {
+                    // Last statement - standard display
+                     this._currentOffset = 0;
+                     await this._fetchAndDisplay();
+                } else {
+                    // Intermediate statement - execute and ignore result unless error
+                    await Database.executeQuery(stmt, connection, { limit: 1000, offset: 0 }); // Ignoring limit practically
+                }
+                executedCount++;
+            }
+            
+            if (total > 1 && executedCount === total) {
+                 // If we had multiple statements and all succeeded, and the last one didn't return rows (e.g. DDL script),
+                 // _fetchAndDisplay (called for last one) would handle showing "Success".
+                 // We might want to append a summary message.
+                 // But _fetchAndDisplay overwrites the view.
+                 // Let's assume the user is happy seeing the result of the last statement.
+            }
+
+        } catch (err: any) {
+            const hasTransaction = Database.hasActiveTransaction;
+            this.showError(`Script error at statement ${executedCount + 1}: ${err.message}`, hasTransaction);
+        }
+    }
+
     private async _loadMore() {
         this._currentOffset += this._limit;
         try {

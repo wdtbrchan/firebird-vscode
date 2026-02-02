@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import { Database } from './db';
 import { ResultsPanel } from './resultsPanel';
-import { DatabaseTreeDataProvider, DatabaseConnection, DatabaseDragAndDropController } from './explorer/databaseTreeDataProvider';
+import { DatabaseTreeDataProvider, DatabaseConnection, DatabaseDragAndDropController, ObjectItem, OperationItem } from './explorer/databaseTreeDataProvider';
+import { MetadataService } from './services/metadataService';
+import { ObjectViewer } from './services/objectViewer';
+import { ScriptParser } from './services/scriptParser';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Firebird extension activating...');
@@ -118,6 +121,131 @@ export function activate(context: vscode.ExtensionContext) {
         await databaseTreeDataProvider.deleteGroup(group);
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.openObject', async (type: string, name: string, connection: DatabaseConnection) => {
+        try {
+            let ddl = '';
+            // Show progress? Fetching is usually fast.
+            switch (type) {
+                case 'table': ddl = await MetadataService.getTableDDL(connection, name); break;
+                case 'view': ddl = await MetadataService.getViewSource(connection, name); break;
+                case 'trigger': ddl = await MetadataService.getTriggerSource(connection, name); break;
+                case 'procedure': ddl = await MetadataService.getProcedureSource(connection, name); break;
+                case 'generator': ddl = await MetadataService.getGeneratorDDL(connection, name); break;
+                default: ddl = `-- Unknown object type: ${type}`;
+            }
+
+            ObjectViewer.display(ddl, `${name} (Read-only)`);
+        } catch (err: any) {
+             vscode.window.showErrorMessage(`Error opening object ${name}: ${err.message}`);
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.generateScript', async (mode: 'create' | 'alter' | 'drop' | 'recreate', objectItem: ObjectItem) => {
+        try {
+            const { type, objectName: name, connection } = objectItem;
+            let script = '';
+
+            const wrapSetTerm = (sql: string) => `SET TERM ^ ;\n${sql} ^\nSET TERM ; ^`;
+
+            if (mode === 'drop') {
+                switch (type) {
+                    case 'table': script = `DROP TABLE ${name};`; break;
+                    case 'view': script = `DROP VIEW ${name};`; break;
+                    case 'trigger': script = `DROP TRIGGER ${name};`; break;
+                    case 'procedure': script = `DROP PROCEDURE ${name};`; break;
+                    case 'generator': script = `DROP SEQUENCE ${name};`; break; 
+                }
+            } else if (mode === 'recreate') {
+                if (type === 'view') {
+                    const src = await MetadataService.getViewSource(connection, name);
+                    if (src.startsWith('CREATE VIEW')) {
+                        const inner = src.replace('CREATE VIEW', 'RECREATE VIEW');
+                        script = wrapSetTerm(inner);
+                    } else {
+                        script = wrapSetTerm(`RECREATE VIEW ${name} AS\n` + src); 
+                    }
+                } else {
+                     script = `-- Recreate is only implemented for Views currently.`;
+                }
+            } else if (mode === 'create') {
+                switch (type) {
+                    case 'table': script = await MetadataService.getTableDDL(connection, name); break;
+                    case 'view': {
+                        let src = await MetadataService.getViewSource(connection, name);
+                        if (src.startsWith('CREATE VIEW')) {
+                             src = src.replace('CREATE VIEW', 'CREATE OR ALTER VIEW');
+                        }
+                        script = wrapSetTerm(src);
+                        break;
+                    }
+                    case 'trigger': script = wrapSetTerm(await MetadataService.getTriggerSource(connection, name)); break;
+                    case 'procedure': script = wrapSetTerm(await MetadataService.getProcedureSource(connection, name)); break;
+                    case 'generator': script = await MetadataService.getGeneratorDDL(connection, name); break;
+                }
+            } else {
+                // ALTER mode
+                switch (type) {
+                    case 'table':
+                        script = `ALTER TABLE ${name} ADD column_name datatype; -- Template\n-- ALTER TABLE ${name} DROP column_name;\n-- ALTER TABLE ${name} ALTER COLUMN column_name TYPE new_type;`;
+                        break;
+                    case 'view':
+                        // ALTER VIEW -> CREATE OR ALTER VIEW
+                        let vSrc = await MetadataService.getViewSource(connection, name);
+                        if (vSrc.startsWith('CREATE VIEW')) {
+                             vSrc = vSrc.replace('CREATE VIEW', 'CREATE OR ALTER VIEW');
+                        } else {
+                             vSrc = `CREATE OR ALTER VIEW ${name} AS ${vSrc}`;
+                        }
+                        script = wrapSetTerm(vSrc);
+                        break;
+                    case 'trigger':
+                    case 'procedure':
+                        let src = '';
+                        if (type === 'trigger') src = await MetadataService.getTriggerSource(connection, name);
+                        else src = await MetadataService.getProcedureSource(connection, name);
+                        
+                        // Firebird doesn't universally support CREATE OR ALTER for Triggers/Procs in all versions/contexts like Views?
+                        // Actually it does in modern versions (2.5+).
+                        // Let's use CREATE OR ALTER if detected, otherwise just use what metadata returns but with SET TERM.
+                        
+                        // The user said: "create a alter trigger musi mit format SET TERM ... CREATE TRIGGER ..."
+                        // He didn't explicitly say "CREATE OR ALTER TRIGGER". He said "create a alter trigger musi mit format... CREATE TRIGGER..."
+                        // Wait, if I am altering, I should probably use ALTER TRIGGER or CREATE OR ALTER TRIGGER.
+                        // Metadata returns CREATE TRIGGER.
+                        // If I assume `create or alter` is desired:
+                        if (src.startsWith(`CREATE ${type.toUpperCase()}`)) {
+                           // Use CREATE OR ALTER for convenience, or just CREATE?
+                           // User prompt: "create a alter trigger musi mit format ... CREATE TRIGGER"
+                           // This might mean he wants the script to just be "CREATE TRIGGER..." but wrapped.
+                           // BUT if the trigger exists, CREATE TRIGGER fails.
+                           // "create a alter trigger" probably means "for both actions".
+                           // If he clicks "Alter Script", he wants to change it.
+                           // Standard in FB tools is usually `CREATE OR ALTER` or `RECREATE`.
+                           // I will stick to `CREATE OR ALTER` as it satisfies "Create" and "Alter" safety.
+                           src = src.replace(`CREATE ${type.toUpperCase()}`, `CREATE OR ALTER ${type.toUpperCase()}`);
+                        }
+                        script = wrapSetTerm(src);
+                        break;
+                    case 'generator':
+                        const curVal = await MetadataService.getGeneratorValue(connection, name);
+                        const valNum = parseInt(curVal, 10);
+                        const nextVal = isNaN(valNum) ? 0 : valNum;
+                        script = `ALTER SEQUENCE ${name} RESTART WITH ${nextVal}; -- Set to desired value`;
+                        break;
+                }
+            }
+
+            const doc = await vscode.workspace.openTextDocument({
+                content: script,
+                language: 'sql'
+            });
+            await vscode.window.showTextDocument(doc);
+
+        } catch (err: any) {
+            vscode.window.showErrorMessage(`Error generating script: ${err.message}`);
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('firebird.commit', async () => {
         try {
             await Database.commit();
@@ -133,6 +261,60 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.setStatusBarMessage('Firebird: Transaction Rolled Back', 3000);
         } catch (err: any) {
              vscode.window.showErrorMessage('Rollback failed: ' + err.message);
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.executeScript', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showErrorMessage('No active text editor');
+            return;
+        }
+
+        const query = editor.document.getText();
+        
+        if (!query.trim()) {
+             vscode.window.showWarningMessage('Script is empty.');
+             return;
+        }
+
+        try {
+            // Get active connection configuration
+            const activeConn = databaseTreeDataProvider.getActiveConnection();
+            
+            if (!activeConn) {
+                vscode.window.showWarningMessage('No active database connection selected. Please select a database.');
+                return;
+            }
+
+            const activeDetails = databaseTreeDataProvider.getActiveConnectionDetails();
+            const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
+            
+            // Show loading state immediately
+            ResultsPanel.createOrShow(context.extensionUri);
+            
+            // Delegate query execution to the panel
+            if (ResultsPanel.currentPanel) {
+                // Parse script
+                const statements = ScriptParser.split(query);
+                if (statements.length === 0) {
+                    vscode.window.showWarningMessage('No valid SQL statements found in script.');
+                    return;
+                }
+                await ResultsPanel.currentPanel.runScript(statements, activeConn, contextTitle);
+            }
+
+            // Restore focus to the editor
+            vscode.window.showTextDocument(editor.document, editor.viewColumn);
+            
+        } catch (err: any) {
+             const hasTransaction = Database.hasActiveTransaction;
+             // Show error in the panel if it exists
+             if (ResultsPanel.currentPanel) {
+                 ResultsPanel.currentPanel.showError(err.message, hasTransaction);
+             } else {
+                 vscode.window.showErrorMessage('Error executing script: ' + err.message);
+             }
         }
     }));
 

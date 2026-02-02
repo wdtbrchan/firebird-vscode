@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as Firebird from 'node-firebird';
 import * as iconv from 'iconv-lite';
+import { DatabaseConnection } from './explorer/databaseTreeDataProvider';
 
 export interface QueryOptions {
     limit?: number;
@@ -25,6 +26,102 @@ export class Database {
         this.onStateChangeHandlers.forEach(h => h(isActive, this.autoRollbackDeadline, lastAction));
     }
 
+    private static async processResultRows(result: any[], encodingConf: string): Promise<any[]> {
+        if (!Array.isArray(result)) return [];
+        
+        return Promise.all(result.map(async row => {
+            const newRow: any = {};
+            for (const key in row) {
+                let val = row[key];
+                if (val instanceof Buffer) {
+                    if (iconv.encodingExists(encodingConf)) {
+                        val = iconv.decode(val, encodingConf);
+                    } else {
+                        val = val.toString(); 
+                    }
+                } else if (typeof val === 'function') {
+                    // It's a BLOB (function)
+                    // Usage: val(function(err, name, eventEmitter) { ... })
+                    // We must read it inside the transaction context
+                    val = await new Promise((resolve, reject) => {
+                         val((err: any, name: any, emitter: any) => {
+                             if (err) return reject(err);
+                             let chunks: Buffer[] = [];
+                             emitter.on('data', (chunk: Buffer) => chunks.push(chunk));
+                             emitter.on('end', () => {
+                                 const buf = Buffer.concat(chunks);
+                                 if (iconv.encodingExists(encodingConf)) {
+                                     resolve(iconv.decode(buf, encodingConf));
+                                 } else {
+                                     resolve(buf.toString());
+                                 }
+                             });
+                             emitter.on('error', reject);
+                         });
+                    });
+                } else if (typeof val === 'string') {
+                    if (iconv.encodingExists(encodingConf)) {
+                        const buf = Buffer.from(val, 'binary');
+                        val = iconv.decode(buf, encodingConf);
+                    }
+                }
+                newRow[key] = val;
+            }
+            return newRow;
+        }));
+    }
+
+    private static prepareQueryBuffer(query: string, encodingConf: string): string {
+        let queryBuffer: Buffer;
+        if (iconv.encodingExists(encodingConf)) {
+            queryBuffer = iconv.encode(query, encodingConf);
+        } else {
+             queryBuffer = Buffer.from(query, 'utf8');
+        }
+        return queryBuffer.toString('binary');
+    }
+
+    // Using 'any' for connection to avoid circular dependency
+    public static async runMetaQuery(connection: any, query: string): Promise<any[]> {
+        const config = vscode.workspace.getConfiguration('firebird');
+        const encodingConf = connection.charset || config.get<string>('charset', 'UTF8');
+
+        const options: Firebird.Options = {
+            host: connection.host,
+            port: connection.port,
+            database: connection.database,
+            user: connection.user,
+            password: connection.password,
+            role: connection.role,
+            encoding: 'NONE',
+            lowercase_keys: false
+        } as any;
+
+        return new Promise((resolve, reject) => {
+            Firebird.attach(options, (err, db) => {
+                if (err) return reject(err);
+
+                const finalQuery = this.prepareQueryBuffer(query, encodingConf);
+
+                db.query(finalQuery, [], async (err, result) => {
+                    if (err) {
+                        try { db.detach(); } catch(e) {}
+                        return reject(err);
+                    }
+                    
+                    try {
+                        const rows = await this.processResultRows(result, encodingConf);
+                        try { db.detach(); } catch(e) {}
+                        resolve(rows);
+                    } catch(readErr) {
+                         try { db.detach(); } catch(e) {}
+                         reject(readErr);
+                    }
+                });
+            });
+        });
+    }
+
     public static async executeQuery(query: string, connection?: { host: string, port: number, database: string, user: string, password?: string, role?: string, charset?: string }, queryOptions?: QueryOptions): Promise<any[]> {
         const config = vscode.workspace.getConfiguration('firebird');
         
@@ -32,7 +129,6 @@ export class Database {
         if (queryOptions && queryOptions.limit && query.trim().toLowerCase().startsWith('select')) {
             const start = (queryOptions.offset || 0) + 1;
             const end = (queryOptions.offset || 0) + queryOptions.limit;
-            // Remove trailing semicolon if present to wrap correctly
             const cleanQuery = query.trim().replace(/;$/, '');
             finalQuery = `SELECT * FROM (${cleanQuery}) ROWS ${start} TO ${end}`;
         }
@@ -45,7 +141,7 @@ export class Database {
             user: connection?.user || config.get<string>('user', 'SYSDBA'),
             password: connection?.password || config.get<string>('password', 'masterkey'),
             role: connection?.role || config.get<string>('role', ''),
-            encoding: 'NONE', // Use NONE so FB sends raw bytes. Driver now reads them as 'binary' (latin1) due to patch.
+            encoding: 'NONE', 
             lowercase_keys: false
         } as any;
 
@@ -53,11 +149,10 @@ export class Database {
             throw new Error('Database path is not configured. Please select a database in the explorer or set "firebird.database" in settings.');
         }
 
-        // Check if we need to switch database or if we are already connected to a different one
         if (this.db && this.currentOptions) {
             if (this.currentOptions.host !== options.host ||
                 this.currentOptions.database !== options.database) {
-                 await this.rollback(); // Switch implies rollback of potential old work
+                 await this.rollback(); 
             }
         }
 
@@ -66,73 +161,26 @@ export class Database {
 
         return new Promise((resolve, reject) => {
             const runQuery = (tr: Firebird.Transaction) => {
-                // Encode the query string to the target charset, then to 'binary' string
-                // so the driver (patched to use 'binary') sends the correct bytes.
-                let queryBuffer: Buffer;
-                if (iconv.encodingExists(encodingConf)) {
-                    queryBuffer = iconv.encode(finalQuery, encodingConf);
-                } else {
-                     queryBuffer = Buffer.from(finalQuery, 'utf8'); // Fallback
-                }
-                const queryString = queryBuffer.toString('binary');;
+                const queryString = this.prepareQueryBuffer(finalQuery, encodingConf);
 
-                tr.query(queryString, [], (err, result) => {
+                tr.query(queryString, [], async (err, result) => {
                     if (err) {
                         return reject(err);
                     }
                     
-                    if (Array.isArray(result)) {
-                        result = result.map(row => {
-                            const newRow: any = {};
-                            for (const key in row) {
-                                let val = row[key];
-                                if (val instanceof Buffer) {
-                                    // Should not happen for texts with 'binary' encoding patch, but just in case
-                                    if (iconv.encodingExists(encodingConf)) {
-                                       val = iconv.decode(val, encodingConf);
-                                    } else {
-                                       val = val.toString(); 
-                                    }
-                                } else if (typeof val === 'string') {
-                                    // val is now a 'binary' (latin1) string preserving the original bytes
-                                    if (iconv.encodingExists(encodingConf)) {
-                                            const buf = Buffer.from(val, 'binary'); // Convert back to raw bytes
-                                            val = iconv.decode(buf, encodingConf); // Decode correctly
-                                    }
-                                }
-                                newRow[key] = val;
-                            }
-                            return newRow;
-                         });
-                    } else if (typeof result === 'object' && result !== null) {
-                        // Check if it's a single row return (INSERT RETURNING)
-                        // Heuristic: check if keys are typical column names (not metadata like row_count?)
-                        // node-firebird usually returns { ...columns... } for RETURNING.
-                        // Metadata for update/insert might be missing or different.
-                         const keys = Object.keys(result);
-                         if (keys.length > 0) {
-                             // Assuming it's a data row if it has keys.
-                             // Process encoding for single row too
-                             const row: any = result;
-                             const newRow: any = {};
-                             for (const key in row) {
-                                let val = row[key];
-                                if (val instanceof Buffer) {
-                                    if (iconv.encodingExists(encodingConf)) {
-                                       val = iconv.decode(val, encodingConf);
-                                    } else {
-                                       val = val.toString(); 
-                                    }
-                                } else if (typeof val === 'string') {
-                                    if (iconv.encodingExists(encodingConf)) {
-                                            const buf = Buffer.from(val, 'binary');
-                                            val = iconv.decode(buf, encodingConf);
-                                    }
-                                }
-                                newRow[key] = val;
-                            }
-                            result = [newRow];
-                         }
+                    try {
+                        if (Array.isArray(result)) {
+                            result = await this.processResultRows(result, encodingConf);
+                        } else if (typeof result === 'object' && result !== null) {
+                             const keys = Object.keys(result);
+                             if (keys.length > 0) {
+                                 const row: any = result;
+                                 const processed = await this.processResultRows([row], encodingConf);
+                                 result = processed;
+                             }
+                        }
+                    } catch (readErr) {
+                         return reject(readErr);
                     }
                     
                     if (!Array.isArray(result)) {
@@ -145,7 +193,6 @@ export class Database {
             if (this.transaction) {
                 runQuery(this.transaction);
             } else {
-                // Attach if not attached
                 const doAttach = (cb: (db: Firebird.Database) => void) => {
                     if (this.db) {
                         cb(this.db);
@@ -162,7 +209,7 @@ export class Database {
                     db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err, tr) => {
                         if (err) return reject(err);
                         this.transaction = tr;
-                        this.notifyStateChange(); // Notify start
+                        this.notifyStateChange(); 
                         runQuery(tr);
                     });
                 });
@@ -175,7 +222,7 @@ export class Database {
             if (this.transaction) {
                 this.transaction.commit((err) => {
                     this.transaction = undefined;
-                    this.notifyStateChange('Transaction Committed'); // Notify end
+                    this.notifyStateChange('Transaction Committed'); 
                     this.cleanupConnection();
                     if (err) reject(err);
                     else resolve();
@@ -191,13 +238,13 @@ export class Database {
             if (this.transaction) {
                 this.transaction.rollback((err) => {
                     this.transaction = undefined;
-                    this.notifyStateChange(reason); // Notify end
+                    this.notifyStateChange(reason); 
                     this.cleanupConnection();
                     if (err) reject(err);
                     else resolve();
                 });
             } else {
-                 this.cleanupConnection(); // Ensure connection is closed even if no transaction
+                 this.cleanupConnection(); 
                 resolve();
             }
         });
@@ -225,7 +272,6 @@ export class Database {
         
         const config = vscode.workspace.getConfiguration('firebird');
         let timeoutSeconds = config.get<number>('autoRollbackTimeout', 60);
-        // Validating timeoutSeconds to ensure it is a valid positive number
         if (!timeoutSeconds || typeof timeoutSeconds !== 'number' || isNaN(timeoutSeconds)) {
              timeoutSeconds = 60;
         }
@@ -256,5 +302,29 @@ export class Database {
 
     public static get hasActiveTransaction(): boolean {
         return !!this.transaction;
+    }
+
+    public static async checkConnection(connection: DatabaseConnection): Promise<void> {
+        const config = vscode.workspace.getConfiguration('firebird');
+        const options: Firebird.Options = {
+            host: connection.host,
+            port: connection.port,
+            database: connection.database,
+            user: connection.user,
+            password: connection.password,
+            role: connection.role,
+            encoding: 'NONE',
+            lowercase_keys: false
+        } as any;
+
+        return new Promise((resolve, reject) => {
+            Firebird.attach(options, (err, db) => {
+                if (err) return reject(err);
+                try {
+                    db.detach();
+                } catch (e) {}
+                resolve();
+            });
+        });
     }
 }

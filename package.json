@@ -36,7 +36,13 @@
     "commands": [
       {
         "command": "firebird.runQuery",
-        "title": "Firebird: Run Query"
+        "title": "Run Query",
+        "icon": "$(play)"
+      },
+      {
+        "command": "firebird.executeScript",
+        "title": "Run Script",
+        "icon": "$(run-all)"
       },
       {
         "command": "firebird.addDatabase",
@@ -97,6 +103,12 @@
         "key": "ctrl+enter",
         "mac": "cmd+enter",
         "when": "editorTextFocus && editorLangId == sql"
+      },
+      {
+        "command": "firebird.executeScript",
+        "key": "ctrl+alt+enter",
+        "mac": "cmd+alt+enter",
+        "when": "editorTextFocus && editorLangId == sql"
       }
     ],
     "viewsContainers": {
@@ -136,6 +148,16 @@
         }
       ],
       "editor/title": [
+        {
+          "command": "firebird.runQuery",
+          "when": "editorLangId == sql",
+          "group": "navigation"
+        },
+        {
+          "command": "firebird.executeScript",
+          "when": "editorLangId == sql",
+          "group": "navigation"
+        },
         {
           "command": "firebird.rollback",
           "when": "editorLangId == sql && firebird.hasActiveTransaction",

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { ConnectionEditor } from '../editors/connectionEditor';
+import { Database } from '../db';
+import { MetadataService } from '../services/metadataService';
 
 
 export interface DatabaseConnection {
@@ -21,13 +23,121 @@ export interface ConnectionGroup {
     name: string;
 }
 
-export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | vscode.TreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | vscode.TreeItem | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
+export class FolderItem extends vscode.TreeItem {
+    constructor(
+        public readonly label: string,
+        public readonly type: 'tables' | 'views' | 'triggers' | 'procedures' | 'generators',
+        public readonly connection: DatabaseConnection
+    ) {
+        super(label, vscode.TreeItemCollapsibleState.Collapsed);
+        this.contextValue = 'folder';
+        this.iconPath = new vscode.ThemeIcon('folder');
+    }
+}
+
+export class TriggerGroupItem extends vscode.TreeItem {
+    constructor(
+        public readonly label: string,
+        public readonly triggers: any[], // Store triggers directly
+        public readonly connection: DatabaseConnection
+    ) {
+        super(label, vscode.TreeItemCollapsibleState.Collapsed);
+        this.contextValue = 'trigger-group';
+        this.iconPath = new vscode.ThemeIcon('folder-active');
+    }
+}
+
+export class TableTriggersItem extends vscode.TreeItem {
+    constructor(
+        public readonly connection: DatabaseConnection,
+        public readonly tableName: string
+    ) {
+        super('Triggers', vscode.TreeItemCollapsibleState.Collapsed);
+        this.contextValue = 'table-triggers';
+        this.iconPath = new vscode.ThemeIcon('folder');
+    }
+}
+
+export class ObjectItem extends vscode.TreeItem {
+    public readonly objectName: string;
+    constructor(
+        public readonly label: string,
+        public readonly type: 'table' | 'view' | 'trigger' | 'procedure' | 'generator',
+        public readonly connection: DatabaseConnection,
+        objectName?: string
+    ) {
+        super(label, vscode.TreeItemCollapsibleState.Collapsed);
+        this.contextValue = 'object';
+        this.objectName = objectName || label;
+        
+        let iconId = 'symbol-misc';
+        switch (type) {
+            case 'table': iconId = 'table'; break;
+            case 'view': iconId = 'eye'; break;
+            case 'trigger': iconId = 'zap'; break;
+            case 'procedure': iconId = 'gear'; break;
+            case 'generator': iconId = 'list-ordered'; break;
+        }
+        this.iconPath = new vscode.ThemeIcon(iconId);
+
+        // Keep command to open viewing panel on click
+        this.command = {
+            command: 'firebird.openObject',
+            title: 'Open Object',
+            arguments: [type, this.objectName, connection]
+        };
+    }
+}
+
+export class OperationItem extends vscode.TreeItem {
+    constructor(
+        label: string,
+        public readonly type: 'create' | 'alter' | 'recreate' | 'info',
+        public readonly parentObject: ObjectItem
+    ) {
+        super(label, vscode.TreeItemCollapsibleState.None);
+        
+        if (type === 'create') {
+            this.iconPath = new vscode.ThemeIcon('new-file');
+            this.contextValue = 'script-create';
+            this.command = {
+                command: 'firebird.generateScript',
+                title: 'Create Script',
+                arguments: ['create', parentObject]
+            };
+        } else if (type === 'alter') {
+            this.iconPath = new vscode.ThemeIcon('edit');
+            this.contextValue = 'script-alter';
+            this.command = {
+                command: 'firebird.generateScript',
+                title: 'Alter Script',
+                arguments: ['alter', parentObject]
+            };
+        } else if (type === 'recreate') {
+            this.iconPath = new vscode.ThemeIcon('refresh');
+            this.contextValue = 'script-recreate';
+            this.command = {
+                command: 'firebird.generateScript',
+                title: 'Recreate Script',
+                arguments: ['recreate', parentObject]
+            };
+        } else {
+            // Info item (e.g. Current Value)
+            this.iconPath = new vscode.ThemeIcon('info');
+            this.contextValue = 'info-item';
+        }
+    }
+}
+
+export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | ObjectItem | OperationItem | vscode.TreeItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | ObjectItem | OperationItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | ObjectItem | OperationItem | vscode.TreeItem | undefined | void>();
+    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | ObjectItem | OperationItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
     private connections: DatabaseConnection[] = [];
     private groups: ConnectionGroup[] = [];
     private activeConnectionId: string | undefined;
+    private failedConnectionIds: Map<string, string> = new Map(); // id -> error message
+    private connectingConnectionIds = new Set<string>();
     private _loading: boolean = true;
 
     constructor(private context: vscode.ExtensionContext) {
@@ -60,7 +170,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this._onDidChangeTreeData.fire();
     }
 
-    getTreeItem(element: DatabaseConnection | ConnectionGroup | vscode.TreeItem): vscode.TreeItem {
+    getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | ObjectItem | OperationItem | vscode.TreeItem): vscode.TreeItem {
         if (element instanceof vscode.TreeItem) {
             return element;
         }
@@ -69,14 +179,19 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             // It's a connection
             const isLocal = element.host === '127.0.0.1' || element.host === 'localhost';
             const label = element.name || path.basename(element.database);
-            const treeItem = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
+            
+            const isActive = element.id === this.activeConnectionId;
+            // Only collapsed (expandable) if active. Otherwise None (leaf).
+            const state = isActive ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None;
+
+            const treeItem = new vscode.TreeItem(label, state);
             
             treeItem.description = `${element.host}:${element.port}`;
             treeItem.tooltip = `${element.user}@${element.host}:${element.port}/${element.database}`;
             treeItem.id = element.id;
             treeItem.contextValue = 'database'; // Default context
 
-            if (element.id === this.activeConnectionId) {
+            if (isActive) {
                 treeItem.iconPath = new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.green'));
                 // Make label bold by highlighting it
                 treeItem.label = {
@@ -86,6 +201,28 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                 treeItem.contextValue = 'database-active';
             } else {
                  treeItem.iconPath = new vscode.ThemeIcon('database');
+                 // Also add command to select it on click if it's inactive?
+                 // Or we rely on context menu "Select Database".
+                 // Actually, standard behavior allows clicking to select if we bind a command.
+                 treeItem.command = {
+                     command: 'firebird.selectDatabase',
+                     title: 'Select Database',
+                     arguments: [element]
+                 };
+            }
+
+            // Check for connecting state
+            if (this.connectingConnectionIds.has(element.id)) {
+                treeItem.iconPath = new vscode.ThemeIcon('loading~spin');
+                treeItem.description = (treeItem.description || '') + ' (Connecting...)';
+                treeItem.contextValue = 'database-connecting';
+            }
+            // Check for failure state override (only if not connecting)
+            else if (this.failedConnectionIds.has(element.id)) {
+                treeItem.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.red'));
+                treeItem.description = (treeItem.description || '') + ' (Disconnected)';
+                treeItem.tooltip = `Error: ${this.failedConnectionIds.get(element.id)}`;
+                treeItem.contextValue = 'database-error';
             }
 
             return treeItem;
@@ -99,27 +236,131 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         }
     }
 
-    getChildren(element?: DatabaseConnection | ConnectionGroup): Thenable<(DatabaseConnection | ConnectionGroup | vscode.TreeItem)[]> {
-        if (this._loading) {
+    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | ObjectItem | OperationItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | ObjectItem | OperationItem | vscode.TreeItem)[]> {
+        if (this._loading && !element) {
             const loadingItem = new vscode.TreeItem('Loading...');
             loadingItem.iconPath = new vscode.ThemeIcon('loading~spin');
-            return Promise.resolve([loadingItem]);
+            return [loadingItem];
         }
 
         if (element) {
+            if (element instanceof FolderItem) {
+                // Return objects inside folder
+                try {
+                    let items: string[] = [];
+                    switch (element.type) {
+                        case 'tables':
+                            items = await MetadataService.getTables(element.connection);
+                            return items.map(name => new ObjectItem(name, 'table', element.connection));
+                        case 'views':
+                            items = await MetadataService.getViews(element.connection);
+                            return items.map(name => new ObjectItem(name, 'view', element.connection));
+                        case 'triggers':
+                            return this.getGroupedTriggers(element.connection);
+                        case 'procedures':
+                            items = await MetadataService.getProcedures(element.connection);
+                            return items.map(name => new ObjectItem(name, 'procedure', element.connection));
+                        case 'generators':
+                            items = await MetadataService.getGenerators(element.connection);
+                            return items.map(name => new ObjectItem(name, 'generator', element.connection));
+                    }
+                    return [];
+                } catch (err) {
+                    vscode.window.showErrorMessage(`Error loading ${element.label}: ${err}`);
+                    return [];
+                }
+            } else if (element instanceof TableTriggersItem) {
+                 return this.getGroupedTriggers(element.connection, element.tableName);
+            } else if (element instanceof TriggerGroupItem) {
+                // Return triggers in this group, sorted by position
+                const sorted = element.triggers.sort((a, b) => {
+                    const pa = a.sequence || 0;
+                    const pb = b.sequence || 0;
+                    return pa - pb;
+                });
+                
+                return sorted.map(t => {
+                     const label = `${t.name} (${t.sequence})`;
+                     return new ObjectItem(label, 'trigger', element.connection, t.name); // Pass real name separately?
+                });
+            } else if (element instanceof ObjectItem) {
+                // Return operations (Create, Alter, Value)
+                const ops: (OperationItem | TableTriggersItem)[] = [];
+                
+                if (element.type === 'table') {
+                    ops.push(new OperationItem('Create Script', 'create', element));
+                    ops.push(new OperationItem('Alter Script', 'alter', element));
+                    // Let's create a specialized TableTriggersItem.
+                    ops.push(new TableTriggersItem(element.connection, element.objectName));
+                } else if (['view', 'trigger', 'procedure'].includes(element.type)) {
+                    // For Views, Triggers, Procedures: Only "DDL Script" (which runs alter logic -> CREATE OR ALTER)
+                    ops.push(new OperationItem('DDL Script', 'alter', element));
+                    
+                    if (element.type === 'view') {
+                         ops.push(new OperationItem('Recreate Script', 'recreate', element));
+                    }
+                } else {
+                    // Generators, etc.
+                    ops.push(new OperationItem('Create Script', 'create', element));
+                    ops.push(new OperationItem('Alter Script', 'alter', element));
+                }
+
+                if (element.type === 'generator') {
+                     try {
+                         const val = await MetadataService.getGeneratorValue(element.connection, element.label);
+                         ops.push(new OperationItem(`Value: ${val}`, 'info', element));
+                     } catch(e) {
+                         ops.push(new OperationItem(`Value: Error`, 'info', element));
+                     }
+                }
+
+                return ops;
+            } else if (element instanceof OperationItem) {
+                return [];
+            }
+            
             if ('host' in element) {
-                 return Promise.resolve([]); // Connections have no children
+                // It's a connection
+                return [
+                    new FolderItem('Tables', 'tables', element),
+                    new FolderItem('Views', 'views', element),
+                    new FolderItem('Triggers', 'triggers', element),
+                    new FolderItem('Procedures', 'procedures', element),
+                    new FolderItem('Generators', 'generators', element)
+                ];
             } else {
-                // Return connections in this group
+                // It's a group
                 const groupConns = this.connections.filter(c => c.groupId === element.id);
-                return Promise.resolve(groupConns);
+                return groupConns;
             }
         }
         
-        // Root: Groups + Ungrouped Connections
+        // Root
         const rootGroups = this.groups;
         const ungroupedConns = this.connections.filter(c => !c.groupId || !this.groups.find(g => g.id === c.groupId));
-        return Promise.resolve([...rootGroups, ...ungroupedConns]);
+        return [...rootGroups, ...ungroupedConns];
+    }
+
+    async getGroupedTriggers(connection: DatabaseConnection, tableName?: string): Promise<TriggerGroupItem[]> {
+        try {
+            const allTriggers = await MetadataService.getTriggers(connection, tableName);
+            const groups: { [key: string]: any[] } = {};
+            
+            for (const t of allTriggers) {
+              const typeName = MetadataService.decodeTriggerType(t.type);
+              const groupName = typeName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+              
+              if (!groups[groupName]) groups[groupName] = [];
+              groups[groupName].push(t);
+            }
+            
+            return Object.keys(groups).sort().map(g => {
+                return new TriggerGroupItem(g, groups[g], connection);
+            });
+        } catch (err) {
+            console.error('Error getting grouped triggers:', err);
+            return [];
+        }
     }
 
     async createGroup() {
@@ -223,7 +464,25 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         }
     }
 
-    setActive(conn: DatabaseConnection) {
+    async setActive(conn: DatabaseConnection) {
+        // Try to connect first
+        this.connectingConnectionIds.add(conn.id);
+        this.saveConnections(); // Fire update to show spinner
+
+        try {
+            await Database.checkConnection(conn);
+            this.failedConnectionIds.delete(conn.id);
+        } catch (err: any) {
+            this.failedConnectionIds.set(conn.id, err.message);
+            vscode.window.showErrorMessage(`Failed to connect to ${conn.name || conn.database}: ${err.message}`);
+            // Remove from connecting list
+            this.connectingConnectionIds.delete(conn.id);
+            this.saveConnections(); 
+            return; 
+        }
+
+        // Connection success
+        this.connectingConnectionIds.delete(conn.id);
         this.activeConnectionId = conn.id;
         this.saveConnections();
     }
