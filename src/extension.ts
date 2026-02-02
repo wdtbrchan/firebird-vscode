@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Database } from './db';
 import { ResultsPanel } from './resultsPanel';
-import { DatabaseTreeDataProvider, DatabaseConnection, DatabaseDragAndDropController, ObjectItem, OperationItem } from './explorer/databaseTreeDataProvider';
+import { DatabaseTreeDataProvider, DatabaseConnection, DatabaseDragAndDropController, ObjectItem, OperationItem, CreateNewIndexItem, IndexItem, IndexOperationItem } from './explorer/databaseTreeDataProvider';
 import { MetadataService } from './services/metadataService';
 import { ScriptParser } from './services/scriptParser';
 import { DDLProvider } from './services/ddlProvider';
@@ -135,6 +135,7 @@ export function activate(context: vscode.ExtensionContext) {
                 case 'trigger': ddl = await MetadataService.getTriggerSource(connection, name); break;
                 case 'procedure': ddl = await MetadataService.getProcedureSource(connection, name); break;
                 case 'generator': ddl = await MetadataService.getGeneratorDDL(connection, name); break;
+                case 'index': ddl = await MetadataService.getIndexDDL(connection, name); break;
                 default: ddl = `-- Unknown object type: ${type}`;
             }
 
@@ -212,24 +213,8 @@ export function activate(context: vscode.ExtensionContext) {
                         if (type === 'trigger') src = await MetadataService.getTriggerSource(connection, name);
                         else src = await MetadataService.getProcedureSource(connection, name);
                         
-                        // Firebird doesn't universally support CREATE OR ALTER for Triggers/Procs in all versions/contexts like Views?
-                        // Actually it does in modern versions (2.5+).
-                        // Let's use CREATE OR ALTER if detected, otherwise just use what metadata returns but with SET TERM.
-                        
-                        // The user said: "create a alter trigger musi mit format SET TERM ... CREATE TRIGGER ..."
-                        // He didn't explicitly say "CREATE OR ALTER TRIGGER". He said "create a alter trigger musi mit format... CREATE TRIGGER..."
-                        // Wait, if I am altering, I should probably use ALTER TRIGGER or CREATE OR ALTER TRIGGER.
-                        // Metadata returns CREATE TRIGGER.
-                        // If I assume `create or alter` is desired:
+                        // Use CREATE OR ALTER
                         if (src.startsWith(`CREATE ${type.toUpperCase()}`)) {
-                           // Use CREATE OR ALTER for convenience, or just CREATE?
-                           // User prompt: "create a alter trigger musi mit format ... CREATE TRIGGER"
-                           // This might mean he wants the script to just be "CREATE TRIGGER..." but wrapped.
-                           // BUT if the trigger exists, CREATE TRIGGER fails.
-                           // "create a alter trigger" probably means "for both actions".
-                           // If he clicks "Alter Script", he wants to change it.
-                           // Standard in FB tools is usually `CREATE OR ALTER` or `RECREATE`.
-                           // I will stick to `CREATE OR ALTER` as it satisfies "Create" and "Alter" safety.
                            src = src.replace(`CREATE ${type.toUpperCase()}`, `CREATE OR ALTER ${type.toUpperCase()}`);
                         }
                         script = wrapSetTerm(src);
@@ -251,6 +236,54 @@ export function activate(context: vscode.ExtensionContext) {
 
         } catch (err: any) {
             vscode.window.showErrorMessage(`Error generating script: ${err.message}`);
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.createIndex', async (connection: DatabaseConnection, tableName: string) => {
+        try {
+            const script = `/*
+CREATE [UNIQUE] [ASC[ENDING] | [DESC[ENDING]] INDEX indexname
+   ON tablename
+   { (<col> [, <col> ...]) | COMPUTED BY (expression) }
+<col>  ::=  a column not of type ARRAY, BLOB or COMPUTED BY
+*/
+
+CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
+
+            const doc = await vscode.workspace.openTextDocument({
+                content: script,
+                language: 'sql'
+            });
+            await vscode.window.showTextDocument(doc);
+        } catch (err: any) {
+             vscode.window.showErrorMessage(`Error preparing create index script: ${err.message}`);
+        }
+    }));
+
+
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.indexOperation', async (type: 'drop' | 'activate' | 'deactivate' | 'recompute', connection: DatabaseConnection, indexName: string) => {
+        try {
+            let sql = '';
+            
+            if (type === 'drop') {
+                sql = `DROP INDEX ${indexName};`;
+            } else if (type === 'activate') {
+                sql = `ALTER INDEX ${indexName} ACTIVE;`;
+            } else if (type === 'deactivate') {
+                sql = `ALTER INDEX ${indexName} INACTIVE;`;
+            } else if (type === 'recompute') {
+                sql = `SET STATISTICS INDEX ${indexName};`;
+            }
+
+            const doc = await vscode.workspace.openTextDocument({
+                content: sql,
+                language: 'sql'
+            });
+            await vscode.window.showTextDocument(doc);
+            
+        } catch (err: any) {
+             vscode.window.showErrorMessage(`Operation failed: ${err.message}`);
         }
     }));
 

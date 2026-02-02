@@ -283,4 +283,62 @@ export class MetadataService {
             return `Error: ${e}`;
         }
     }
+
+    public static async getIndexes(connection: DatabaseConnection, tableName: string): Promise<any[]> {
+        const query = `
+            SELECT RDB$INDEX_NAME, RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, RDB$STATISTICS
+            FROM RDB$INDICES
+            WHERE RDB$RELATION_NAME = '${tableName}'
+              AND (RDB$SYSTEM_FLAG IS NULL OR RDB$SYSTEM_FLAG = 0)
+            ORDER BY RDB$INDEX_NAME
+        `;
+        
+        try {
+            const rows = await Database.runMetaQuery(connection, query);
+            return rows.map(row => ({
+                name: row.RDB$INDEX_NAME.trim(),
+                unique: row.RDB$UNIQUE_FLAG === 1,
+                inactive: row.RDB$INDEX_INACTIVE === 1,
+                statistics: row.RDB$STATISTICS
+            }));
+        } catch (err) {
+            console.error('Error getting indexes:', err);
+            return [];
+        }
+    }
+
+    public static async getIndexDDL(connection: DatabaseConnection, indexName: string): Promise<string> {
+        const queryIdx = `
+            SELECT RDB$RELATION_NAME, RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, RDB$INDEX_TYPE, RDB$STATISTICS
+            FROM RDB$INDICES 
+            WHERE RDB$INDEX_NAME = '${indexName}'
+        `;
+        
+        const querySeg = `
+            SELECT RDB$FIELD_NAME 
+            FROM RDB$INDEX_SEGMENTS 
+            WHERE RDB$INDEX_NAME = '${indexName}' 
+            ORDER BY RDB$FIELD_POSITION
+        `;
+
+        try {
+            const idxRows = await Database.runMetaQuery(connection, queryIdx);
+            if (idxRows.length === 0) return `-- Index ${indexName} not found`;
+
+            const idx = idxRows[0];
+            const relation = idx.RDB$RELATION_NAME.trim();
+            const unique = idx.RDB$UNIQUE_FLAG === 1 ? 'UNIQUE ' : '';
+            const inactive = idx.RDB$INDEX_INACTIVE === 1 ? 'INACTIVE' : 'ACTIVE';
+            // RDB$INDEX_TYPE: 1 = DESCENDING, 0 = ASCENDING
+            const desc = idx.RDB$INDEX_TYPE === 1 ? 'DESCENDING' : 'ASCENDING'; 
+            const statistics = idx.RDB$STATISTICS;
+
+            const segRows = await Database.runMetaQuery(connection, querySeg);
+            const columns = segRows.map(r => r.RDB$FIELD_NAME.trim()).join(', ');
+
+            return `CREATE ${unique}${desc !== 'ASCENDING' ? desc + ' ' : ''}INDEX ${indexName} ON ${relation} (${columns});\n\n-- Status: ${inactive}\n-- Statistics: ${statistics}`;
+        } catch (err) {
+             return `-- Error generating DDL for index ${indexName}: ${err}`;
+        }
+    }
 }
