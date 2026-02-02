@@ -1,6 +1,6 @@
 # TODO
 
-- [ ] Table indexes administration
+- [x] Table indexes administration
 - [ ] Trigger activation and deactivation
 - [ ] Scripts folder (shared + separate for each database)
 - [ ] Object search
