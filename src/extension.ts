@@ -290,6 +290,29 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
              vscode.window.showErrorMessage(`Operation failed: ${err.message}`);
         }
     }));
+    
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.triggerOperation', async (type: 'drop' | 'activate' | 'deactivate', connection: DatabaseConnection, triggerName: string) => {
+        try {
+            let sql = '';
+            
+            if (type === 'drop') {
+                sql = `DROP TRIGGER ${triggerName};`;
+            } else if (type === 'activate') {
+                sql = `ALTER TRIGGER ${triggerName} ACTIVE;`;
+            } else if (type === 'deactivate') {
+                sql = `ALTER TRIGGER ${triggerName} INACTIVE;`;
+            }
+
+            const doc = await vscode.workspace.openTextDocument({
+                content: sql,
+                language: 'sql'
+            });
+            await vscode.window.showTextDocument(doc);
+            
+        } catch (err: any) {
+             vscode.window.showErrorMessage(`Operation failed: ${err.message}`);
+        }
+    }));
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.commit', async () => {
         try {

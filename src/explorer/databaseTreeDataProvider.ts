@@ -133,6 +133,51 @@ export class IndexOperationItem extends vscode.TreeItem {
     }
 }
 
+export class TriggerItem extends vscode.TreeItem {
+    constructor(
+        public readonly connection: DatabaseConnection,
+        public readonly triggerName: string,
+        public readonly sequence: number,
+        public readonly inactive: boolean
+    ) {
+        super(triggerName, vscode.TreeItemCollapsibleState.Collapsed);
+        this.contextValue = 'trigger-item';
+        this.iconPath = new vscode.ThemeIcon('zap');
+        this.description = [
+            `(${sequence})`,
+            inactive ? 'INACTIVE' : ''
+        ].filter(x => x).join(' ');
+
+        this.command = {
+             command: 'firebird.openObject',
+             title: 'Show Trigger Info',
+             arguments: ['trigger', triggerName, connection]
+        };
+    }
+}
+
+export class TriggerOperationItem extends vscode.TreeItem {
+    constructor(
+        label: string,
+        public readonly type: 'drop' | 'activate' | 'deactivate',
+        public readonly connection: DatabaseConnection,
+        public readonly triggerName: string
+    ) {
+        super(label, vscode.TreeItemCollapsibleState.None);
+        this.contextValue = 'trigger-operation';
+        
+        if (type === 'drop') this.iconPath = new vscode.ThemeIcon('trash');
+        else if (type === 'activate') this.iconPath = new vscode.ThemeIcon('check');
+        else if (type === 'deactivate') this.iconPath = new vscode.ThemeIcon('circle-slash');
+
+        this.command = {
+             command: 'firebird.triggerOperation',
+             title: label,
+             arguments: [type, connection, triggerName]
+        };
+    }
+}
+
 export class ObjectItem extends vscode.TreeItem {
     public readonly objectName: string;
     constructor(
@@ -204,9 +249,9 @@ export class OperationItem extends vscode.TreeItem {
     }
 }
 
-export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | vscode.TreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | vscode.TreeItem | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
+export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem | undefined | void>();
+    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
     private connections: DatabaseConnection[] = [];
     private groups: ConnectionGroup[] = [];
@@ -245,7 +290,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this._onDidChangeTreeData.fire();
     }
 
-    getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | vscode.TreeItem): vscode.TreeItem {
+    getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem): vscode.TreeItem {
         if (element instanceof vscode.TreeItem) {
             return element;
         }
@@ -311,7 +356,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         }
     }
 
-    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | vscode.TreeItem)[]> {
+    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem)[]> {
         if (this._loading && !element) {
             const loadingItem = new vscode.TreeItem('Loading...');
             loadingItem.iconPath = new vscode.ThemeIcon('loading~spin');
@@ -374,9 +419,18 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                 });
                 
                 return sorted.map(t => {
-                     const label = `${t.name} (${t.sequence})`;
-                     return new ObjectItem(label, 'trigger', element.connection, t.name); // Pass real name separately?
+                     return new TriggerItem(element.connection, t.name, t.sequence, t.inactive);
                 });
+            } else if (element instanceof TriggerItem) {
+                 const ops: TriggerOperationItem[] = [];
+                 ops.push(new TriggerOperationItem('Drop trigger', 'drop', element.connection, element.triggerName));
+                 if (element.inactive) {
+                     ops.push(new TriggerOperationItem('Activate trigger', 'activate', element.connection, element.triggerName));
+                 } else {
+                     ops.push(new TriggerOperationItem('Deactivate trigger', 'deactivate', element.connection, element.triggerName));
+                 }
+                 // Triggers in FB don't have "recompute statistics" like indexes
+                 return ops;
             } else if (element instanceof ObjectItem) {
                 // Return operations (Create, Alter, Value)
                 const ops: (OperationItem | TableTriggersItem)[] = [];

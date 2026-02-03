@@ -1,7 +1,7 @@
 # TODO
 
 - [x] Table indexes administration
-- [ ] Trigger activation and deactivation
+- [x] Trigger activation and deactivation
 - [ ] Scripts folder (shared + separate for each database)
 - [ ] Object search
 - [ ] Prominently display currently selected database in SQL file tab

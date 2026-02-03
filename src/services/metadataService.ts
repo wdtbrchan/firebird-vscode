@@ -44,7 +44,7 @@ export class MetadataService {
             relation: row.RDB$RELATION_NAME ? row.RDB$RELATION_NAME.trim() : '',
             sequence: row.RDB$TRIGGER_SEQUENCE,
             type: row.RDB$TRIGGER_TYPE,
-            inactive: row.RDB$TRIGGER_INACTIVE
+            inactive: row.RDB$TRIGGER_INACTIVE === 1
         }));
     }
 
