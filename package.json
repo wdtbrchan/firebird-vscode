@@ -111,6 +111,11 @@
         "command": "firebird.clearFilter",
         "title": "Clear Filter",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "firebird.closeResults",
+        "title": "Close Results",
+        "icon": "$(close)"
       }
     ],
     "keybindings": [
@@ -125,6 +130,11 @@
         "key": "ctrl+alt+enter",
         "mac": "cmd+alt+enter",
         "when": "editorTextFocus && editorLangId == sql"
+      },
+      {
+        "command": "firebird.closeResults",
+        "key": "ctrl+shift+backspace",
+        "mac": "cmd+shift+backspace"
       }
     ],
     "viewsContainers": {

@@ -348,6 +348,12 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
         }
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.closeResults', () => {
+        if (ResultsPanel.currentPanel) {
+            ResultsPanel.currentPanel.dispose();
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('firebird.commit', async () => {
         try {
             await Database.commit();

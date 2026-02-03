@@ -8,7 +8,7 @@
 - [ ] Color settings for folders/databases to distinguish production and dev connections
 - [ ] Favorites list for objects (triggers, tables, etc.)
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
-- [ ] Keyboard shortcut to close Query result
+- [x] Keyboard shortcut to close Query result
 - [ ] Ability to execute SQL queries in non-SQL files
 - [ ] Support parameter values in comments for SQL execution in non-SQL files (e.g., `? -- @value=1` or `:name -- @value='John'`)
 - [ ] Check functionality in Cursor editor (statusbar, icons in editor)
