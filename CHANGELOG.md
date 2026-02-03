@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0]
+### Features
+- **Trigger Management**:
+  - Added support for Activating, Deactivating, and Dropping triggers.
+  - Improved display of inactive triggers.
+- **Explorer Improvements**:
+  - **Object Search**: Added live filtering for Tables, Views, Triggers, Procedures, and Generators.
+  - **Trigger Groups**: Improved grouping logic (collapsed by default, auto-expanded when searching).
+- **Query Results**:
+  - Added keyboard shortcut `Ctrl+Shift+Backspace` to close the results panel.
+
 ## [0.3.0]
 ### Features
 - **Index Management**:
