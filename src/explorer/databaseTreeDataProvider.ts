@@ -39,11 +39,13 @@ export class TriggerGroupItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
         public readonly triggers: any[], // Store triggers directly
-        public readonly connection: DatabaseConnection
+        public readonly connection: DatabaseConnection,
+        state: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.Collapsed
     ) {
-        super(label, vscode.TreeItemCollapsibleState.Collapsed);
+        super(label, state);
         this.contextValue = 'trigger-group';
         this.iconPath = new vscode.ThemeIcon('folder-active');
+        this.id = `${connection.id}|triggerGroup|${label}|${state}`;
     }
 }
 
@@ -407,15 +409,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                             resultItems.push(...filteredItems.map(name => new ObjectItem(name, 'view', element.connection)));
                             break;
                         case 'triggers':
-                            // For triggers, we get grouped items. Filtering is a bit more complex if we want to filter specific triggers
-                            // or groups. Let's filter by trigger name inside groups?
-                            // Or let's just filter flattened triggers?
-                            // The current implementation returns TriggerGroupItem[].
-                            // If filter is active, maybe show flattened list of triggers? Or keep groups and filter triggers inside?
-                            // Let's keep groups and filter triggers inside.
-                            
-                            // Currently getGroupedTriggers returns TriggerGroupItems.
-                            const groups = await this.getGroupedTriggers(element.connection, undefined, filter);
+                            // Main triggers folder -> Collapsed groups (default), Expanded if filtering
+                            const groups = await this.getGroupedTriggers(element.connection, undefined, filter, !!filter);
                             resultItems.push(...groups);
                             break;
                         case 'procedures':
@@ -435,7 +430,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                     return [];
                 }
             } else if (element instanceof TableTriggersItem) {
-                 return this.getGroupedTriggers(element.connection, element.tableName);
+                 // Table triggers -> Expanded groups
+                 return this.getGroupedTriggers(element.connection, element.tableName, undefined, true);
             } else if (element instanceof TableIndexesItem) {
                  const indexes = await MetadataService.getIndexes(element.connection, element.tableName);
                  const items: vscode.TreeItem[] = [];
@@ -535,7 +531,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         return [...rootGroups, ...ungroupedConns];
     }
 
-    async getGroupedTriggers(connection: DatabaseConnection, tableName?: string, filter?: string): Promise<TriggerGroupItem[]> {
+    async getGroupedTriggers(connection: DatabaseConnection, tableName?: string, filter?: string, expanded: boolean = false): Promise<TriggerGroupItem[]> {
         try {
             const allTriggers = await MetadataService.getTriggers(connection, tableName);
             const groups: { [key: string]: any[] } = {};
@@ -553,7 +549,12 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             }
             
             return Object.keys(groups).sort().map(g => {
-                return new TriggerGroupItem(g, groups[g], connection);
+                return new TriggerGroupItem(
+                    g, 
+                    groups[g], 
+                    connection, 
+                    expanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed
+                );
             });
         } catch (err) {
             console.error('Error getting grouped triggers:', err);
