@@ -2,6 +2,7 @@
 
 - [x] Table indexes administration
 - [x] Trigger activation and deactivation
+- [ ] Ability to create a new SQL file from the DB explorer
 - [ ] Scripts folder (shared + separate for each database)
 - [x] Object search
 - [ ] Prominently display currently selected database in SQL file tab
@@ -14,3 +15,4 @@
 - [ ] Check functionality in Cursor editor (statusbar, icons in editor)
 - [ ] Different formats for dates, numbers, null values
 - [ ] Export results to CSV
+- [ ] Support multiple simultaneous active database connections

@@ -90,6 +90,24 @@ export class ConnectionEditor {
         const password = connection?.password || ''; // Don't pre-fill password for security? Or do? User expects it.
         const role = connection?.role || '';
         const charset = connection?.charset || 'UTF8';
+        const resultLocale = connection?.resultLocale || '';
+
+        const locales = [
+            { code: '', label: 'Default (Global Setting)' },
+            { code: 'en-US', label: 'English (United States)' },
+            { code: 'cs-CZ', label: 'Czech (Czech Republic)' },
+            { code: 'de-DE', label: 'German (Germany)' },
+            { code: 'fr-FR', label: 'French (France)' },
+            { code: 'es-ES', label: 'Spanish (Spain)' },
+            { code: 'it-IT', label: 'Italian (Italy)' },
+            { code: 'pl-PL', label: 'Polish (Poland)' },
+            { code: 'ru-RU', label: 'Russian (Russia)' },
+            { code: 'pt-BR', label: 'Portuguese (Brazil)' },
+            { code: 'zh-CN', label: 'Chinese (Simplified)' },
+            { code: 'ja-JP', label: 'Japanese (Japan)' },
+        ];
+
+        const localeOptions = locales.map(l => `<option value="${l.code}" ${l.code === resultLocale ? 'selected' : ''}>${l.label}</option>`).join('');
         const isEdit = !!connection;
 
         const groupOptions = groups.map(g => `<option value="${g.id}" ${g.id === groupId ? 'selected' : ''}>${g.name}</option>`).join('');
@@ -161,6 +179,12 @@ export class ConnectionEditor {
                 <label>Charset</label>
                 <input type="text" id="charset" value="${charset}">
             </div>
+            <div class="form-group">
+                <label>Result Locale (Format)</label>
+                <select id="resultLocale">
+                    ${localeOptions}
+                </select>
+            </div>
 
             <div class="actions">
                 ${isEdit ? `
@@ -186,7 +210,8 @@ export class ConnectionEditor {
                         user: document.getElementById('user').value,
                         password: document.getElementById('password').value,
                         role: document.getElementById('role').value,
-                        charset: document.getElementById('charset').value
+                        charset: document.getElementById('charset').value,
+                        resultLocale: document.getElementById('resultLocale').value
                     };
                     vscode.postMessage({ command: 'save', connection: conn });
                 }

@@ -14,6 +14,7 @@ export interface DatabaseConnection {
     password?: string; // Optional if we move to Secrets API later
     role?: string;
     charset?: string;
+    resultLocale?: string;
     name?: string; // friendly name
     groupId?: string; // ID of parent group
 }

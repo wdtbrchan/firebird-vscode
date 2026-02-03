@@ -410,6 +410,7 @@ export class ResultsPanel {
             body.vscode-dark tr:hover { background-color: #2a2d2e; }
             body.vscode-dark .error-message { background-color: #2c0b0e; border-color: #842029; color: #ea868f; }
             body.vscode-dark .success-message { background-color: #08303e; border-color: #0c5460; color: #66b0ff; }
+            .null-value { color: #888; font-style: italic; }
         `;
 
         const header = `
@@ -463,11 +464,35 @@ export class ResultsPanel {
         const headerRow = '<th></th>' + columns.map(col => `<th>${col}</th>`).join('');
 
         // Generate rows
+        const config = vscode.workspace.getConfiguration('firebird');
+        // Use connection-specific locale if set, otherwise fallback to global setting or en-US
+        const locale = this._currentConnection?.resultLocale || config.get<string>('resultLocale', 'en-US');
+
         const rows = results.map((row, index) => {
             const cells = columns.map(col => {
                 let val = row[col];
-                if (val instanceof Uint8Array) {
+                if (val === null) {
+                    val = '<span class="null-value">[NULL]</span>';
+                } else if (val instanceof Uint8Array) {
                     val = '[Blob]'; // Simplified for now
+                } else if (typeof val === 'number') {
+                    // Start formatting change
+                    if (Number.isInteger(val)) {
+                        val = val.toString(); // Don't format integers (ids etc.)
+                    } else {
+                        try {
+                            val = val.toLocaleString(locale);
+                        } catch (e) {
+                             // Fallback if locale is invalid
+                             val = val.toString(); 
+                        }
+                    }
+                } else if (val instanceof Date) {
+                    try {
+                        val = val.toLocaleString(locale);
+                    } catch (e) {
+                        val = val.toString();
+                    }
                 } else if (typeof val === 'object' && val !== null) {
                     val = JSON.stringify(val);
                 }
