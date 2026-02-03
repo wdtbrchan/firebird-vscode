@@ -2,7 +2,7 @@
 
 - [x] Table indexes administration
 - [x] Trigger activation and deactivation
-- [ ] Ability to create a new SQL file from the DB explorer
+- [x] Ability to create a new SQL file from the DB explorer
 - [ ] Scripts folder (shared + separate for each database)
 - [x] Object search
 - [ ] Prominently display currently selected database in SQL file tab

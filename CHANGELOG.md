@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0]
+### Features
+- **SQL Execution in Other Files**:
+  - Execute SQL queries from non-SQL files (e.g., PHP) using `Ctrl+Enter`.
+  - Configurable via `firebird.allowedLanguages` setting.
+  - **Parameter Injection**: Support for injecting parameter values using comments (e.g., `--@val=1` or `/*@val='text'*/`).
+- **Improved Explorer**:
+  - Added **Create new...** actions for Tables, Views, Triggers, Procedures, and Generators to easily create new objects from templates.
+- **General**:
+  - Added "Run Query" and "Run Script" commands to the "Firebird" category in the Command Palette.
+
 ## [0.4.0]
 ### Features
 - **Trigger Management**:
