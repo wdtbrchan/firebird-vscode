@@ -1,6 +1,7 @@
 {
   "name": "firebird-vscode",
   "displayName": "Firebird SQL",
+  "icon": "docs/logo.png",
   "publisher": "wdtbrchan",
   "description": "Firebird database management extension",
   "version": "0.2.3",
@@ -58,6 +59,11 @@
         "command": "firebird.editDatabase",
         "title": "Edit Database",
         "icon": "$(edit)"
+      },
+      {
+        "command": "firebird.refreshDatabase",
+        "title": "Refresh Database",
+        "icon": "$(refresh)"
       },
       {
         "command": "firebird.selectDatabase",
@@ -183,6 +189,16 @@
         {
           "command": "firebird.disconnectDatabase",
           "when": "view == firebird.databases && viewItem == database-active",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.refreshDatabase",
+          "when": "view == firebird.databases && viewItem == database-active",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.refreshDatabase",
+          "when": "view == firebird.databases && viewItem == database",
           "group": "inline"
         },
         {

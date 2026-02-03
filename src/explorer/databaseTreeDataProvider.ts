@@ -544,6 +544,16 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         }
     }
 
+    refreshDatabase(conn: DatabaseConnection) {
+        // Find the tree item corresponding to this connection to pass as element?
+        // Actually, onDidChangeTreeData accepts the element to refresh.
+        // We can reconstruct the element or pass the connection object if getTreeItem handles it.
+        // getTreeItem handles DatabaseConnection.
+        
+        // If we want to refresh children (tables etc), we fire with the connection.
+        this._onDidChangeTreeData.fire(conn);
+    }
+
     removeDatabase(conn: DatabaseConnection) {
         this.connections = this.connections.filter(c => c.id !== conn.id);
         if (this.activeConnectionId === conn.id) {

@@ -184,4 +184,25 @@ export class ScriptParser {
 
         return statements;
     }
+
+    /**
+     * Checks if a SQL statement is a DDL command (CREATE, ALTER, DROP, RECREATE).
+     * @param query The SQL query to check.
+     */
+    public static isDDL(query: string): boolean {
+        // Simple comment stripping (careful with strings, but good enough for start-of-statement check)
+        // We handle block comments /* ... */ and line comments -- ...
+        // We match comments found anywhere, but most importantly at the start.
+        
+        // Note: Regex comment stripping might be imperfect for strings containing comment markers.
+        // But since we check for keywords at the START of the resulting string, 
+        // it's unlikely a SELECT statement would become a CREATE statement unless 'SELECT' was inside a comment.
+        
+        const clean = query
+            .replace(/\/\*[\s\S]*?\*\//g, '') // remove block comments
+            .replace(/--.*$/gm, '')           // remove line comments
+            .trim();
+            
+        return /^\s*(CREATE|ALTER|DROP|RECREATE)\b/i.test(clean);
+    }
 }

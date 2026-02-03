@@ -107,6 +107,10 @@ export function activate(context: vscode.ExtensionContext) {
         await databaseTreeDataProvider.editDatabase(conn);
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.refreshDatabase', (conn: DatabaseConnection) => {
+        databaseTreeDataProvider.refreshDatabase(conn);
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('firebird.selectDatabase', async (conn: DatabaseConnection) => {
         // Rollback current transaction (if any) before switching context
         await Database.rollback();
@@ -290,6 +294,13 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
     context.subscriptions.push(vscode.commands.registerCommand('firebird.commit', async () => {
         try {
             await Database.commit();
+            
+            // Refresh active connection to show changes (like new tables)
+            const activeConn = databaseTreeDataProvider.getActiveConnection();
+            if (activeConn) {
+                databaseTreeDataProvider.refreshDatabase(activeConn);
+            }
+
             vscode.window.setStatusBarMessage('Firebird: Transaction Committed', 3000);
         } catch (err: any) {
             vscode.window.showErrorMessage('Commit failed: ' + err.message);
@@ -343,6 +354,11 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
                     return;
                 }
                 await ResultsPanel.currentPanel.runScript(statements, activeConn, contextTitle);
+
+                // Check for DDL in script to auto-refresh
+                if (statements.some(stmt => ScriptParser.isDDL(stmt))) {
+                    databaseTreeDataProvider.refreshDatabase(activeConn);
+                }
             }
 
             // Restore focus to the editor
@@ -438,6 +454,12 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
             // Delegate query execution to the panel, which handles pagination
             if (ResultsPanel.currentPanel) {
                 await ResultsPanel.currentPanel.runNewQuery(query, activeConn, contextTitle);
+            }
+
+            // Check for DDL to auto-refresh
+            // Check for DDL to auto-refresh
+            if (ScriptParser.isDDL(query)) {
+                databaseTreeDataProvider.refreshDatabase(activeConn);
             }
 
             // Restore focus to the editor so the user can continue typing

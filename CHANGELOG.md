@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.0]
+### Features
+- **Index Management**:
+  - Added support for creating, dropping, activating/deactivating indexes and recomputing index statistics.
+- **Database Management**:
+  - Added **Refresh Database** action to reload connection metadata.
+  - Implemented auto-refresh of database tree after executing DDL commands (CREATE, ALTER, DROP).
+- **Query Results**:
+  - Display executed query snippet (start of query) in the results panel header.
+
 ## [0.2.3]
 ### Fixes
 - **Object Viewer**:

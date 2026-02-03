@@ -268,8 +268,9 @@ export class ResultsPanel {
          this._lastMessage = message;
          this._showButtons = showButtons;
          this._lastIsError = isError;
-         this._lastContext = context;
-         this._panel.webview.html = this._getHtmlForWebview(results, message, showButtons, isError, context, false);
+         // Use provided context or fallback to current established context
+         this._lastContext = context || this._currentContext;
+         this._panel.webview.html = this._getHtmlForWebview(results, message, showButtons, isError, this._lastContext, false);
     }
 
     public setTransactionStatus(hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) {
@@ -294,6 +295,12 @@ export class ResultsPanel {
         const timeText = this._lastExecutionTime !== undefined ? `${this._lastExecutionTime.toFixed(3)}s` : '';
         const contextText = context || 'Unknown Database';
         
+        let querySnippet = '';
+        if (this._currentQuery) {
+            const cleanQuery = this._currentQuery.replace(/\s+/g, ' ').trim();
+            querySnippet = cleanQuery.length > 50 ? cleanQuery.substring(0, 50) + '...' : cleanQuery;
+        }
+
         const subtitleParts = [];
         if (!isError && !message) {
             subtitleParts.push(rowsText);
@@ -372,6 +379,7 @@ export class ResultsPanel {
             body { font-family: sans-serif; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; height: 100vh; }
             h3 { margin: 0; font-size: 1.1em; }
             .subtitle { font-size: 0.85em; color: #888; margin-top: 2px; }
+            .query-snippet { font-size: 0.8em; color: #aaa; margin-top: 2px; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             .header-container { padding: 10px; border-bottom: 1px solid #ccc; flex-shrink: 0; min-height: 40px; display: flex; align-items: center; justify-content: space-between; }
             .header-content { display: flex; flex-direction: column; }
             .actions { display: flex; gap: 10px; align-items: center; }
@@ -409,6 +417,7 @@ export class ResultsPanel {
                 <div class="header-content">
                     ${isError || message ? `<h3>${isError ? 'Error' : message}</h3>` : ''} 
                     ${!isError && subtitle ? `<div class="subtitle">${subtitle}</div>` : ''}
+                    ${querySnippet ? `<div class="query-snippet" title="${this._currentQuery}">${querySnippet}</div>` : ''}
                 </div>
                 ${buttonsHtml}
             </div>

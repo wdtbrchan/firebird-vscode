@@ -1,6 +1,10 @@
-# Firebird for VS Code
+<p align="center">
+  <img src="docs/logo.png" alt="Firebird VS Code Logo" width="128" />
+</p>
 
-Firebird database management extension for VS Code.
+# Firebird SQL
+
+Firebird database management extension for VS Code, Antigravity, Cursor and other VS Code compatible editors.
 
 ![Screenshot](docs/screen.png)
 
