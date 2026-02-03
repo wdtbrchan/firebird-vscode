@@ -36,6 +36,14 @@
           "type": "string",
           "default": "en-US",
           "description": "Locale for formatting numbers and dates in query results (e.g. en-US, cs-CZ, de-DE)."
+        },
+        "firebird.allowedLanguages": {
+          "type": "array",
+          "default": ["sql"],
+          "items": {
+            "type": "string"
+          },
+          "description": "List of language IDs where query execution is allowed."
         }
       }
     },
@@ -43,11 +51,13 @@
       {
         "command": "firebird.runQuery",
         "title": "Run Query",
+        "category": "Firebird",
         "icon": "$(play)"
       },
       {
         "command": "firebird.executeScript",
         "title": "Run Script",
+        "category": "Firebird",
         "icon": "$(run-all)"
       },
       {
@@ -128,7 +138,7 @@
         "command": "firebird.runQuery",
         "key": "ctrl+enter",
         "mac": "cmd+enter",
-        "when": "editorTextFocus && editorLangId == sql"
+        "when": "editorTextFocus && firebird:queryExecutionEnabled"
       },
       {
         "command": "firebird.executeScript",

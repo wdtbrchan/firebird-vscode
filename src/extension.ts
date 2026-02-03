@@ -5,12 +5,40 @@ import { DatabaseTreeDataProvider, DatabaseConnection, DatabaseDragAndDropContro
 import { MetadataService } from './services/metadataService';
 import { ScriptParser } from './services/scriptParser';
 import { DDLProvider } from './services/ddlProvider';
+import { ParameterInjector } from './services/parameterInjector';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Firebird extension activating...');
 
     // Initialize context
     vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', false);
+
+    // --- Context Key Management ---
+    const updateExecutionContext = () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.commands.executeCommand('setContext', 'firebird:queryExecutionEnabled', false);
+            return;
+        }
+        const config = vscode.workspace.getConfiguration('firebird');
+        const allowedLanguages = config.get<string[]>('allowedLanguages', ['sql']);
+        const isAllowed = allowedLanguages.includes(editor.document.languageId);
+        vscode.commands.executeCommand('setContext', 'firebird:queryExecutionEnabled', isAllowed);
+    };
+
+    // Initial check
+    updateExecutionContext();
+
+    // Listeners
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(updateExecutionContext),
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('firebird.allowedLanguages')) {
+                updateExecutionContext();
+            }
+        })
+    );
+    // ------------------------------
 
     try {
         const databaseTreeDataProvider = new DatabaseTreeDataProvider(context);
@@ -438,10 +466,21 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
         }
     }));
 
+
+
     let disposable = vscode.commands.registerCommand('firebird.runQuery', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             vscode.window.showErrorMessage('No active text editor');
+            return;
+        }
+
+        const config = vscode.workspace.getConfiguration('firebird');
+        const allowedLanguages = config.get<string[]>('allowedLanguages', ['sql']);
+        if (!allowedLanguages.includes(editor.document.languageId)) {
+            // User explicitly used the command (keybinding or palette), so we should inform them if it's blocked.
+            // We can add a 'Don't show again' option ideally, but for now simple warning.
+            vscode.window.showInformationMessage(`Firebird: Execution not enabled for language '${editor.document.languageId}'. Check 'firebird.allowedLanguages' setting.`);
             return;
         }
 
@@ -499,6 +538,31 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
              return;
         }
 
+        // --- Query Cleanup ---
+        let cleanQuery = query.trim();
+        
+        // Remove trailing semicolon/PHP terminator
+        if (cleanQuery.endsWith(';')) cleanQuery = cleanQuery.slice(0, -1).trim();
+
+        // Language-specific cleanup (e.g. PHP strings)
+        if (editor.document.languageId !== 'sql') {
+            // 1. Remove PHP variable assignment: $var = "..."
+            // Match: $variable = 
+            const assignmentMatch = /^\$[\w\d_]+\s*=\s*/.exec(cleanQuery);
+            if (assignmentMatch) {
+                cleanQuery = cleanQuery.substring(assignmentMatch[0].length).trim();
+            }
+
+            // 2. Remove surrounding quotes if present
+            // Match "..." or '...'
+            // Note: This is a simple heuristic. It won't handle complex concatenations.
+            if ((cleanQuery.startsWith('"') && cleanQuery.endsWith('"')) || 
+                (cleanQuery.startsWith("'") && cleanQuery.endsWith("'"))) {
+                cleanQuery = cleanQuery.substring(1, cleanQuery.length - 1);
+            }
+        }
+        // --- End Query Cleanup ---
+
         try {
             // Get active connection configuration
             const activeConn = databaseTreeDataProvider.getActiveConnection();
@@ -513,15 +577,17 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
             
             // Show loading state immediately
             ResultsPanel.createOrShow(context.extensionUri);
+
+            // Inject parameters if present
+            cleanQuery = ParameterInjector.inject(cleanQuery);
             
-            // Delegate query execution to the panel, which handles pagination
+            // Delegate query execution to the panel
             if (ResultsPanel.currentPanel) {
-                await ResultsPanel.currentPanel.runNewQuery(query, activeConn, contextTitle);
+                await ResultsPanel.currentPanel.runNewQuery(cleanQuery, activeConn, contextTitle);
             }
 
             // Check for DDL to auto-refresh
-            // Check for DDL to auto-refresh
-            if (ScriptParser.isDDL(query)) {
+            if (ScriptParser.isDDL(cleanQuery)) {
                 databaseTreeDataProvider.refreshDatabase(activeConn);
             }
 
