@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.5.1]
+### Documentation
+- Updated `README.md` with detailed examples for SQL execution in PHP (Parameter Injection).
+
 ## [0.5.0]
 ### Features
 - **SQL Execution in Other Files**:
