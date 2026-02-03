@@ -230,6 +230,22 @@ export class ObjectItem extends vscode.TreeItem {
     }
 }
 
+export class CreateObjectItem extends vscode.TreeItem {
+    constructor(
+        public readonly connection: DatabaseConnection,
+        public readonly objectType: 'table' | 'view' | 'trigger' | 'procedure' | 'generator'
+    ) {
+        super(`Create new ${objectType}...`, vscode.TreeItemCollapsibleState.None);
+        this.contextValue = 'create-object';
+        this.iconPath = new vscode.ThemeIcon('add');
+        this.command = {
+            command: 'firebird.createObject',
+            title: 'Create Object',
+            arguments: [objectType, connection]
+        };
+    }
+}
+
 export class OperationItem extends vscode.TreeItem {
     constructor(
         label: string,
@@ -378,7 +394,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         }
     }
 
-    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem)[]> {
+    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | CreateObjectItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | CreateObjectItem | vscode.TreeItem)[]> {
         if (this._loading && !element) {
             const loadingItem = new vscode.TreeItem('Loading...');
             loadingItem.iconPath = new vscode.ThemeIcon('loading~spin');
@@ -390,8 +406,19 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                 // Return objects inside folder
                 try {
                     const filter = this.getFilter(element.connection.id, element.type);
-                    const resultItems: (ObjectItem | TriggerGroupItem | FilterItem)[] = [];
+                    const resultItems: (ObjectItem | TriggerGroupItem | FilterItem | CreateObjectItem)[] = [];
                     
+                    // Add "Create new..." item
+                    let objType: 'table' | 'view' | 'trigger' | 'procedure' | 'generator' = 'table';
+                    switch(element.type) {
+                        case 'tables': objType = 'table'; break;
+                        case 'views': objType = 'view'; break;
+                        case 'triggers': objType = 'trigger'; break;
+                        case 'procedures': objType = 'procedure'; break;
+                        case 'generators': objType = 'generator'; break;
+                    }
+                    resultItems.push(new CreateObjectItem(element.connection, objType));
+
                     // Add FilterItem
                     resultItems.push(new FilterItem(element.connection, element.type, filter));
 

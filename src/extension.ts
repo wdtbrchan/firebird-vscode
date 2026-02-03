@@ -8,7 +8,63 @@ import { DDLProvider } from './services/ddlProvider';
 import { ParameterInjector } from './services/parameterInjector';
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Firebird extension activating...');
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.createObject', async (objectType: string, connection?: DatabaseConnection) => {
+        let template = '';
+        const timestamp = new Date().getTime();
+        
+        switch (objectType) {
+            case 'table':
+                template = `CREATE TABLE NEW_TABLE (
+    ID INTEGER NOT NULL,
+    NAME VARCHAR(50)
+);
+
+ALTER TABLE NEW_TABLE ADD CONSTRAINT PK_NEW_TABLE PRIMARY KEY (ID);`;
+                break;
+            case 'view':
+                template = `CREATE VIEW NEW_VIEW AS
+SELECT * FROM RDB$DATABASE;`;
+                break;
+            case 'trigger':
+                template = `SET TERM ^ ;
+CREATE OR ALTER TRIGGER NEW_TRIGGER FOR TABLE_NAME
+ACTIVE BEFORE INSERT POSITION 0
+AS
+BEGIN
+    /* code */
+END^
+SET TERM ; ^`;
+                break;
+            case 'procedure':
+                template = `SET TERM ^ ;
+CREATE PROCEDURE NEW_PROCEDURE (
+    input_param INTEGER
+)
+RETURNS (
+    output_param INTEGER
+)
+AS
+BEGIN
+    output_param = input_param * 2;
+    SUSPEND;
+END^
+SET TERM ; ^`;
+                break;
+            case 'generator':
+                template = `CREATE GENERATOR NEW_GENERATOR;`;
+                break;
+            default:
+                template = `-- Unknown object type: ${objectType}`;
+        }
+
+        const doc = await vscode.workspace.openTextDocument({
+            content: template,
+            language: 'sql'
+        });
+        await vscode.window.showTextDocument(doc);
+    }));
+
+    // --- End Context Key Management ---
 
     // Initialize context
     vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', false);
