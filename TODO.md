@@ -3,7 +3,7 @@
 - [x] Table indexes administration
 - [x] Trigger activation and deactivation
 - [ ] Scripts folder (shared + separate for each database)
-- [ ] Object search
+- [x] Object search
 - [ ] Prominently display currently selected database in SQL file tab
 - [ ] Color settings for folders/databases to distinguish production and dev connections
 - [ ] Favorites list for objects (triggers, tables, etc.)

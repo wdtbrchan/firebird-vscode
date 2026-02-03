@@ -101,6 +101,16 @@
         "command": "firebird.disconnectDatabase",
         "title": "Disconnect Database",
         "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "firebird.editFilter",
+        "title": "Edit Filter",
+        "icon": "$(search)"
+      },
+      {
+        "command": "firebird.clearFilter",
+        "title": "Clear Filter",
+        "icon": "$(clear-all)"
       }
     ],
     "keybindings": [
@@ -219,6 +229,11 @@
         {
           "command": "firebird.renameGroup",
           "when": "view == firebird.databases && viewItem == group",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.clearFilter",
+          "when": "view == firebird.databases && viewItem == filter-item",
           "group": "inline"
         }
       ]

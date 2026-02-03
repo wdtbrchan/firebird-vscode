@@ -314,6 +314,40 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
         }
     }));
 
+    // Filter commands
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.editFilter', async (connection: DatabaseConnection, type: string) => {
+        const currentFilter = (databaseTreeDataProvider as any).getFilter(connection.id, type);
+        
+        const inputBox = vscode.window.createInputBox();
+        inputBox.value = currentFilter;
+        inputBox.placeholder = `Filter ${type}...`;
+        inputBox.title = `Filter ${type}`;
+        
+        inputBox.onDidChangeValue(value => {
+            (databaseTreeDataProvider as any).setFilter(connection.id, type, value);
+            // We need to trigger a refresh of this specific node.
+            // Since getChildren calls getFilter, a refresh of the connection (or folder) is needed.
+            // refreshDatabase(connection) refreshes the connection node which covers all folders.
+            databaseTreeDataProvider.refreshDatabase(connection);
+        });
+
+        inputBox.onDidAccept(() => {
+            inputBox.hide();
+        });
+
+        inputBox.show();
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.clearFilter', async (item: any) => {
+        // item is FilterItem. arguments are [connection, type]
+        if (item && item.command && item.command.arguments && item.command.arguments.length >= 2) {
+             const connection = item.command.arguments[0];
+             const type = item.command.arguments[1];
+             (databaseTreeDataProvider as any).setFilter(connection.id, type, '');
+             databaseTreeDataProvider.refreshDatabase(connection);
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('firebird.commit', async () => {
         try {
             await Database.commit();

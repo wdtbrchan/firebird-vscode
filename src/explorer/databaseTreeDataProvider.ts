@@ -178,6 +178,24 @@ export class TriggerOperationItem extends vscode.TreeItem {
     }
 }
 
+export class FilterItem extends vscode.TreeItem {
+    constructor(
+        public readonly connection: DatabaseConnection,
+        public readonly type: 'tables' | 'views' | 'triggers' | 'procedures' | 'generators',
+        public readonly filterValue: string
+    ) {
+        super(filterValue ? `🔍 Filter: ${filterValue}` : '🔍 Click to filter...', vscode.TreeItemCollapsibleState.None);
+        this.contextValue = 'filter-item';
+        this.iconPath = new vscode.ThemeIcon('search');
+        
+        this.command = {
+            command: 'firebird.editFilter',
+            title: 'Edit Filter',
+            arguments: [connection, type]
+        };
+    }
+}
+
 export class ObjectItem extends vscode.TreeItem {
     public readonly objectName: string;
     constructor(
@@ -249,9 +267,9 @@ export class OperationItem extends vscode.TreeItem {
     }
 }
 
-export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
+export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem | undefined | void>();
+    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
     private connections: DatabaseConnection[] = [];
     private groups: ConnectionGroup[] = [];
@@ -259,6 +277,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     private failedConnectionIds: Map<string, string> = new Map(); // id -> error message
     private connectingConnectionIds = new Set<string>();
     private _loading: boolean = true;
+    private filters: Map<string, string> = new Map(); // key: connId|type -> filterValue
 
     constructor(private context: vscode.ExtensionContext) {
         this.loadConnections();
@@ -290,7 +309,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this._onDidChangeTreeData.fire();
     }
 
-    getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem): vscode.TreeItem {
+    getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem): vscode.TreeItem {
         if (element instanceof vscode.TreeItem) {
             return element;
         }
@@ -356,7 +375,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         }
     }
 
-    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | vscode.TreeItem)[]> {
+    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem)[]> {
         if (this._loading && !element) {
             const loadingItem = new vscode.TreeItem('Loading...');
             loadingItem.iconPath = new vscode.ThemeIcon('loading~spin');
@@ -367,24 +386,50 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             if (element instanceof FolderItem) {
                 // Return objects inside folder
                 try {
+                    const filter = this.getFilter(element.connection.id, element.type);
+                    const resultItems: (ObjectItem | TriggerGroupItem | FilterItem)[] = [];
+                    
+                    // Add FilterItem
+                    resultItems.push(new FilterItem(element.connection, element.type, filter));
+
                     let items: string[] = [];
+                    let filteredItems: string[] = [];
+                    
                     switch (element.type) {
                         case 'tables':
                             items = await MetadataService.getTables(element.connection);
-                            return items.map(name => new ObjectItem(name, 'table', element.connection));
+                            filteredItems = this.applyFilter(items, filter);
+                            resultItems.push(...filteredItems.map(name => new ObjectItem(name, 'table', element.connection)));
+                            break;
                         case 'views':
                             items = await MetadataService.getViews(element.connection);
-                            return items.map(name => new ObjectItem(name, 'view', element.connection));
+                            filteredItems = this.applyFilter(items, filter);
+                            resultItems.push(...filteredItems.map(name => new ObjectItem(name, 'view', element.connection)));
+                            break;
                         case 'triggers':
-                            return this.getGroupedTriggers(element.connection);
+                            // For triggers, we get grouped items. Filtering is a bit more complex if we want to filter specific triggers
+                            // or groups. Let's filter by trigger name inside groups?
+                            // Or let's just filter flattened triggers?
+                            // The current implementation returns TriggerGroupItem[].
+                            // If filter is active, maybe show flattened list of triggers? Or keep groups and filter triggers inside?
+                            // Let's keep groups and filter triggers inside.
+                            
+                            // Currently getGroupedTriggers returns TriggerGroupItems.
+                            const groups = await this.getGroupedTriggers(element.connection, undefined, filter);
+                            resultItems.push(...groups);
+                            break;
                         case 'procedures':
                             items = await MetadataService.getProcedures(element.connection);
-                            return items.map(name => new ObjectItem(name, 'procedure', element.connection));
+                            filteredItems = this.applyFilter(items, filter);
+                            resultItems.push(...filteredItems.map(name => new ObjectItem(name, 'procedure', element.connection)));
+                            break;
                         case 'generators':
                             items = await MetadataService.getGenerators(element.connection);
-                            return items.map(name => new ObjectItem(name, 'generator', element.connection));
+                            filteredItems = this.applyFilter(items, filter);
+                            resultItems.push(...filteredItems.map(name => new ObjectItem(name, 'generator', element.connection)));
+                            break;
                     }
-                    return [];
+                    return resultItems;
                 } catch (err) {
                     vscode.window.showErrorMessage(`Error loading ${element.label}: ${err}`);
                     return [];
@@ -490,12 +535,16 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         return [...rootGroups, ...ungroupedConns];
     }
 
-    async getGroupedTriggers(connection: DatabaseConnection, tableName?: string): Promise<TriggerGroupItem[]> {
+    async getGroupedTriggers(connection: DatabaseConnection, tableName?: string, filter?: string): Promise<TriggerGroupItem[]> {
         try {
             const allTriggers = await MetadataService.getTriggers(connection, tableName);
             const groups: { [key: string]: any[] } = {};
             
             for (const t of allTriggers) {
+              if (filter && !t.name.toLowerCase().includes(filter.toLowerCase())) {
+                  continue;
+              }
+
               const typeName = MetadataService.decodeTriggerType(t.type);
               const groupName = typeName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
               
@@ -510,6 +559,19 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             console.error('Error getting grouped triggers:', err);
             return [];
         }
+    }
+
+    private getFilter(connectionId: string, type: string): string {
+        return this.filters.get(`${connectionId}|${type}`) || '';
+    }
+
+    public setFilter(connectionId: string, type: string, value: string) {
+        this.filters.set(`${connectionId}|${type}`, value);
+    }
+
+    private applyFilter(items: string[], filter: string): string[] {
+        if (!filter) return items;
+        return items.filter(i => i.toLowerCase().includes(filter.toLowerCase()));
     }
 
     async createGroup() {
