@@ -91,7 +91,20 @@ export class ConnectionEditor {
         const role = connection?.role || '';
         const charset = connection?.charset || 'UTF8';
         const resultLocale = connection?.resultLocale || '';
+        const shortcutSlot = connection?.shortcutSlot || 0;
 
+        const slotOptions = [
+            { value: 0, label: 'None' },
+            { value: 1, label: 'Slot 1 (Ctrl+Alt+1)' },
+            { value: 2, label: 'Slot 2 (Ctrl+Alt+2)' },
+            { value: 3, label: 'Slot 3 (Ctrl+Alt+3)' },
+            { value: 4, label: 'Slot 4 (Ctrl+Alt+4)' },
+            { value: 5, label: 'Slot 5 (Ctrl+Alt+5)' },
+            { value: 6, label: 'Slot 6 (Ctrl+Alt+6)' },
+            { value: 7, label: 'Slot 7 (Ctrl+Alt+7)' },
+            { value: 8, label: 'Slot 8 (Ctrl+Alt+8)' },
+            { value: 9, label: 'Slot 9 (Ctrl+Alt+9)' }
+        ].map(s => `<option value="${s.value}" ${s.value === shortcutSlot ? 'selected' : ''}>${s.label}</option>`).join('');
         const locales = [
             { code: '', label: 'Default (Global Setting)' },
             { code: 'en-US', label: 'English (United States)' },
@@ -185,6 +198,13 @@ export class ConnectionEditor {
                     ${localeOptions}
                 </select>
             </div>
+            <div class="form-group">
+                <label>Shortcut Slot</label>
+                <select id="shortcutSlot">
+                    ${slotOptions}
+                </select>
+                <small style="display:block; margin-top:4px; opacity:0.8;">Allows quick connection via keyboard shortcuts (Default: Ctrl+Alt+1...9)</small>
+            </div>
 
             <div class="actions">
                 ${isEdit ? `
@@ -211,7 +231,9 @@ export class ConnectionEditor {
                         password: document.getElementById('password').value,
                         role: document.getElementById('role').value,
                         charset: document.getElementById('charset').value,
-                        resultLocale: document.getElementById('resultLocale').value
+
+                        resultLocale: document.getElementById('resultLocale').value,
+                        shortcutSlot: parseInt(document.getElementById('shortcutSlot').value)
                     };
                     vscode.postMessage({ command: 'save', connection: conn });
                 }

@@ -163,6 +163,51 @@
         "command": "firebird.deleteScript",
         "title": "Delete",
         "icon": "$(trash)"
+      },
+      {
+        "command": "firebird.connectSlot1",
+        "title": "Connect to Slot 1",
+        "category": "Firebird"
+      },
+      {
+        "command": "firebird.connectSlot2",
+        "title": "Connect to Slot 2",
+        "category": "Firebird"
+      },
+      {
+        "command": "firebird.connectSlot3",
+        "title": "Connect to Slot 3",
+        "category": "Firebird"
+      },
+      {
+        "command": "firebird.connectSlot4",
+        "title": "Connect to Slot 4",
+        "category": "Firebird"
+      },
+      {
+        "command": "firebird.connectSlot5",
+        "title": "Connect to Slot 5",
+        "category": "Firebird"
+      },
+      {
+        "command": "firebird.connectSlot6",
+        "title": "Connect to Slot 6",
+        "category": "Firebird"
+      },
+      {
+        "command": "firebird.connectSlot7",
+        "title": "Connect to Slot 7",
+        "category": "Firebird"
+      },
+      {
+        "command": "firebird.connectSlot8",
+        "title": "Connect to Slot 8",
+        "category": "Firebird"
+      },
+      {
+        "command": "firebird.connectSlot9",
+        "title": "Connect to Slot 9",
+        "category": "Firebird"
       }
     ],
     "keybindings": [
@@ -194,6 +239,51 @@
         "key": "ctrl+alt+shift+r",
         "mac": "cmd+alt+shift+r",
         "when": "editorTextFocus && firebird:queryExecutionEnabled && firebird.hasActiveTransaction"
+      },
+      {
+        "command": "firebird.connectSlot1",
+        "key": "ctrl+alt+1",
+        "mac": "cmd+alt+1"
+      },
+      {
+        "command": "firebird.connectSlot2",
+        "key": "ctrl+alt+2",
+        "mac": "cmd+alt+2"
+      },
+      {
+        "command": "firebird.connectSlot3",
+        "key": "ctrl+alt+3",
+        "mac": "cmd+alt+3"
+      },
+      {
+        "command": "firebird.connectSlot4",
+        "key": "ctrl+alt+4",
+        "mac": "cmd+alt+4"
+      },
+      {
+        "command": "firebird.connectSlot5",
+        "key": "ctrl+alt+5",
+        "mac": "cmd+alt+5"
+      },
+      {
+        "command": "firebird.connectSlot6",
+        "key": "ctrl+alt+6",
+        "mac": "cmd+alt+6"
+      },
+      {
+        "command": "firebird.connectSlot7",
+        "key": "ctrl+alt+7",
+        "mac": "cmd+alt+7"
+      },
+      {
+        "command": "firebird.connectSlot8",
+        "key": "ctrl+alt+8",
+        "mac": "cmd+alt+8"
+      },
+      {
+        "command": "firebird.connectSlot9",
+        "key": "ctrl+alt+9",
+        "mac": "cmd+alt+9"
       }
     ],
     "viewsContainers": {

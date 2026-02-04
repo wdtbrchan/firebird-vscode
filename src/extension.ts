@@ -149,6 +149,21 @@ export function activate(context: vscode.ExtensionContext) {
         databaseTreeDataProvider.setActive(conn);
     }));
 
+    // Register simple slot commands 1-9
+    for (let i = 1; i <= 9; i++) {
+        context.subscriptions.push(vscode.commands.registerCommand(`firebird.connectSlot${i}`, async () => {
+            const conn = databaseTreeDataProvider.getConnectionBySlot(i);
+            if (conn) {
+                // Rollback current transaction (if any) before switching context
+                await Database.rollback();
+                databaseTreeDataProvider.setActive(conn);
+                vscode.window.showInformationMessage(`Switched to connection: ${conn.name || conn.database}`);
+            } else {
+                vscode.window.showInformationMessage(`No connection assigned to Slot ${i}. Edit a connection to assign it.`);
+            }
+        }));
+    }
+
     context.subscriptions.push(vscode.commands.registerCommand('firebird.createGroup', async () => {
         await databaseTreeDataProvider.createGroup();
     }));

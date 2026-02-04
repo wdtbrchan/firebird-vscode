@@ -18,6 +18,7 @@ export interface DatabaseConnection {
     resultLocale?: string;
     name?: string; // friendly name
     groupId?: string; // ID of parent group
+    shortcutSlot?: number; // 1-9 for quick access
 }
 
 export interface ConnectionGroup {
@@ -802,6 +803,10 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this.connectingConnectionIds.delete(conn.id);
         this.activeConnectionId = conn.id;
         this.saveConnections();
+    }
+
+    public getConnectionBySlot(slot: number): DatabaseConnection | undefined {
+        return this.connections.find(c => c.shortcutSlot === slot);
     }
 
     getActiveConnectionDetails(): { name: string, group: string } | undefined {
