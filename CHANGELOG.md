@@ -4,6 +4,8 @@
 ### Features
 - **Script Management**:
   - **Drag & Drop Reordering**: Added ability to reorder scripts.
+- **Connection Shortcuts**:
+  - **Slots 1-9**: Assign connection slots and switch using keyboard shortcuts (`Ctrl+Alt+1`...`9`).
 
 ## [0.6.0]
 ### Features
