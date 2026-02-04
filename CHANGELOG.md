@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.0]
+### Features
+- **Script Management**:
+  - **Global & Local Scripts**: Added dedicated folders for "Local Scripts" (specific to a connection) and "Global Scripts" (shared across all connections).
+  - **Inline Actions**: Simplified UI with inline buttons for creating scripts, folders, and adding existing scripts.
+  - **Rename Folders**: Added ability to rename script folders.
+- **Object Creation**:
+  - **Inline Create Buttons**: Replaced tree items with inline `(+)` buttons for creating new Tables, Views, Triggers, Procedures, and Generators.
+
 ## [0.5.1]
 ### Documentation
 - Updated `README.md` with detailed examples for SQL execution in PHP (Parameter Injection).
