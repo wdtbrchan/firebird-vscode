@@ -182,6 +182,18 @@
         "command": "firebird.closeResults",
         "key": "ctrl+shift+backspace",
         "mac": "cmd+shift+backspace"
+      },
+      {
+        "command": "firebird.commit",
+        "key": "ctrl+alt+shift+c",
+        "mac": "cmd+alt+shift+c",
+        "when": "editorTextFocus && firebird:queryExecutionEnabled && firebird.hasActiveTransaction"
+      },
+      {
+        "command": "firebird.rollback",
+        "key": "ctrl+alt+shift+r",
+        "mac": "cmd+alt+shift+r",
+        "when": "editorTextFocus && firebird:queryExecutionEnabled && firebird.hasActiveTransaction"
       }
     ],
     "viewsContainers": {

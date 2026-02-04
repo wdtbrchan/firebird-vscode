@@ -10,6 +10,8 @@
 - [ ] Color settings for folders/databases to distinguish production and dev connections
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
 - [x] Keyboard shortcut to close Query result
+- [x] Keyboard shortcuts to Commit / Rollback
+- [ ] Keyboard shortcut to connect DB
 - [x] Ability to execute SQL queries in non-SQL files
 - [x] Support parameter values in comments for SQL execution in non-SQL files (e.g., `? -- @value=1` or `:name -- @value='John'`)
 - [ ] Check functionality in Cursor editor (statusbar, icons in editor)
