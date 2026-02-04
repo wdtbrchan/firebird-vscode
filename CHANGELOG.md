@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.1]
+### Features
+- **Script Management**:
+  - **Drag & Drop Reordering**: Added ability to reorder scripts.
+
 ## [0.6.0]
 ### Features
 - **Script Management**:
