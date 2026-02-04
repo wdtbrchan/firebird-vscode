@@ -6,63 +6,11 @@ import { MetadataService } from './services/metadataService';
 import { ScriptParser } from './services/scriptParser';
 import { DDLProvider } from './services/ddlProvider';
 import { ParameterInjector } from './services/parameterInjector';
+import { ScriptService, ScriptItemData } from './services/scriptService';
+import * as path from 'path';
 
 export function activate(context: vscode.ExtensionContext) {
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.createObject', async (objectType: string, connection?: DatabaseConnection) => {
-        let template = '';
-        const timestamp = new Date().getTime();
-        
-        switch (objectType) {
-            case 'table':
-                template = `CREATE TABLE NEW_TABLE (
-    ID INTEGER NOT NULL,
-    NAME VARCHAR(50)
-);
 
-ALTER TABLE NEW_TABLE ADD CONSTRAINT PK_NEW_TABLE PRIMARY KEY (ID);`;
-                break;
-            case 'view':
-                template = `CREATE VIEW NEW_VIEW AS
-SELECT * FROM RDB$DATABASE;`;
-                break;
-            case 'trigger':
-                template = `SET TERM ^ ;
-CREATE OR ALTER TRIGGER NEW_TRIGGER FOR TABLE_NAME
-ACTIVE BEFORE INSERT POSITION 0
-AS
-BEGIN
-    /* code */
-END^
-SET TERM ; ^`;
-                break;
-            case 'procedure':
-                template = `SET TERM ^ ;
-CREATE PROCEDURE NEW_PROCEDURE (
-    input_param INTEGER
-)
-RETURNS (
-    output_param INTEGER
-)
-AS
-BEGIN
-    output_param = input_param * 2;
-    SUSPEND;
-END^
-SET TERM ; ^`;
-                break;
-            case 'generator':
-                template = `CREATE GENERATOR NEW_GENERATOR;`;
-                break;
-            default:
-                template = `-- Unknown object type: ${objectType}`;
-        }
-
-        const doc = await vscode.workspace.openTextDocument({
-            content: template,
-            language: 'sql'
-        });
-        await vscode.window.showTextDocument(doc);
-    }));
 
     // --- End Context Key Management ---
 
@@ -237,6 +185,87 @@ SET TERM ; ^`;
         }
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.createObject', async (arg?: any, connection?: DatabaseConnection) => {
+        let objectType: string | undefined;
+        let conn: DatabaseConnection | undefined;
+
+        if (arg) {
+            // Check if called from context menu (FolderItem)
+            if (arg.connection && arg.type) {
+                conn = arg.connection;
+                // Map plural folder type to singular object type
+                switch (arg.type) {
+                    case 'tables': objectType = 'table'; break;
+                    case 'views': objectType = 'view'; break;
+                    case 'triggers': objectType = 'trigger'; break;
+                    case 'procedures': objectType = 'procedure'; break;
+                    case 'generators': objectType = 'generator'; break;
+                    default: objectType = arg.type; // fallback if already singular
+                }
+            } else if (typeof arg === 'string') {
+                objectType = arg;
+                conn = connection;
+            }
+        }
+
+        if (!objectType || !conn) {
+             vscode.window.showErrorMessage('Create Object: Missing type or connection.');
+             return;
+        }
+
+        let script = '';
+        switch (objectType) {
+            case 'table':
+                script = `CREATE TABLE NEW_TABLE (
+    ID INTEGER NOT NULL,
+    NAME VARCHAR(50),
+    CONSTRAINT PK_NEW_TABLE PRIMARY KEY (ID)
+);`;
+                break;
+            case 'view':
+                script = `CREATE VIEW NEW_VIEW AS
+SELECT * FROM SOME_TABLE;`;
+                break;
+            case 'trigger':
+                script = `SET TERM ^ ;
+CREATE TRIGGER NEW_TRIGGER FOR SOME_TABLE
+ACTIVE BEFORE INSERT POSITION 0
+AS
+BEGIN
+    /* Trigger body */
+END^
+SET TERM ; ^`;
+                break;
+            case 'procedure':
+                script = `SET TERM ^ ;
+CREATE PROCEDURE NEW_PROCEDURE (
+    INPUT_PARAM INTEGER
+)
+RETURNS (
+    OUTPUT_PARAM INTEGER
+)
+AS
+BEGIN
+    OUTPUT_PARAM = INPUT_PARAM * 2;
+    SUSPEND;
+END^
+SET TERM ; ^`;
+                break;
+            case 'generator':
+                script = `CREATE SEQUENCE NEW_SEQUENCE;`;
+                break;
+            default:
+                script = `-- Create script for ${objectType}`;
+        }
+
+        try {
+            const doc = await vscode.workspace.openTextDocument({ language: 'sql', content: script });
+            await vscode.window.showTextDocument(doc);
+        } catch (err: any) {
+            vscode.window.showErrorMessage(`Error creating object script: ${err.message}`);
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('firebird.generateScript', async (mode: 'create' | 'alter' | 'drop' | 'recreate', objectItem: ObjectItem) => {
         try {
             const { type, objectName: name, connection } = objectItem;
@@ -397,6 +426,193 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
              vscode.window.showErrorMessage(`Operation failed: ${err.message}`);
         }
     }));
+
+    // --- Script Commands ---
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.createScript', async (arg?: any, parentId?: string) => {
+        let connectionId: string | undefined = undefined;
+        let pId: string | undefined = parentId;
+
+        if (arg) {
+            // Check if called from context menu/inline action
+            if (arg.contextValue === 'local-scripts') {
+                // FolderItem
+                connectionId = arg.connection?.id;
+                pId = undefined;
+            } else if (arg.contextValue === 'global-scripts') {
+                // FolderItem (Global)
+                connectionId = undefined;
+                pId = undefined;
+            } else if (arg.contextValue === 'script-folder') {
+                // ScriptFolderItem
+                // We need to access the internal data or connectionId
+                // Assuming arg has connectionId property and data property with id
+                connectionId = arg.connectionId;
+                if (arg.data) {
+                    pId = arg.data.id;
+                }
+            } else if (typeof arg === 'string') {
+                 // Legacy or manual call
+                 connectionId = arg;
+            }
+        }
+
+        // Open untitled document immediately, do not ask for name
+        const doc = await vscode.workspace.openTextDocument({ language: 'sql', content: '' });
+        await vscode.window.showTextDocument(doc);
+        
+        const removeListeners = () => {
+            saveListener.dispose();
+            closeListener.dispose();
+        };
+
+        const saveListener = vscode.workspace.onDidSaveTextDocument((savedDoc) => {
+             if (savedDoc === doc) {
+                 // User saved the file, now add it to scripts
+                 const service = ScriptService.getInstance();
+                 service.addScript(path.basename(savedDoc.fileName), savedDoc.fileName, connectionId, pId);
+                 removeListeners();
+             }
+        });
+        
+        const closeListener = vscode.workspace.onDidCloseTextDocument((closedDoc) => {
+            if (closedDoc === doc) {
+                // Closed without saving, just cleanup listeners
+                removeListeners();
+            }
+        });
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.createScriptFolder', async (arg?: any, parentId?: string) => {
+        let connectionId: string | undefined = undefined;
+        let pId: string | undefined = parentId;
+
+        if (arg) {
+             if (arg.contextValue === 'local-scripts') {
+                connectionId = arg.connection?.id;
+                pId = undefined;
+            } else if (arg.contextValue === 'global-scripts') {
+                connectionId = undefined;
+                pId = undefined;
+            } else if (arg.contextValue === 'script-folder') {
+                connectionId = arg.connectionId;
+                if (arg.data) {
+                    pId = arg.data.id;
+                }
+            } else if (typeof arg === 'string') {
+                 connectionId = arg;
+            }
+        }
+
+        const name = await vscode.window.showInputBox({ prompt: 'Enter folder name', value: 'New Folder' });
+        if (!name) return;
+        
+        const service = ScriptService.getInstance();
+        service.addFolder(name, connectionId, pId);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.addScript', async (arg?: any, parentId?: string) => {
+        let connectionId: string | undefined = undefined;
+        let pId: string | undefined = parentId;
+
+        if (arg) {
+             if (arg.contextValue === 'local-scripts') {
+                connectionId = arg.connection?.id;
+                pId = undefined;
+            } else if (arg.contextValue === 'global-scripts') {
+                connectionId = undefined;
+                pId = undefined;
+            } else if (arg.contextValue === 'script-folder') {
+                connectionId = arg.connectionId;
+                if (arg.data) {
+                    pId = arg.data.id;
+                }
+            } else if (typeof arg === 'string') {
+                 connectionId = arg;
+            }
+        }
+
+        const uris = await vscode.window.showOpenDialog({ canSelectMany: true, filters: {'SQL': ['sql'], 'All': ['*']} });
+        if (uris && uris.length > 0) {
+            const service = ScriptService.getInstance();
+            for (const uri of uris) {
+                service.addScript(path.basename(uri.fsPath), uri.fsPath, connectionId, pId);
+            }
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.renameScriptFolder', async (arg?: any) => {
+        if (!arg) return;
+        
+        let itemId: string | undefined;
+        let currentName: string = '';
+        
+        // Check if called from context menu/inline action
+        if (arg.contextValue === 'script-folder') {
+             itemId = arg.data.id;
+             currentName = arg.data.name;
+        } else if (arg.data && arg.data.id) {
+             itemId = arg.data.id;
+             currentName = arg.data.name;
+        }
+
+        if (!itemId) return;
+
+        const name = await vscode.window.showInputBox({ 
+            prompt: 'Enter new name', 
+            value: currentName 
+        });
+        
+        if (name && name !== currentName) {
+            const service = ScriptService.getInstance();
+            service.renameItem(itemId, name);
+        }
+    }));
+
+     context.subscriptions.push(vscode.commands.registerCommand('firebird.openScript', async (script: ScriptItemData) => {
+        if (script.pending) {
+             const doc = await vscode.workspace.openTextDocument({ language: 'sql', content: '' });
+             await vscode.window.showTextDocument(doc);
+             const service = ScriptService.getInstance();
+             
+             const removeListeners = () => {
+                saveListener.dispose();
+                closeListener.dispose();
+             };
+
+             const saveListener = vscode.workspace.onDidSaveTextDocument((savedDoc) => {
+                 if (savedDoc === doc) {
+                     service.resolvePendingScript(script.id, savedDoc.fileName);
+                     removeListeners();
+                 }
+            });
+
+            const closeListener = vscode.workspace.onDidCloseTextDocument((closedDoc) => {
+                if (closedDoc === doc) {
+                    // Start fresh if they close it? Or keep it pending?
+                    // User probably expects it to disappear if they close the untitled editor without saving.
+                    // But here we are re-opening an *existing* pending item.
+                    
+                    // If they close the editor for an existing pending item, we just stop listening.
+                    removeListeners();
+                }
+            });
+        } else if (script.fsPath) {
+             const doc = await vscode.workspace.openTextDocument(script.fsPath);
+             await vscode.window.showTextDocument(doc);
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.deleteScript', async (item: any) => { 
+        const service = ScriptService.getInstance();
+        // Item is ScriptItem or similar wrapper. It should have data property.
+        if (item && item.data) {
+             const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove '${item.label}' from the list?`, { modal: true }, 'Remove');
+             if (confirm === 'Remove') {
+                 service.removeItem(item.data.id);
+             }
+        }
+    }));
+    // -----------------------
 
     // Filter commands
     context.subscriptions.push(vscode.commands.registerCommand('firebird.editFilter', async (connection: DatabaseConnection, type: string) => {

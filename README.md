@@ -25,6 +25,7 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 
 - `CTRL+Enter`: Run query
 - `CTRL+ALT+Enter`: Run script
+- `CTRL+SHIFT+Backspace`: Close query result
 
 ## Basic Usage
 

@@ -133,6 +133,36 @@
         "command": "firebird.closeResults",
         "title": "Close Results",
         "icon": "$(close)"
+      },
+      {
+        "command": "firebird.createScript",
+        "title": "New Script",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "firebird.createObject",
+        "title": "Create New",
+        "icon": "$(add)"
+      },
+      {
+        "command": "firebird.addScript",
+        "title": "Add Existing Script",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "firebird.createScriptFolder",
+        "title": "New Folder",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "firebird.renameScriptFolder",
+        "title": "Rename Folder",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "firebird.deleteScript",
+        "title": "Delete",
+        "icon": "$(trash)"
       }
     ],
     "keybindings": [
@@ -257,6 +287,36 @@
           "command": "firebird.clearFilter",
           "when": "view == firebird.databases && viewItem == filter-item",
           "group": "inline"
+        },
+        {
+          "command": "firebird.createObject",
+          "when": "view == firebird.databases && (viewItem == tables || viewItem == views || viewItem == triggers || viewItem == procedures || viewItem == generators)",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.createScript",
+          "when": "view == firebird.databases && (viewItem == local-scripts || viewItem == global-scripts || viewItem == script-folder)",
+          "group": "inline@1"
+        },
+        {
+          "command": "firebird.addScript",
+          "when": "view == firebird.databases && (viewItem == local-scripts || viewItem == global-scripts || viewItem == script-folder)",
+          "group": "inline@2"
+        },
+        {
+          "command": "firebird.createScriptFolder",
+          "when": "view == firebird.databases && (viewItem == local-scripts || viewItem == global-scripts || viewItem == script-folder)",
+          "group": "inline@3"
+        },
+        {
+          "command": "firebird.renameScriptFolder",
+          "when": "view == firebird.databases && viewItem == script-folder",
+          "group": "inline@4"
+        },
+        {
+          "command": "firebird.deleteScript",
+          "when": "view == firebird.databases && (viewItem == script-file || viewItem == script-folder)",
+          "group": "inline@5"
         }
       ]
     }
@@ -274,6 +334,7 @@
   },
   "dependencies": {
     "iconv-lite": "^0.7.2",
-    "node-firebird": "^1.1.0"
+    "node-firebird": "^1.1.0",
+    "uuid": "^13.0.0"
   }
 }

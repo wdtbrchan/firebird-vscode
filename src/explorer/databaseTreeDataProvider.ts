@@ -3,6 +3,7 @@ import * as path from 'path';
 import { ConnectionEditor } from '../editors/connectionEditor';
 import { Database } from '../db';
 import { MetadataService } from '../services/metadataService';
+import { ScriptService, ScriptItemData } from '../services/scriptService';
 
 
 export interface DatabaseConnection {
@@ -27,11 +28,11 @@ export interface ConnectionGroup {
 export class FolderItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
-        public readonly type: 'tables' | 'views' | 'triggers' | 'procedures' | 'generators',
+        public readonly type: 'tables' | 'views' | 'triggers' | 'procedures' | 'generators' | 'local-scripts' | 'global-scripts',
         public readonly connection: DatabaseConnection
     ) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
-        this.contextValue = 'folder';
+        this.contextValue = type; // Use the type as context value (tables, local-scripts, etc.)
         this.iconPath = new vscode.ThemeIcon('folder');
     }
 }
@@ -230,21 +231,7 @@ export class ObjectItem extends vscode.TreeItem {
     }
 }
 
-export class CreateObjectItem extends vscode.TreeItem {
-    constructor(
-        public readonly connection: DatabaseConnection,
-        public readonly objectType: 'table' | 'view' | 'trigger' | 'procedure' | 'generator'
-    ) {
-        super(`Create new ${objectType}...`, vscode.TreeItemCollapsibleState.None);
-        this.contextValue = 'create-object';
-        this.iconPath = new vscode.ThemeIcon('add');
-        this.command = {
-            command: 'firebird.createObject',
-            title: 'Create Object',
-            arguments: [objectType, connection]
-        };
-    }
-}
+
 
 export class OperationItem extends vscode.TreeItem {
     constructor(
@@ -286,9 +273,50 @@ export class OperationItem extends vscode.TreeItem {
     }
 }
 
-export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
+export class ScriptItem extends vscode.TreeItem {
+    constructor(
+        public readonly data: ScriptItemData,
+        public readonly connectionId?: string
+    ) {
+        super(data.name, vscode.TreeItemCollapsibleState.None);
+        this.contextValue = 'script-file';
+        this.iconPath = new vscode.ThemeIcon('file-code');
+        this.id = data.id;
+        
+        if (data.pending) {
+             this.label = data.name; 
+             this.description = "(unsaved)";
+             this.iconPath = new vscode.ThemeIcon('edit'); 
+        }
+        
+        this.command = {
+            command: 'firebird.openScript',
+            title: 'Open Script',
+            arguments: [data]
+        };
+    }
+}
+
+export class ScriptFolderItem extends vscode.TreeItem {
+    constructor(
+        public readonly data: ScriptItemData,
+        public readonly connectionId?: string
+    ) {
+        super(data.name, vscode.TreeItemCollapsibleState.Collapsed);
+        this.contextValue = 'script-folder';
+        this.iconPath = new vscode.ThemeIcon('folder');
+        this.id = data.id;
+    }
+}
+
+
+
+
+
+export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | vscode.TreeItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | vscode.TreeItem | undefined | void>();
+    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
+
 
     private connections: DatabaseConnection[] = [];
     private groups: ConnectionGroup[] = [];
@@ -299,6 +327,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     private filters: Map<string, string> = new Map(); // key: connId|type -> filterValue
 
     constructor(private context: vscode.ExtensionContext) {
+        ScriptService.initialize(context);
+        ScriptService.getInstance().onDidChangeScripts(() => this._onDidChangeTreeData.fire());
         this.loadConnections();
         // Simulate a short loading delay to ensure the UI renders the loading state
         // and doesn't flash "No data" if dependent on async activation
@@ -328,7 +358,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this._onDidChangeTreeData.fire();
     }
 
-    getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | vscode.TreeItem): vscode.TreeItem {
+    getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | vscode.TreeItem): vscode.TreeItem {
         if (element instanceof vscode.TreeItem) {
             return element;
         }
@@ -394,7 +424,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         }
     }
 
-    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | CreateObjectItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | CreateObjectItem | vscode.TreeItem)[]> {
+    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | vscode.TreeItem)[]> {
         if (this._loading && !element) {
             const loadingItem = new vscode.TreeItem('Loading...');
             loadingItem.iconPath = new vscode.ThemeIcon('loading~spin');
@@ -405,21 +435,43 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             if (element instanceof FolderItem) {
                 // Return objects inside folder
                 try {
-                    const filter = this.getFilter(element.connection.id, element.type);
-                    const resultItems: (ObjectItem | TriggerGroupItem | FilterItem | CreateObjectItem)[] = [];
-                    
-                    // Add "Create new..." item
-                    let objType: 'table' | 'view' | 'trigger' | 'procedure' | 'generator' = 'table';
-                    switch(element.type) {
-                        case 'tables': objType = 'table'; break;
-                        case 'views': objType = 'view'; break;
-                        case 'triggers': objType = 'trigger'; break;
-                        case 'procedures': objType = 'procedure'; break;
-                        case 'generators': objType = 'generator'; break;
+                    if (element.type === 'local-scripts') {
+                         const service = ScriptService.getInstance();
+                         const scripts = service.getScripts(element.connection.id);
+                         const items: vscode.TreeItem[] = [];
+                         
+                         // Scripts
+                         for (const script of scripts) {
+                             if (script.type === 'folder') {
+                                 items.push(new ScriptFolderItem(script, element.connection.id));
+                             } else {
+                                 items.push(new ScriptItem(script, element.connection.id));
+                             }
+                         }
+                         return items;
                     }
-                    resultItems.push(new CreateObjectItem(element.connection, objType));
 
+                    if (element.type === 'global-scripts') {
+                         const service = ScriptService.getInstance();
+                         const scripts = service.getScripts(undefined); // Shared
+                         const items: vscode.TreeItem[] = [];
+                         
+                         for (const script of scripts) {
+                             // Use undefined for connectionId to indicate global scope for children
+                             if (script.type === 'folder') {
+                                 items.push(new ScriptFolderItem(script, undefined));
+                             } else {
+                                 items.push(new ScriptItem(script, undefined));
+                             }
+                         }
+                         return items;
+                    }
+
+                    const filter = this.getFilter(element.connection.id, element.type);
+                    const resultItems: (ObjectItem | TriggerGroupItem | FilterItem)[] = [];
+                    
                     // Add FilterItem
+                    // @ts-ignore - Validated type above
                     resultItems.push(new FilterItem(element.connection, element.type, filter));
 
                     let items: string[] = [];
@@ -533,6 +585,19 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                 }
 
                 return ops;
+            } else if (element instanceof ScriptFolderItem) {
+                const items: vscode.TreeItem[] = [];
+                
+                if (element.data.children) {
+                    for (const child of element.data.children) {
+                         if (child.type === 'folder') {
+                             items.push(new ScriptFolderItem(child, element.connectionId));
+                         } else {
+                             items.push(new ScriptItem(child, element.connectionId));
+                         }
+                    }
+                }
+                return items;
             } else if (element instanceof OperationItem) {
                 return [];
             }
@@ -544,7 +609,9 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                     new FolderItem('Views', 'views', element),
                     new FolderItem('Triggers', 'triggers', element),
                     new FolderItem('Procedures', 'procedures', element),
-                    new FolderItem('Generators', 'generators', element)
+                    new FolderItem('Generators', 'generators', element),
+                    new FolderItem('Local Scripts', 'local-scripts', element),
+                    new FolderItem('Global Scripts', 'global-scripts', element)
                 ];
             } else {
                 // It's a group
@@ -753,21 +820,47 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     }
 }
 
-export class DatabaseDragAndDropController implements vscode.TreeDragAndDropController<DatabaseConnection | ConnectionGroup> {
-    public dropMimeTypes = ['application/vnd.code.tree.firebird-databases'];
-    public dragMimeTypes = ['application/vnd.code.tree.firebird-databases'];
+export class DatabaseDragAndDropController implements vscode.TreeDragAndDropController<any> {
+    public dropMimeTypes = ['application/vnd.code.tree.firebird-databases', 'application/vnd.code.tree.firebird-scripts'];
+    public dragMimeTypes = ['application/vnd.code.tree.firebird-databases', 'application/vnd.code.tree.firebird-scripts'];
 
     constructor(private provider: DatabaseTreeDataProvider) {}
 
-    handleDrag(source: (DatabaseConnection | ConnectionGroup)[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): void | Thenable<void> {
+    handleDrag(source: any[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): void | Thenable<void> {
         const item = source[0];
         // Only allow dragging connections
-        if ('host' in item) {
+        if ('host' in item || (item.contextValue === 'group')) {
              dataTransfer.set('application/vnd.code.tree.firebird-databases', new vscode.DataTransferItem(item));
+        } else if (item instanceof ScriptItem || item instanceof ScriptFolderItem) {
+             dataTransfer.set('application/vnd.code.tree.firebird-scripts', new vscode.DataTransferItem(item));
         }
     }
 
-    handleDrop(target: DatabaseConnection | ConnectionGroup | undefined, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): void | Thenable<void> {
+    handleDrop(target: any | undefined, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): void | Thenable<void> {
+          // Handle Script Drop
+          const scriptTransfer = dataTransfer.get('application/vnd.code.tree.firebird-scripts');
+          if (scriptTransfer) {
+              const droppedItem = scriptTransfer.value; // ScriptItem or ScriptFolderItem
+              if (!target) return;
+              
+              const service = ScriptService.getInstance();
+              
+              if (target instanceof FolderItem && (target.type === 'local-scripts' || target.type === 'global-scripts')) {
+                  // Dropped on Root Scripts of a connection (Local or Global)
+                  const isGlobal = target.type === 'global-scripts';
+                  service.moveItem(droppedItem.id, undefined, isGlobal ? undefined : target.connection.id, isGlobal);
+                  // Refresh via listener
+              } else if (target instanceof ScriptFolderItem) {
+                  // Dropped into a subfolder
+                  // Check if it's the special "Shared" folder
+                  let targetParentId = target.id;
+                  let targetConnId   = target.connectionId;
+                  
+                  service.moveItem(droppedItem.id, targetParentId, targetConnId, targetConnId === undefined);
+              }
+              return;
+          }
+
          const transferItem = dataTransfer.get('application/vnd.code.tree.firebird-databases');
          if (!transferItem) return;
 

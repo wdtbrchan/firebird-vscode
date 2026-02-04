@@ -3,11 +3,11 @@
 - [x] Table indexes administration
 - [x] Trigger activation and deactivation
 - [x] Ability to create a new SQL file from the DB explorer
-- [ ] Scripts folder (shared + separate for each database)
+- [x] Scripts folder (shared + separate for each database)
+- [ ] Favorites list for objects (triggers, tables, etc.)
 - [x] Object search
 - [ ] Prominently display currently selected database in SQL file tab
 - [ ] Color settings for folders/databases to distinguish production and dev connections
-- [ ] Favorites list for objects (triggers, tables, etc.)
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
 - [x] Keyboard shortcut to close Query result
 - [x] Ability to execute SQL queries in non-SQL files
