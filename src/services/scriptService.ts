@@ -126,7 +126,7 @@ export class ScriptService {
         this.removeItem(id);
     }
 
-    private addItemToTree(item: ScriptItemData, connectionId?: string, parentId?: string) {
+    private addItemToTree(item: ScriptItemData, connectionId?: string, parentId?: string, index?: number) {
         let collection: ScriptItemData[];
         
         if (connectionId) {
@@ -142,13 +142,23 @@ export class ScriptService {
             const parent = this.findInCollection(collection, parentId);
             if (parent && parent.type === 'folder') {
                 if (!parent.children) parent.children = [];
-                parent.children.push(item);
+                if (index !== undefined && index >= 0 && index <= parent.children.length) {
+                    parent.children.splice(index, 0, item);
+                } else {
+                    parent.children.push(item);
+                }
             } else {
-                // Fallback to root if parent not found
-                collection.push(item);
+                // Fallback to root if parent not found or is file
+                // Should we respect index here? It's confusing if parent was wrong.
+                // Let's just push to root safety.
+                 collection.push(item);
             }
         } else {
-            collection.push(item);
+            if (index !== undefined && index >= 0 && index <= collection.length) {
+                collection.splice(index, 0, item);
+            } else {
+                collection.push(item);
+            }
         }
     }
 
@@ -206,7 +216,7 @@ export class ScriptService {
     }
     
     // For Drag & Drop: Move item
-    public moveItem(itemId: string, targetParentId?: string, targetConnectionId?: string, targetShared: boolean = false) {
+    public moveItem(itemId: string, targetParentId?: string, targetConnectionId?: string, targetShared: boolean = false, targetIndex?: number) {
         const item = this.findItem(itemId);
         if (!item) return;
 
@@ -225,7 +235,7 @@ export class ScriptService {
         }
 
         // Add to new location
-        this.addItemToTree(itemCopy, targetShared ? undefined : targetConnectionId, targetParentId);
+        this.addItemToTree(itemCopy, targetShared ? undefined : targetConnectionId, targetParentId, targetIndex);
         this.save();
     }
 }

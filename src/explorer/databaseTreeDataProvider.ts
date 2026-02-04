@@ -845,18 +845,68 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
               
               const service = ScriptService.getInstance();
               
+              // Helper to find index of item in a list
+              const findIndex = (collection: any[], id: string): number => {
+                    return collection.findIndex(c => c.id === id);
+              };
+
               if (target instanceof FolderItem && (target.type === 'local-scripts' || target.type === 'global-scripts')) {
                   // Dropped on Root Scripts of a connection (Local or Global)
                   const isGlobal = target.type === 'global-scripts';
+                  // Move to end of list
                   service.moveItem(droppedItem.id, undefined, isGlobal ? undefined : target.connection.id, isGlobal);
-                  // Refresh via listener
               } else if (target instanceof ScriptFolderItem) {
-                  // Dropped into a subfolder
-                  // Check if it's the special "Shared" folder
-                  let targetParentId = target.id;
-                  let targetConnId   = target.connectionId;
+                  // Dropped on a subfolder -> Move INTO it (append to end)
+                  const targetParentId = target.data.id;
+                  const targetConnId   = target.connectionId;
                   
                   service.moveItem(droppedItem.id, targetParentId, targetConnId, targetConnId === undefined);
+              } else if (target instanceof ScriptItem) {
+                  // Dropped on a FILE -> Reorder (Insert BEFORE this file)
+                  // We need to find the parent of this target file to know where to insert.
+                  // The parent is either a ScriptFolderItem or the Root (FolderItem).
+                  
+                  // target.data.id is the ID of the file we dropped ON.
+                  const targetId = target.data.id;
+                  const targetConnId = target.connectionId;
+                  
+                  // We effectively need to request the service to look up the parent of targetId
+                  // But since we don't have a "getParent" method readily exposed or efficiently callable without traversal,
+                  // we can try to infer context.
+                  // Wait, we know the Connection ID (or undefined for global).
+                  // So we can search within that scope.
+                  
+                  const isGlobal = targetConnId === undefined;
+                  const collection = service.getScripts(targetConnId);
+                  
+                  // Recursive search for parent collection
+                  let parentCollection: ScriptItemData[] = collection;
+                  let parentId: string | undefined = undefined;
+                  
+                  // Function to search for list containing targetId
+                  const findListContaining = (list: ScriptItemData[]): ScriptItemData[] | undefined => {
+                      if (list.some(i => i.id === targetId)) return list;
+                      for (const item of list) {
+                          if (item.children) {
+                              const found = findListContaining(item.children);
+                              if (found) {
+                                  parentId = item.id;
+                                  return found;
+                              }
+                          }
+                      }
+                      return undefined;
+                  };
+
+                  const targetList = findListContaining(collection);
+                  
+                  if (targetList) {
+                       const targetIndex = targetList.findIndex(i => i.id === targetId);
+                       if (targetIndex !== -1) {
+                           // Move to: same parent, same connection, specific index
+                           service.moveItem(droppedItem.id, parentId, targetConnId, isGlobal, targetIndex);
+                       }
+                  }
               }
               return;
           }
