@@ -1,6 +1,6 @@
 # Changelog
 
-## [ ... ]
+## [0.7.2]
 ### UI Improvements
 - **Query Results**:
   - Restyled query result header and removed top reserved space above header.  
