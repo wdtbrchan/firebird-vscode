@@ -8,7 +8,7 @@
 - [x] Object search
 - [x] Prominently display currently selected database in SQL file tab
 - [x] Color settings for folders/databases to distinguish production and dev connections
-- [ ] Icons for database objects in DB explorer for better readability
+- [x] Icons for database objects in DB explorer for better readability
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
 - [x] Keyboard shortcut to close Query result
 - [x] Keyboard shortcuts to Commit / Rollback

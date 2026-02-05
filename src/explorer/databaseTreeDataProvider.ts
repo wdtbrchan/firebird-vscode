@@ -35,7 +35,22 @@ export class FolderItem extends vscode.TreeItem {
     ) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = type; // Use the type as context value (tables, local-scripts, etc.)
-        this.iconPath = new vscode.ThemeIcon('folder');
+        
+        // Icon selection based on type
+        switch (type) {
+            case 'tables': this.iconPath = new vscode.ThemeIcon('table'); break;
+            case 'views': this.iconPath = new vscode.ThemeIcon('eye'); break;
+            case 'triggers': this.iconPath = new vscode.ThemeIcon('zap'); break;
+            case 'procedures': this.iconPath = new vscode.ThemeIcon('gear'); break;
+            case 'generators': this.iconPath = new vscode.ThemeIcon('list-ordered'); break;
+            case 'local-scripts': 
+                this.iconPath = new vscode.ThemeIcon('file-code'); 
+                break;
+            case 'global-scripts': 
+                this.iconPath = new vscode.ThemeIcon('globe'); 
+                break;
+            default: this.iconPath = new vscode.ThemeIcon('folder'); break;
+        }
     }
 }
 

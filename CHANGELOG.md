@@ -5,6 +5,8 @@
 - **Connection Integration**:
   - Added visual color indicators for active connections in the DB Explorer.
   - Improved color settings application (updates immediately without reload).
+  - **Explorer Icons**:
+    - Added specific icons for Tables, Views, ... for better readability.
 
 ## [0.6.1]
 ### Features
