@@ -1,6 +1,6 @@
 # Changelog
 
-## [ ... ]
+## [0.7.1]
 ### Fixes
 - **Query Pagination**: Fixed pagination syntax to use `FIRST/SKIP` instead of `ROWS` for better compatibility with older Firebird versions.
 - **Dependencies**: Downgraded `uuid` package to v8 for better compatibility with Cursor.
