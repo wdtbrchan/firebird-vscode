@@ -75,7 +75,7 @@ export class TableTriggersItem extends vscode.TreeItem {
     ) {
         super('Triggers', vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = 'table-triggers';
-        this.iconPath = new vscode.ThemeIcon('folder');
+        this.iconPath = new vscode.ThemeIcon('zap');
     }
 }
 
@@ -86,7 +86,7 @@ export class TableIndexesItem extends vscode.TreeItem {
     ) {
         super('Indexes', vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = 'table-indexes';
-        this.iconPath = new vscode.ThemeIcon('folder');
+        this.iconPath = new vscode.ThemeIcon('key');
     }
 }
 

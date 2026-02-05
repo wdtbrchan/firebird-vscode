@@ -15,7 +15,7 @@
 - [x] Keyboard shortcut to connect DB
 - [x] Ability to execute SQL queries in non-SQL files
 - [x] Support parameter values in comments for SQL execution in non-SQL files (e.g., `? -- @value=1` or `:name -- @value='John'`)
-- [ ] Check functionality in Cursor editor (statusbar, icons in editor)
+- [x] Check functionality in Cursor editor (statusbar, icons in editor)
 - [x] Different formats for dates, numbers, null values
 - [ ] Export results to CSV
 - [ ] Support multiple simultaneous active database connections

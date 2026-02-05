@@ -4,6 +4,8 @@
 ### UI Improvements
 - **Query Results**:
   - Restyled query result header and removed top reserved space above header.  
+- **Explorer Icons**:
+  - Added specific icons for Table Indexes (Key) and Triggers (Zap) within the Table view.
 
 ## [0.7.1]
 ### Fixes
@@ -15,8 +17,8 @@
 - **Connection Integration**:
   - Added visual color indicators for active connections in the DB Explorer.
   - Improved color settings application (updates immediately without reload).
-  - **Explorer Icons**:
-    - Added specific icons for Tables, Views, ... for better readability.
+- **Explorer Icons**:
+  - Added specific icons for Tables, Views, ... for better readability.
 
 ## [0.6.1]
 ### Features
