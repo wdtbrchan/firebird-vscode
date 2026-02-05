@@ -49,7 +49,7 @@ Highlight the SQL query and press `CTRL+Enter`.
 ```php
 $sql = "
     SELECT
-        id,
+        id
     FROM PRODUCTS
     WHERE 
         category=? --@val='others'
