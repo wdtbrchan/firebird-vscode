@@ -14,10 +14,11 @@
 - [x] Keyboard shortcuts to Commit / Rollback
 - [x] Keyboard shortcut to connect DB
 - [x] Ability to execute SQL queries in non-SQL files
-- [x] Support parameter values in comments for SQL execution in non-SQL files (e.g., `? -- @value=1` or `:name -- @value='John'`)
+- [x] Support parameter values in comments for SQL execution in non-SQL files (e.g. `col=? -- @value='1'`)
+- [ ] Support parameter values in comments `:name -- @value='John'`
+- [ ] Better SQL detection in non-SQL files
 - [x] Check functionality in Cursor editor (statusbar, icons in editor)
 - [x] Different formats for dates, numbers, null values
 - [ ] Export results to CSV
 - [ ] Support multiple simultaneous active database connections
-- [ ] Bug: Query ending with a comment throws an error regarding unterminated query
-
+- [x] Bug: Query ending with a comment throws an error regarding unterminated query
