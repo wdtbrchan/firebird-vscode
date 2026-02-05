@@ -197,6 +197,19 @@ export class ConnectionEditor {
                 <select id="resultLocale">
                     ${localeOptions}
                 </select>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Connection Color / Environment</label>
+                <select id="color">
+                    <option value="" ${!connection?.color ? 'selected' : ''}>None</option>
+                    <option value="blue" ${connection?.color === 'blue' ? 'selected' : ''}>🟦 Blue</option>
+                    <option value="green" ${connection?.color === 'green' ? 'selected' : ''}>🟩 Green (Development)</option>
+                    <option value="orange" ${connection?.color === 'orange' ? 'selected' : ''}>🟧 Orange</option>
+                    <option value="purple" ${connection?.color === 'purple' ? 'selected' : ''}>🟪 Purple</option>
+                    <option value="red" ${connection?.color === 'red' ? 'selected' : ''}>🟥 Red (Production)</option>
+                    <option value="yellow" ${connection?.color === 'yellow' ? 'selected' : ''}>🟨 Yellow</option>
+                </select>
             </div>
             <div class="form-group">
                 <label>Shortcut Slot</label>
@@ -233,7 +246,8 @@ export class ConnectionEditor {
                         charset: document.getElementById('charset').value,
 
                         resultLocale: document.getElementById('resultLocale').value,
-                        shortcutSlot: parseInt(document.getElementById('shortcutSlot').value)
+                        shortcutSlot: parseInt(document.getElementById('shortcutSlot').value),
+                        color: document.getElementById('color').value
                     };
                     vscode.postMessage({ command: 'save', connection: conn });
                 }

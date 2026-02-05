@@ -8,6 +8,9 @@ import { DDLProvider } from './services/ddlProvider';
 import { ParameterInjector } from './services/parameterInjector';
 import { ScriptService, ScriptItemData } from './services/scriptService';
 import * as path from 'path';
+import * as fs from 'fs';
+import { ConnectionDecorationProvider } from './connectionDecorationProvider';
+import { ActiveConnectionCodeLensProvider } from './providers/activeConnectionCodeLensProvider';
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -46,12 +49,297 @@ export function activate(context: vscode.ExtensionContext) {
 
     try {
         const databaseTreeDataProvider = new DatabaseTreeDataProvider(context);
+        vscode.window.registerTreeDataProvider('firebird.databases', databaseTreeDataProvider);
+        
+        // Register Decoration Provider
+        const decorationProvider = new ConnectionDecorationProvider(databaseTreeDataProvider);
+        context.subscriptions.push(vscode.window.registerFileDecorationProvider(decorationProvider));
         const dragAndDropController = new DatabaseDragAndDropController(databaseTreeDataProvider);
         
-        vscode.window.createTreeView('firebird.databases', {
+        const treeView = vscode.window.createTreeView('firebird.databases', {
             treeDataProvider: databaseTreeDataProvider,
             dragAndDropController: dragAndDropController
         });
+        databaseTreeDataProvider.setTreeView(treeView);
+
+        // Register CodeLens Provider for Active Connection
+        const activeConnectionCodeLensProvider = new ActiveConnectionCodeLensProvider(databaseTreeDataProvider);
+        context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'sql' }, activeConnectionCodeLensProvider));
+
+        // Listen for transaction state changes
+        let activeAutoRollbackAt: number | undefined;
+        Database.onTransactionChange((hasTransaction, autoRollbackAt, lastAction) => {
+            vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', hasTransaction);
+            ResultsPanel.currentPanel?.setTransactionStatus(hasTransaction, autoRollbackAt, lastAction);
+            
+            if (hasTransaction && autoRollbackAt) {
+                activeAutoRollbackAt = autoRollbackAt;
+                startStatusBarTimer();
+            } else {
+                activeAutoRollbackAt = undefined; // Will be cleared on next tick or immediately if we call update
+                updateStatusBar();
+            }
+        });
+
+        context.subscriptions.push(vscode.commands.registerCommand('firebird.selectDatabase', async (conn: DatabaseConnection) => {
+            // Rollback current transaction (if any) before switching context
+            await Database.rollback();
+            databaseTreeDataProvider.setActive(conn);
+        }));
+
+    // --- Core Commands Moved Up ---
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.closeResults', () => {
+        if (ResultsPanel.currentPanel) {
+            ResultsPanel.currentPanel.dispose();
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.commit', async () => {
+        try {
+            await Database.commit();
+            
+            // Refresh active connection to show changes (like new tables)
+            const activeConn = databaseTreeDataProvider.getActiveConnection();
+            if (activeConn) {
+                databaseTreeDataProvider.refreshDatabase(activeConn);
+            }
+
+            vscode.window.setStatusBarMessage('Firebird: Transaction Committed', 3000);
+        } catch (err: any) {
+            vscode.window.showErrorMessage('Commit failed: ' + err.message);
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.rollback', async () => {
+        try {
+            await Database.rollback();
+            vscode.window.setStatusBarMessage('Firebird: Transaction Rolled Back', 3000);
+        } catch (err: any) {
+             vscode.window.showErrorMessage('Rollback failed: ' + err.message);
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.executeScript', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showErrorMessage('No active text editor');
+            return;
+        }
+
+        const query = editor.document.getText();
+        
+        if (!query.trim()) {
+             vscode.window.showWarningMessage('Script is empty.');
+             return;
+        }
+
+        try {
+            // Get active connection configuration
+            const activeConn = databaseTreeDataProvider.getActiveConnection();
+            
+            if (!activeConn) {
+                vscode.window.showWarningMessage('No active database connection selected. Please select a database.');
+                return;
+            }
+
+            const activeDetails = databaseTreeDataProvider.getActiveConnectionDetails();
+            const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
+            
+            // Show loading state immediately
+            ResultsPanel.createOrShow(context.extensionUri);
+            
+            // Delegate query execution to the panel
+            if (ResultsPanel.currentPanel) {
+                // Parse script
+                const statements = ScriptParser.split(query);
+                if (statements.length === 0) {
+                    vscode.window.showWarningMessage('No valid SQL statements found in script.');
+                    return;
+                }
+                await ResultsPanel.currentPanel.runScript(statements, activeConn, contextTitle);
+
+                // Check for DDL in script to auto-refresh
+                if (statements.some(stmt => ScriptParser.isDDL(stmt))) {
+                    databaseTreeDataProvider.refreshDatabase(activeConn);
+                }
+            }
+
+            // Restore focus to the editor
+            vscode.window.showTextDocument(editor.document, editor.viewColumn);
+            
+        } catch (err: any) {
+             const hasTransaction = Database.hasActiveTransaction;
+             // Show error in the panel if it exists
+             if (ResultsPanel.currentPanel) {
+                 ResultsPanel.currentPanel.showError(err.message, hasTransaction);
+             } else {
+                 vscode.window.showErrorMessage('Error executing script: ' + err.message);
+             }
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.runQuery', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showErrorMessage('No active text editor');
+            return;
+        }
+
+        const config = vscode.workspace.getConfiguration('firebird');
+        const allowedLanguages = config.get<string[]>('allowedLanguages', ['sql']);
+        if (!allowedLanguages.includes(editor.document.languageId)) {
+            // User explicitly used the command (keybinding or palette), so we should inform them if it's blocked.
+            // We can add a 'Don't show again' option ideally, but for now simple warning.
+            vscode.window.showInformationMessage(`Firebird: Execution not enabled for language '${editor.document.languageId}'. Check 'firebird.allowedLanguages' setting.`);
+            return;
+        }
+
+        const selection = editor.selection;
+        let query = editor.document.getText(selection);
+        let queryStartLine = 0;
+        let queryStartChar = 0;
+
+        if (!query.trim()) {
+            const document = editor.document;
+            const cursorLine = selection.active.line;
+            let startLine = cursorLine;
+            let endLine = cursorLine;
+
+            // Find start: look backwards for empty line or line ending with ;
+            for (let i = cursorLine - 1; i >= 0; i--) {
+                const line = document.lineAt(i).text.trimEnd();
+                if (line.trim().length === 0 || line.endsWith(';')) {
+                    break;
+                }
+                startLine = i;
+            }
+
+            // Find end: look forwards for line ending with ;
+            for (let i = cursorLine; i < document.lineCount; i++) {
+                const line = document.lineAt(i).text.trimEnd();
+                endLine = i;
+                if (line.endsWith(';')) {
+                    break;
+                }
+                // Also stop if we hit an empty line (safety break, though usually ; defines end)
+                 if (line.trim().length === 0 && i > cursorLine) {
+                     endLine = i - 1; 
+                     break;
+                 }
+            }
+
+            const range = new vscode.Range(
+                document.lineAt(startLine).range.start, 
+                document.lineAt(endLine).range.end
+            );
+            query = document.getText(range);
+            
+            // Set queryStart for error positioning
+            queryStartLine = startLine;
+            queryStartChar = 0; // effectively 0 since we take whole lines
+        } else {
+            // Selection case
+            queryStartLine = selection.start.line;
+            queryStartChar = selection.start.character;
+        }
+
+        if (!query.trim()) {
+             vscode.window.showWarningMessage('No query selected or found.');
+             return;
+        }
+
+        // --- Query Cleanup ---
+        let cleanQuery = query.trim();
+        
+        // Remove trailing semicolon/PHP terminator
+        if (cleanQuery.endsWith(';')) cleanQuery = cleanQuery.slice(0, -1).trim();
+
+        // Language-specific cleanup (e.g. PHP strings)
+        if (editor.document.languageId !== 'sql') {
+            // 1. Remove PHP variable assignment: $var = "..."
+            // Match: $variable = 
+            const assignmentMatch = /^\$[\w\d_]+\s*=\s*/.exec(cleanQuery);
+            if (assignmentMatch) {
+                cleanQuery = cleanQuery.substring(assignmentMatch[0].length).trim();
+            }
+
+            // 2. Remove surrounding quotes if present
+            // Match "..." or '...'
+            // Note: This is a simple heuristic. It won't handle complex concatenations.
+            if ((cleanQuery.startsWith('"') && cleanQuery.endsWith('"')) || 
+                (cleanQuery.startsWith("'") && cleanQuery.endsWith("'"))) {
+                cleanQuery = cleanQuery.substring(1, cleanQuery.length - 1);
+            }
+        }
+        // --- End Query Cleanup ---
+
+        try {
+            // Get active connection configuration
+            const activeConn = databaseTreeDataProvider.getActiveConnection();
+            
+            if (!activeConn) {
+                vscode.window.showWarningMessage('No active database connection selected. Please select a database.');
+                return;
+            }
+
+            const activeDetails = databaseTreeDataProvider.getActiveConnectionDetails();
+            const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
+            
+            // Show loading state immediately
+            ResultsPanel.createOrShow(context.extensionUri);
+
+            // Inject parameters if present
+            cleanQuery = ParameterInjector.inject(cleanQuery);
+            
+            // Delegate query execution to the panel
+            if (ResultsPanel.currentPanel) {
+                await ResultsPanel.currentPanel.runNewQuery(cleanQuery, activeConn, contextTitle);
+            }
+
+            // Check for DDL to auto-refresh
+            if (ScriptParser.isDDL(cleanQuery)) {
+                databaseTreeDataProvider.refreshDatabase(activeConn);
+            }
+
+            // Restore focus to the editor so the user can continue typing
+            vscode.window.showTextDocument(editor.document, editor.viewColumn);
+            
+        } catch (err: any) {
+             const hasTransaction = Database.hasActiveTransaction;
+             
+             // Try to parse error location
+             const match = /line\s+(\d+),\s+column\s+(\d+)/i.exec(err.message);
+             if (match && editor) {
+                 try {
+                    const errorLineRel = parseInt(match[1], 10);
+                    const errorColRel = parseInt(match[2], 10);
+                    
+                    const absLine = queryStartLine + (errorLineRel - 1);
+                    
+                    let absCol = errorColRel - 1;
+                    if (errorLineRel === 1) {
+                        absCol += queryStartChar;
+                    }
+                    
+                    const pos = new vscode.Position(absLine, absCol);
+                    editor.selection = new vscode.Selection(pos, pos);
+                    editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+                    
+                    // Focus the editor so the user sees the cursor immediately
+                    vscode.window.showTextDocument(editor.document, editor.viewColumn);
+                 } catch (e) {
+                     console.error('Failed to move cursor to error', e);
+                 }
+             }
+
+             // Show error in the panel if it exists
+             if (ResultsPanel.currentPanel) {
+                 ResultsPanel.currentPanel.showError(err.message, hasTransaction);
+             } else {
+                 vscode.window.showErrorMessage('Error executing query: ' + err.message);
+             }
+        }
+    }));
 
         // DDL Provider
         const ddlProvider = new DDLProvider();
@@ -104,24 +392,14 @@ export function activate(context: vscode.ExtensionContext) {
              }, 1000);
         };
 
-        // Listen for transaction state changes
-        let activeAutoRollbackAt: number | undefined;
-        Database.onTransactionChange((hasTransaction, autoRollbackAt, lastAction) => {
-            vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', hasTransaction);
-            ResultsPanel.currentPanel?.setTransactionStatus(hasTransaction, autoRollbackAt, lastAction);
-            
-            if (hasTransaction && autoRollbackAt) {
-                activeAutoRollbackAt = autoRollbackAt;
-                startStatusBarTimer();
-            } else {
-                activeAutoRollbackAt = undefined; // Will be cleared on next tick or immediately if we call update
-                updateStatusBar();
-            }
+        // Listen for tree changes
+        databaseTreeDataProvider.onDidChangeTreeData(() => {
+            updateStatusBar();
         });
+        updateStatusBar();
 
-        // Listen for changes
-        databaseTreeDataProvider.onDidChangeTreeData(() => updateStatusBar());
-        updateStatusBar(); // Initial update
+
+
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.addDatabase', async () => {
         await databaseTreeDataProvider.addDatabase();
@@ -141,12 +419,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.refreshDatabase', (conn: DatabaseConnection) => {
         databaseTreeDataProvider.refreshDatabase(conn);
-    }));
-
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.selectDatabase', async (conn: DatabaseConnection) => {
-        // Rollback current transaction (if any) before switching context
-        await Database.rollback();
-        databaseTreeDataProvider.setActive(conn);
     }));
 
     // Register simple slot commands 1-9
@@ -663,262 +935,7 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.closeResults', () => {
-        if (ResultsPanel.currentPanel) {
-            ResultsPanel.currentPanel.dispose();
-        }
-    }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.commit', async () => {
-        try {
-            await Database.commit();
-            
-            // Refresh active connection to show changes (like new tables)
-            const activeConn = databaseTreeDataProvider.getActiveConnection();
-            if (activeConn) {
-                databaseTreeDataProvider.refreshDatabase(activeConn);
-            }
-
-            vscode.window.setStatusBarMessage('Firebird: Transaction Committed', 3000);
-        } catch (err: any) {
-            vscode.window.showErrorMessage('Commit failed: ' + err.message);
-        }
-    }));
-
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.rollback', async () => {
-        try {
-            await Database.rollback();
-            vscode.window.setStatusBarMessage('Firebird: Transaction Rolled Back', 3000);
-        } catch (err: any) {
-             vscode.window.showErrorMessage('Rollback failed: ' + err.message);
-        }
-    }));
-
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.executeScript', async () => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            vscode.window.showErrorMessage('No active text editor');
-            return;
-        }
-
-        const query = editor.document.getText();
-        
-        if (!query.trim()) {
-             vscode.window.showWarningMessage('Script is empty.');
-             return;
-        }
-
-        try {
-            // Get active connection configuration
-            const activeConn = databaseTreeDataProvider.getActiveConnection();
-            
-            if (!activeConn) {
-                vscode.window.showWarningMessage('No active database connection selected. Please select a database.');
-                return;
-            }
-
-            const activeDetails = databaseTreeDataProvider.getActiveConnectionDetails();
-            const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
-            
-            // Show loading state immediately
-            ResultsPanel.createOrShow(context.extensionUri);
-            
-            // Delegate query execution to the panel
-            if (ResultsPanel.currentPanel) {
-                // Parse script
-                const statements = ScriptParser.split(query);
-                if (statements.length === 0) {
-                    vscode.window.showWarningMessage('No valid SQL statements found in script.');
-                    return;
-                }
-                await ResultsPanel.currentPanel.runScript(statements, activeConn, contextTitle);
-
-                // Check for DDL in script to auto-refresh
-                if (statements.some(stmt => ScriptParser.isDDL(stmt))) {
-                    databaseTreeDataProvider.refreshDatabase(activeConn);
-                }
-            }
-
-            // Restore focus to the editor
-            vscode.window.showTextDocument(editor.document, editor.viewColumn);
-            
-        } catch (err: any) {
-             const hasTransaction = Database.hasActiveTransaction;
-             // Show error in the panel if it exists
-             if (ResultsPanel.currentPanel) {
-                 ResultsPanel.currentPanel.showError(err.message, hasTransaction);
-             } else {
-                 vscode.window.showErrorMessage('Error executing script: ' + err.message);
-             }
-        }
-    }));
-
-
-
-    let disposable = vscode.commands.registerCommand('firebird.runQuery', async () => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            vscode.window.showErrorMessage('No active text editor');
-            return;
-        }
-
-        const config = vscode.workspace.getConfiguration('firebird');
-        const allowedLanguages = config.get<string[]>('allowedLanguages', ['sql']);
-        if (!allowedLanguages.includes(editor.document.languageId)) {
-            // User explicitly used the command (keybinding or palette), so we should inform them if it's blocked.
-            // We can add a 'Don't show again' option ideally, but for now simple warning.
-            vscode.window.showInformationMessage(`Firebird: Execution not enabled for language '${editor.document.languageId}'. Check 'firebird.allowedLanguages' setting.`);
-            return;
-        }
-
-        const selection = editor.selection;
-        let query = editor.document.getText(selection);
-        let queryStartLine = 0;
-        let queryStartChar = 0;
-
-        if (!query.trim()) {
-            const document = editor.document;
-            const cursorLine = selection.active.line;
-            let startLine = cursorLine;
-            let endLine = cursorLine;
-
-            // Find start: look backwards for empty line or line ending with ;
-            for (let i = cursorLine - 1; i >= 0; i--) {
-                const line = document.lineAt(i).text.trimEnd();
-                if (line.trim().length === 0 || line.endsWith(';')) {
-                    break;
-                }
-                startLine = i;
-            }
-
-            // Find end: look forwards for line ending with ;
-            for (let i = cursorLine; i < document.lineCount; i++) {
-                const line = document.lineAt(i).text.trimEnd();
-                endLine = i;
-                if (line.endsWith(';')) {
-                    break;
-                }
-                // Also stop if we hit an empty line (safety break, though usually ; defines end)
-                 if (line.trim().length === 0 && i > cursorLine) {
-                     endLine = i - 1; 
-                     break;
-                 }
-            }
-
-            const range = new vscode.Range(
-                document.lineAt(startLine).range.start, 
-                document.lineAt(endLine).range.end
-            );
-            query = document.getText(range);
-            
-            // Set queryStart for error positioning
-            queryStartLine = startLine;
-            queryStartChar = 0; // effectively 0 since we take whole lines
-        } else {
-            // Selection case
-            queryStartLine = selection.start.line;
-            queryStartChar = selection.start.character;
-        }
-
-        if (!query.trim()) {
-             vscode.window.showWarningMessage('No query selected or found.');
-             return;
-        }
-
-        // --- Query Cleanup ---
-        let cleanQuery = query.trim();
-        
-        // Remove trailing semicolon/PHP terminator
-        if (cleanQuery.endsWith(';')) cleanQuery = cleanQuery.slice(0, -1).trim();
-
-        // Language-specific cleanup (e.g. PHP strings)
-        if (editor.document.languageId !== 'sql') {
-            // 1. Remove PHP variable assignment: $var = "..."
-            // Match: $variable = 
-            const assignmentMatch = /^\$[\w\d_]+\s*=\s*/.exec(cleanQuery);
-            if (assignmentMatch) {
-                cleanQuery = cleanQuery.substring(assignmentMatch[0].length).trim();
-            }
-
-            // 2. Remove surrounding quotes if present
-            // Match "..." or '...'
-            // Note: This is a simple heuristic. It won't handle complex concatenations.
-            if ((cleanQuery.startsWith('"') && cleanQuery.endsWith('"')) || 
-                (cleanQuery.startsWith("'") && cleanQuery.endsWith("'"))) {
-                cleanQuery = cleanQuery.substring(1, cleanQuery.length - 1);
-            }
-        }
-        // --- End Query Cleanup ---
-
-        try {
-            // Get active connection configuration
-            const activeConn = databaseTreeDataProvider.getActiveConnection();
-            
-            if (!activeConn) {
-                vscode.window.showWarningMessage('No active database connection selected. Please select a database.');
-                return;
-            }
-
-            const activeDetails = databaseTreeDataProvider.getActiveConnectionDetails();
-            const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
-            
-            // Show loading state immediately
-            ResultsPanel.createOrShow(context.extensionUri);
-
-            // Inject parameters if present
-            cleanQuery = ParameterInjector.inject(cleanQuery);
-            
-            // Delegate query execution to the panel
-            if (ResultsPanel.currentPanel) {
-                await ResultsPanel.currentPanel.runNewQuery(cleanQuery, activeConn, contextTitle);
-            }
-
-            // Check for DDL to auto-refresh
-            if (ScriptParser.isDDL(cleanQuery)) {
-                databaseTreeDataProvider.refreshDatabase(activeConn);
-            }
-
-            // Restore focus to the editor so the user can continue typing
-            vscode.window.showTextDocument(editor.document, editor.viewColumn);
-            
-        } catch (err: any) {
-             const hasTransaction = Database.hasActiveTransaction;
-             
-             // Try to parse error location
-             const match = /line\s+(\d+),\s+column\s+(\d+)/i.exec(err.message);
-             if (match && editor) {
-                 try {
-                    const errorLineRel = parseInt(match[1], 10);
-                    const errorColRel = parseInt(match[2], 10);
-                    
-                    const absLine = queryStartLine + (errorLineRel - 1);
-                    
-                    let absCol = errorColRel - 1;
-                    if (errorLineRel === 1) {
-                        absCol += queryStartChar;
-                    }
-                    
-                    const pos = new vscode.Position(absLine, absCol);
-                    editor.selection = new vscode.Selection(pos, pos);
-                    editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-                    
-                    // Focus the editor so the user sees the cursor immediately
-                    vscode.window.showTextDocument(editor.document, editor.viewColumn);
-                 } catch (e) {
-                     console.error('Failed to move cursor to error', e);
-                 }
-             }
-
-             // Show error in the panel if it exists
-             if (ResultsPanel.currentPanel) {
-                 ResultsPanel.currentPanel.showError(err.message, hasTransaction);
-             } else {
-                 vscode.window.showErrorMessage('Error executing query: ' + err.message);
-             }
-        }
-    });
-
-    context.subscriptions.push(disposable);
     
     } catch (e: any) {
         console.error('Firebird extension activation failed:', e);

@@ -19,6 +19,7 @@ export interface DatabaseConnection {
     name?: string; // friendly name
     groupId?: string; // ID of parent group
     shortcutSlot?: number; // 1-9 for quick access
+    color?: string; // Color identifier for the connection
 }
 
 export interface ConnectionGroup {
@@ -326,17 +327,26 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     private connectingConnectionIds = new Set<string>();
     private _loading: boolean = true;
     private filters: Map<string, string> = new Map(); // key: connId|type -> filterValue
+    private treeView: vscode.TreeView<any> | undefined;
 
     constructor(private context: vscode.ExtensionContext) {
         ScriptService.initialize(context);
         ScriptService.getInstance().onDidChangeScripts(() => this._onDidChangeTreeData.fire());
         this.loadConnections();
+        // Load filters
+        const savedFilters = this.context.globalState.get<any[]>('firebird.filters', []);
+        savedFilters.forEach(f => this.filters.set(f.key, f.value));
+
         // Simulate a short loading delay to ensure the UI renders the loading state
         // and doesn't flash "No data" if dependent on async activation
         setTimeout(() => {
             this._loading = false;
             this._onDidChangeTreeData.fire();
         }, 500);
+    }
+
+    public setTreeView(treeView: vscode.TreeView<any>) {
+        this.treeView = treeView;
     }
 
     private loadConnections() {
@@ -359,6 +369,10 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this._onDidChangeTreeData.fire();
     }
 
+    public getConnectionById(id: string): DatabaseConnection | undefined {
+        return this.connections.find(c => c.id === id);
+    }
+
     getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | vscode.TreeItem): vscode.TreeItem {
         if (element instanceof vscode.TreeItem) {
             return element;
@@ -371,25 +385,57 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             
             const isActive = element.id === this.activeConnectionId;
             // Only collapsed (expandable) if active. Otherwise None (leaf).
-            const state = isActive ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None;
+            // Request: Expand by default if active
+            const state = isActive ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None;
 
             const treeItem = new vscode.TreeItem(label, state);
             
             treeItem.description = `${element.host}:${element.port}`;
+            
+            
+            // Assign Resource URI to enable FileDecorationProvider
+            // Add timestamp to force cache busting for decorations
+            treeItem.resourceUri = vscode.Uri.parse(`firebird-connection:/${element.id}?_=${Date.now()}`);
+
             treeItem.tooltip = `${element.user}@${element.host}:${element.port}/${element.database}`;
             treeItem.id = element.id;
             treeItem.contextValue = 'database'; // Default context
 
+            let iconColor: vscode.ThemeColor | undefined;
+            if (element.color) {
+                // Map custom color to ThemeColor
+                switch (element.color) {
+                    case 'red': iconColor = new vscode.ThemeColor('charts.red'); break;
+                    case 'orange': iconColor = new vscode.ThemeColor('charts.orange'); break;
+                    case 'yellow': iconColor = new vscode.ThemeColor('charts.yellow'); break;
+                    case 'green': iconColor = new vscode.ThemeColor('charts.green'); break;
+                    case 'blue': iconColor = new vscode.ThemeColor('charts.blue'); break;
+                    case 'purple': iconColor = new vscode.ThemeColor('charts.purple'); break;
+                }
+            }
+
             if (isActive) {
-                treeItem.iconPath = new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.green'));
-                // Make label bold by highlighting it
-                treeItem.label = {
-                    label: label,
-                    highlights: [[0, label.length]]
+                // Use a generated SVG icon to ensure color persists even when focused/selected
+                const colorMap: {[key: string]: string} = {
+                    'red': '#F14C4C',
+                    'orange': '#d18616',
+                    'yellow': '#CCA700',
+                    'green': '#37946e',
+                    'blue': '#007acc',
+                    'purple': '#652d90'
                 };
+                
+                const hexColor = colorMap[element.color || ''] || '#37946e'; // Default to green
+                treeItem.iconPath = this.getIconUri(hexColor);
+                treeItem.label = label;
                 treeItem.contextValue = 'database-active';
             } else {
-                 treeItem.iconPath = new vscode.ThemeIcon('database');
+                 if (iconColor) {
+                     treeItem.iconPath = new vscode.ThemeIcon('database', iconColor);
+                 } else {
+                     treeItem.iconPath = new vscode.ThemeIcon('database');
+                 }
+                 
                  // Also add command to select it on click if it's inactive?
                  // Or we rely on context menu "Select Database".
                  // Actually, standard behavior allows clicking to select if we bind a command.
@@ -417,12 +463,37 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             return treeItem;
         } else {
             // It's a group
+            // Request: Expand groups by default
             const treeItem = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.Expanded);
             treeItem.id = element.id;
             treeItem.contextValue = 'group';
             treeItem.iconPath = new vscode.ThemeIcon('folder');
             return treeItem;
         }
+    }
+
+    getParent(element: any): vscode.ProviderResult<any> {
+        // Handle DatabaseConnection
+        if (element.host && element.database) { 
+             const conn = element as DatabaseConnection;
+             if (conn.groupId) {
+                 return this.groups.find(g => g.id === conn.groupId);
+             }
+             return undefined;
+        }
+        
+        // Handle FolderItem
+        if (element instanceof FolderItem) {
+            return element.connection;
+        }
+
+        return undefined;
+    }
+
+    private getIconUri(color: string): vscode.Uri {
+        // Create a 16x16 square icon with the specified color
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" fill="${color}"/></svg>`;
+        return vscode.Uri.parse(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
     }
 
     async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | vscode.TreeItem)[]> {
@@ -737,10 +808,17 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             this.context.extensionUri,
             () => ({ groups: this.groups, connection: conn }),
             async (updatedConn) => {
-                const index = this.connections.findIndex(c => c.id === updatedConn.id);
+                // Find index using the ORIGINAL connection ID, in case ID changed or object ref implies identity
+                const index = this.connections.findIndex(c => c.id === conn.id);
                 if (index !== -1) {
+                    // Update connection and normalize data
+                    if (updatedConn.color) updatedConn.color = updatedConn.color.toLowerCase();
+                    
                     this.connections[index] = updatedConn;
                     this.saveConnections();
+                    
+                    // Force full refresh to properly reload tree and decorations
+                    this.refresh();
                 }
             },
             async (connToDelete) => {
@@ -803,6 +881,19 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this.connectingConnectionIds.delete(conn.id);
         this.activeConnectionId = conn.id;
         this.saveConnections();
+        
+        // Force expand the active connection
+        if (this.treeView) {
+            // We need to reveal the connection item.
+            // Since getTreeItem maps Connection -> TreeItem, and getChildren returns Connections,
+            // we should be able to reveal the Connection object itself as it is the element of the tree.
+            try {
+                // expand: true, select: true, focus: true
+                await this.treeView.reveal(conn, { expand: true, select: true, focus: true });
+            } catch (err) {
+                console.error('Failed to reveal connection:', err);
+            }
+        }
     }
 
     public getConnectionBySlot(slot: number): DatabaseConnection | undefined {

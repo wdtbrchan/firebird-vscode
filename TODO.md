@@ -6,12 +6,13 @@
 - [x] Scripts folder (shared + separate for each database)
 - [ ] Favorites list for objects (triggers, tables, etc.)
 - [x] Object search
-- [ ] Prominently display currently selected database in SQL file tab
-- [ ] Color settings for folders/databases to distinguish production and dev connections
+- [x] Prominently display currently selected database in SQL file tab
+- [x] Color settings for folders/databases to distinguish production and dev connections
+- [ ] Icons for database objects in DB explorer for better readability
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
 - [x] Keyboard shortcut to close Query result
 - [x] Keyboard shortcuts to Commit / Rollback
-- [ ] Keyboard shortcut to connect DB
+- [x] Keyboard shortcut to connect DB
 - [x] Ability to execute SQL queries in non-SQL files
 - [x] Support parameter values in comments for SQL execution in non-SQL files (e.g., `? -- @value=1` or `:name -- @value='John'`)
 - [ ] Check functionality in Cursor editor (statusbar, icons in editor)

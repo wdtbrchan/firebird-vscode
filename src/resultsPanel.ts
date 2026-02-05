@@ -22,6 +22,11 @@ export class ResultsPanel {
         this._panel = panel;
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         
+        // Expose view state change
+        this._panel.onDidChangeViewState(e => {
+            vscode.commands.executeCommand('firebird.refreshThemeColors', this._panel.active);
+        }, null, this._disposables);
+
         // Handle messages from the webview
         this._panel.webview.onDidReceiveMessage(
             message => {
@@ -305,7 +310,7 @@ export class ResultsPanel {
         if (!isError && !message) {
             subtitleParts.push(rowsText);
         }
-        if (contextText) subtitleParts.push(contextText);
+        // Context is now shown separately with color
         if (timeText && !isError) subtitleParts.push(timeText);
         if (transactionAction) subtitleParts.push(transactionAction);
 
@@ -413,17 +418,37 @@ export class ResultsPanel {
             .null-value { color: #888; font-style: italic; }
         `;
 
+        // Connection Color Logic
+        let connectionColor = '';
+        if (this._currentConnection && this._currentConnection.color) {
+            switch (this._currentConnection.color) {
+                case 'red': connectionColor = '#F14C4C'; break;
+                case 'orange': connectionColor = '#d18616'; break;
+                case 'yellow': connectionColor = '#CCA700'; break;
+                case 'green': connectionColor = '#37946e'; break;
+                case 'blue': connectionColor = '#007acc'; break;
+                case 'purple': connectionColor = '#652d90'; break;
+            }
+        }
+
+        const headerStyle = connectionColor ? `border-top: 6px solid ${connectionColor};` : '';
+        // User requested removing the colored badge for database name.
+        // const contextStyle = ... (removed)
+
         const header = `
-            <div class="header-container">
+            <div class="header-container" style="${headerStyle}">
                 <div class="header-content">
                     ${isError || message ? `<h3>${isError ? 'Error' : message}</h3>` : ''} 
-                    ${!isError && subtitle ? `<div class="subtitle">${subtitle}</div>` : ''}
+                    <div style="display: flex; align-items: baseline; gap: 10px;">
+                        ${!isError && subtitle ? `<div class="subtitle">${subtitle}</div>` : ''}
+                        ${contextText ? `<div style="font-size: 0.85em; font-weight: bold; color: ${connectionColor || '#888'};">${contextText}</div>` : ''}
+                    </div>
                     ${querySnippet ? `<div class="query-snippet" title="${this._currentQuery}">${querySnippet}</div>` : ''}
                 </div>
                 ${buttonsHtml}
             </div>
         `;
-
+        
         if (message) {
             const messageClass = isError ? 'error-message' : 'success-message';
             return `<!DOCTYPE html>
@@ -523,6 +548,14 @@ export class ResultsPanel {
             </div>
         </body>
         </html>`;
+    }
+
+    public get isPanelActive(): boolean {
+        return this._panel.active;
+    }
+
+    public get connectionColor(): string | undefined {
+        return this._currentConnection?.color;
     }
 
     public dispose() {
