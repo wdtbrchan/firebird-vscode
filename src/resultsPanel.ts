@@ -372,6 +372,8 @@ export class ResultsPanel {
             querySnippet = cleanQuery.length > 50 ? cleanQuery.substring(0, 50) + '...' : cleanQuery;
         }
 
+
+
         const subtitleParts = [];
         if (!isError && !message) {
             subtitleParts.push(rowsText);
@@ -472,6 +474,8 @@ export class ResultsPanel {
             </div>
         ` : '';
 
+
+
         const style = `
             body { font-family: sans-serif; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; height: 100vh; }
             h3 { margin: 0; font-size: 1.1em; }
@@ -485,22 +489,23 @@ export class ResultsPanel {
             .btn.success:hover { background-color: #218838; }
             .btn.danger { background-color: #dc3545; }
             .btn.danger:hover { background-color: #c82333; }
-            .content-area { flex-grow: 1; overflow: auto; padding: 5px; }
+            .content-area { flex-grow: 1; overflow: auto; padding: 0; }
             table { border-collapse: collapse; width: 100%; font-size: 12px; }
-            th, td { border: 1px solid #ccc; padding: 2px 4px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
-            th { background-color: #f2f2f2; color: #333; font-weight: 600; top: 0; position: sticky; z-index: 1; }
+            th, td { padding: 2px 4px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
+            td { border: 1px solid #ccc; }
+            th { border: none; border-right: 1px solid #ccc; background-color: #e0e0e0; color: #222; font-weight: 600; top: 0; position: sticky; z-index: 1; }
             tr:nth-child(even) { background-color: #f9f9f9; }
             .success-message { color: #0c5460; font-weight: bold; padding: 10px; background-color: #d1ecf1; border: 1px solid #bee5eb; border-radius: 3px; margin: 10px; }
             .error-message { color: #d32f2f; font-weight: bold; padding: 10px; background-color: #ffebee; border: 1px solid #ffcdd2; border-radius: 3px; margin: 10px; }
-            .row-index { background-color: #e0e0e0; color: #555; text-align: right; width: 30px; user-select: none; border-right: 2px solid #ccc; }
+            .row-index { background-color: #e0e0e0; color: #555; text-align: right; width: 30px; user-select: none; border-right: 2px solid #ccc; border-bottom: 1px solid #ccc; }
             
             // VS Code theme colors support
             body.vscode-light .header-container { background-color: #f3f3f3; border-bottom-color: #e0e0e0; }
-            body.vscode-light th { background-color: #e3e3e3; }
+            body.vscode-light th { background-color: #e0e0e0; color: #222; }
             body.vscode-light .row-index { background-color: #eaeaea; color: #666; }
             
             body.vscode-dark .header-container { background-color: #252526; border-bottom-color: #3e3e3e; }
-            body.vscode-dark th { background-color: #252526; color: #ccc; }
+            body.vscode-dark th { background-color: #d6d6d6; color: #111; border-right-color: #888; }
             body.vscode-dark .row-index { background-color: #2d2d2d; color: #888; border-right-color: #3e3e3e; }
             body.vscode-dark td { border-color: #3e3e3e; color: #cccccc; }
             body.vscode-dark tr:nth-child(even) { background-color: #2a2a2a; }
@@ -508,6 +513,8 @@ export class ResultsPanel {
             body.vscode-dark .error-message { background-color: #2c0b0e; border-color: #842029; color: #ea868f; }
             body.vscode-dark .success-message { background-color: #08303e; border-color: #0c5460; color: #66b0ff; }
             .null-value { color: #888; font-style: italic; }
+
+
         `;
 
         // Connection Color Logic

@@ -1,5 +1,10 @@
 # Changelog
 
+## [ ... ]
+### UI Improvements
+- **Query Results**:
+  - Restyled query result header and removed top reserved space above header.  
+
 ## [0.7.1]
 ### Fixes
 - **Query Pagination**: Fixed pagination syntax to use `FIRST/SKIP` instead of `ROWS` for better compatibility with older Firebird versions.
