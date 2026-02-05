@@ -19,3 +19,5 @@
 - [x] Different formats for dates, numbers, null values
 - [ ] Export results to CSV
 - [ ] Support multiple simultaneous active database connections
+- [ ] Bug: Query ending with a comment throws an error regarding unterminated query
+

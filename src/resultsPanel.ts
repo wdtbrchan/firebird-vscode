@@ -6,6 +6,8 @@ export class ResultsPanel {
     private readonly _panel: vscode.WebviewPanel;
     private _disposables: vscode.Disposable[] = [];
     private _lastResults: any[] = [];
+    private _allResults: any[] = [];  // All fetched results (for client-side pagination)
+    private _useClientSidePagination: boolean = false;
     private _lastMessage: string | undefined;
     private _showButtons: boolean = false;
     private _currentQuery: string | undefined;
@@ -176,10 +178,59 @@ export class ResultsPanel {
     private async _loadMore() {
         this._currentOffset += this._limit;
         try {
-            await this._fetchAndDisplay(true);
+            if (this._useClientSidePagination) {
+                // Client-side: just slice more from already fetched data
+                const startIndex = this._currentOffset;
+                const endIndex = this._currentOffset + this._limit;
+                const newRows = this._allResults.slice(startIndex, endIndex);
+                const hasMore = endIndex < this._allResults.length;
+                this._lastResults = this._allResults.slice(0, endIndex);
+                // Append rows via postMessage to preserve scroll
+                this._appendRowsToWebview(newRows, startIndex, hasMore);
+            } else {
+                // Server-side: fetch next page
+                await this._fetchAndDisplay(true);
+            }
         } catch (e) {
             console.error('Load more failed', e);
         }
+    }
+
+    private _appendRowsToWebview(newRows: any[], startIndex: number, hasMore: boolean) {
+        const config = vscode.workspace.getConfiguration('firebird');
+        const locale = this._currentConnection?.resultLocale || config.get<string>('resultLocale', 'en-US');
+        
+        const columns = newRows.length > 0 ? Object.keys(newRows[0]) : [];
+        const rowsHtml = newRows.map((row, idx) => {
+            const rowIndex = startIndex + idx + 1;
+            const cells = columns.map(col => {
+                let val = row[col];
+                if (val === null) {
+                    val = '<span class="null-value">[NULL]</span>';
+                } else if (val instanceof Uint8Array) {
+                    val = '[Blob]';
+                } else if (typeof val === 'number') {
+                    if (!Number.isInteger(val)) {
+                        try { val = val.toLocaleString(locale); } catch (e) { val = val.toString(); }
+                    } else {
+                        val = val.toString();
+                    }
+                } else if (val instanceof Date) {
+                    try { val = val.toLocaleString(locale); } catch (e) { val = val.toString(); }
+                } else if (typeof val === 'object' && val !== null) {
+                    val = JSON.stringify(val);
+                }
+                return `<td>${val}</td>`;
+            }).join('');
+            return `<tr><td class="row-index">${rowIndex}</td>${cells}</tr>`;
+        }).join('');
+        
+        this._panel.webview.postMessage({
+            command: 'appendRows',
+            rowsHtml: rowsHtml,
+            hasMore: hasMore,
+            totalRows: this._lastResults.length
+        });
     }
 
     private async _fetchAndDisplay(append: boolean = false) {
@@ -211,17 +262,32 @@ export class ResultsPanel {
             // We'll rely on update() being called with accumulated results?
             // No, we need to accumulate results here if appending.
 
-            if (append) {
+            // Check if server applied pagination (returned exactly limit rows)
+            // If more rows returned, server didn't paginate - use client-side
+            this._useClientSidePagination = !append && results.length > this._limit;
+            
+            let displayResults: any[];
+            let hasMore: boolean;
+            
+            if (this._useClientSidePagination) {
+                // Server returned all rows - use client-side pagination
+                this._allResults = results;
+                displayResults = results.slice(0, this._limit);
+                hasMore = results.length > this._limit;
+            } else if (append) {
+                // Server-side pagination: appending to existing results
                 this._lastResults = [...this._lastResults, ...results];
+                displayResults = this._lastResults;
+                hasMore = results.length === this._limit;
             } else {
+                // Server-side pagination: initial fetch
+                this._allResults = [];
                 this._lastResults = results;
+                displayResults = results;
+                hasMore = results.length === this._limit;
             }
             
-            // Check if we probably have more rows
-            // If we got exactly 'limit' rows, there's a good chance there are more.
-            // If we got less, we are done.
-            // If we got 0, we are done.
-            const hasMore = results.length === this._limit;
+            this._lastResults = displayResults;
 
             if (this._lastResults.length > 0) {
                  this._updateContentForTable(this._lastResults, hasTransaction, undefined, hasMore);
@@ -325,6 +391,32 @@ export class ResultsPanel {
                 if(btn) btn.innerText = 'Loading...';
                 vscode.postMessage({ command: 'loadMore' }); 
             }
+            
+            // Handle messages from extension
+            window.addEventListener('message', event => {
+                const message = event.data;
+                if (message.command === 'appendRows') {
+                    const tbody = document.querySelector('tbody');
+                    if (tbody) {
+                        tbody.insertAdjacentHTML('beforeend', message.rowsHtml);
+                    }
+                    // Update row count in header
+                    const subtitle = document.querySelector('.subtitle');
+                    if (subtitle) {
+                        const prefix = message.hasMore ? 'First ' : '';
+                        subtitle.textContent = prefix + message.totalRows + ' rows';
+                    }
+                    // Update or hide Load More button
+                    const btn = document.getElementById('loadMoreBtn');
+                    if (btn) {
+                        if (message.hasMore) {
+                            btn.innerText = 'Load More Results';
+                        } else {
+                            btn.parentElement.remove();
+                        }
+                    }
+                }
+            });
             
             let rollbackDeadline = ${this._currentAutoRollbackAt || 0};
             

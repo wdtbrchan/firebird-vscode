@@ -1,5 +1,9 @@
 # Changelog
 
+## [ ... ]
+### Fixes
+- **Query Pagination**: Fixed pagination syntax to use `FIRST/SKIP` instead of `ROWS` for better compatibility with older Firebird versions.
+
 ## [0.7.0]
 ### UI Improvements
 - **Connection Integration**:

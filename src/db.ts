@@ -126,11 +126,15 @@ export class Database {
         const config = vscode.workspace.getConfiguration('firebird');
         
         let finalQuery = query;
-        if (queryOptions && queryOptions.limit && query.trim().toLowerCase().startsWith('select')) {
-            const start = (queryOptions.offset || 0) + 1;
-            const end = (queryOptions.offset || 0) + queryOptions.limit;
+        const queryLower = query.toLowerCase();
+        const hasExistingPagination = /\bfirst\b/.test(queryLower) || /\bskip\b/.test(queryLower);
+        
+        if (queryOptions && queryOptions.limit && query.trim().toLowerCase().startsWith('select') && !hasExistingPagination) {
+            const limit = queryOptions.limit;
+            const skip = queryOptions.offset || 0;
             const cleanQuery = query.trim().replace(/;$/, '');
-            finalQuery = `SELECT * FROM (${cleanQuery}) ROWS ${start} TO ${end}`;
+            // Use FIRST/SKIP syntax for Firebird 2.1+ compatibility
+            finalQuery = cleanQuery.replace(/^select/i, `SELECT FIRST ${limit} SKIP ${skip}`);
         }
         
         const encodingConf = connection?.charset || config.get<string>('charset', 'UTF8');
