@@ -1,6 +1,6 @@
 # Changelog
 
-## [ ... ]
+## [0.7.0]
 ### UI Improvements
 - **Connection Integration**:
   - Added visual color indicators for active connections in the DB Explorer.
