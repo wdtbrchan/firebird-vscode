@@ -1,6 +1,6 @@
 # Changelog
 
-## [..]
+## [0.8.0]
 ### Features
 - **Query Execution**:
   - **Parameter Injection**: Added support for named parameters (e.g. `:id`) and `@value` tag in comments (e.g. `col=:id -- @value=1`).
