@@ -41,7 +41,7 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 
 ### SQL Execution in PHP (Parameter Injection)
 
-You can execute SQL queries directly from PHP (or other configured) files. Use comments to inject values for parameters (`?`).
+You can execute SQL queries directly from PHP (or other configured) files. Use comments to inject values for parameters (`?` or `:name`). Use `--@val=...` or `--@value=...`.
 
 **Example:**
 Highlight the SQL query and press `CTRL+Enter`.
@@ -51,13 +51,13 @@ $sql = "
     SELECT
         id
     FROM PRODUCTS
-    WHERE 
+    WHERE
         category=? --@val='others'
         and type=? --@val=1
         AND createAt>? /*@val='2026-01-01'*/
+        AND status=:status -- @value='ACTIVE'
     ;
 ";
 ```
 **Configuration:**
 Add "php" to `firebird.allowedLanguages` in VS Code settings to enable this feature for PHP files.
-
