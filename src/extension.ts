@@ -11,6 +11,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { ConnectionDecorationProvider } from './connectionDecorationProvider';
 import { ActiveConnectionCodeLensProvider } from './providers/activeConnectionCodeLensProvider';
+import { QueryExtractor } from './services/queryExtractor';
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -195,55 +196,28 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const selection = editor.selection;
-        let query = editor.document.getText(selection);
+        let query = '';
         let queryStartLine = 0;
         let queryStartChar = 0;
 
-        if (!query.trim()) {
-            const document = editor.document;
-            const cursorLine = selection.active.line;
-            let startLine = cursorLine;
-            let endLine = cursorLine;
-
-            // Find start: look backwards for empty line or line ending with ;
-            for (let i = cursorLine - 1; i >= 0; i--) {
-                const line = document.lineAt(i).text.trimEnd();
-                if (line.trim().length === 0 || line.endsWith(';')) {
-                    break;
-                }
-                startLine = i;
-            }
-
-            // Find end: look forwards for line ending with ;
-            for (let i = cursorLine; i < document.lineCount; i++) {
-                const line = document.lineAt(i).text.trimEnd();
-                endLine = i;
-                if (line.endsWith(';')) {
-                    break;
-                }
-                // Also stop if we hit an empty line (safety break, though usually ; defines end)
-                 if (line.trim().length === 0 && i > cursorLine) {
-                     endLine = i - 1; 
-                     break;
-                 }
-            }
-
-            const range = new vscode.Range(
-                document.lineAt(startLine).range.start, 
-                document.lineAt(endLine).range.end
-            );
-            query = document.getText(range);
-            
-            // Set queryStart for error positioning
-            queryStartLine = startLine;
-            queryStartChar = 0; // effectively 0 since we take whole lines
+        // If selection is empty, use QueryExtractor to find the query at cursor
+        if (selection.isEmpty) {
+             const offset = editor.document.offsetAt(selection.active);
+             const result = QueryExtractor.extract(editor.document.getText(), offset, editor.document.languageId);
+             
+             if (result) {
+                 query = result.text;
+                 const startPos = editor.document.positionAt(result.startOffset);
+                 queryStartLine = startPos.line;
+                 queryStartChar = startPos.character;
+             }
         } else {
-            // Selection case
-            queryStartLine = selection.start.line;
-            queryStartChar = selection.start.character;
+             query = editor.document.getText(selection);
+             queryStartLine = selection.start.line;
+             queryStartChar = selection.start.character;
         }
 
-        if (!query.trim()) {
+        if (!query || !query.trim()) {
              vscode.window.showWarningMessage('No query selected or found.');
              return;
         }
@@ -251,24 +225,24 @@ export function activate(context: vscode.ExtensionContext) {
         // --- Query Cleanup ---
         let cleanQuery = query.trim();
         
-        // Remove trailing semicolon/PHP terminator
+        // Remove trailing semicolon if present
         if (cleanQuery.endsWith(';')) cleanQuery = cleanQuery.slice(0, -1).trim();
 
         // Language-specific cleanup (e.g. PHP strings)
         if (editor.document.languageId !== 'sql') {
-            // 1. Remove PHP variable assignment: $var = "..."
-            // Match: $variable = 
-            const assignmentMatch = /^\$[\w\d_]+\s*=\s*/.exec(cleanQuery);
-            if (assignmentMatch) {
-                cleanQuery = cleanQuery.substring(assignmentMatch[0].length).trim();
-            }
-
-            // 2. Remove surrounding quotes if present
-            // Match "..." or '...'
-            // Note: This is a simple heuristic. It won't handle complex concatenations.
-            if ((cleanQuery.startsWith('"') && cleanQuery.endsWith('"')) || 
-                (cleanQuery.startsWith("'") && cleanQuery.endsWith("'"))) {
-                cleanQuery = cleanQuery.substring(1, cleanQuery.length - 1);
+            // Remove PHP variable assignment if present (e.g. $var = )
+            // QueryExtractor extracts the string content, so $var = "..." -> "..."
+            // But if user selected "$var = ...", we might still need this.
+            // Since we use QueryExtractor for empty selection, this regex is mostly for manual selection cleanup.
+             const assignmentMatch = /^\$[\w\d_]+\s*=\s*/.exec(cleanQuery);
+             if (assignmentMatch) {
+                 cleanQuery = cleanQuery.substring(assignmentMatch[0].length).trim();
+             }
+             
+             // If manual selection included quotes, remove them
+             if ((cleanQuery.startsWith('"') && cleanQuery.endsWith('"')) || 
+                 (cleanQuery.startsWith("'") && cleanQuery.endsWith("'"))) {
+                 cleanQuery = cleanQuery.substring(1, cleanQuery.length - 1);
             }
         }
         // --- End Query Cleanup ---

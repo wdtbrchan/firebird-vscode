@@ -16,7 +16,7 @@
 - [x] Ability to execute SQL queries in non-SQL files
 - [x] Support parameter values in comments for SQL execution in non-SQL files (e.g. `col=? -- @value='1'`)
 - [x] Support parameter values in comments `:name -- @value='John'`
-- [ ] Better SQL detection in non-SQL files
+- [x] Better SQL detection in non-SQL files
 - [x] Check functionality in Cursor editor (statusbar, icons in editor)
 - [x] Different formats for dates, numbers, null values
 - [ ] Export results to CSV

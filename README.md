@@ -44,7 +44,7 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 You can execute SQL queries directly from PHP (or other configured) files. Use comments to inject values for parameters (`?` or `:name`). Use `--@val=...` or `--@value=...`.
 
 **Example:**
-Highlight the SQL query and press `CTRL+Enter`.
+Place the cursor inside the SQL string (or highlight the query) and press `CTRL+Enter`.
 
 ```php
 $sql = "

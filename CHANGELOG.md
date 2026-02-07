@@ -4,6 +4,8 @@
 ### Features
 - **Query Execution**:
   - **Parameter Injection**: Added support for named parameters (e.g. `:id`) and `@value` tag in comments (e.g. `col=:id -- @value=1`).
+- **Smart SQL Extraction**:
+  - Improved `Ctrl+Enter` support for PHP (and other languages) strings (single/double quoted) and method chaining (e.g. `$db->query("...")`).  
 
 ## [0.7.2]
 ### UI Improvements
