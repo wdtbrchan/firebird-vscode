@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Database } from './db';
 import { ResultsPanel } from './resultsPanel';
-import { DatabaseTreeDataProvider, DatabaseConnection, DatabaseDragAndDropController, ObjectItem, OperationItem, CreateNewIndexItem, IndexItem, IndexOperationItem } from './explorer/databaseTreeDataProvider';
+import { DatabaseTreeDataProvider, DatabaseConnection, DatabaseDragAndDropController, ObjectItem, OperationItem, CreateNewIndexItem, IndexItem, IndexOperationItem, ScriptItem } from './explorer/databaseTreeDataProvider';
 import { MetadataService } from './services/metadataService';
 import { ScriptParser } from './services/scriptParser';
 import { DDLProvider } from './services/ddlProvider';
@@ -907,6 +907,104 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
              (databaseTreeDataProvider as any).setFilter(connection.id, type, '');
              databaseTreeDataProvider.refreshDatabase(connection);
         }
+    }));
+
+    // --- Favorites Commands ---
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.addToFavorites', async (node: any) => {
+        if (node instanceof ScriptItem) {
+            // Check if connection is present (local script) or use active connection?
+            let connectionId = node.connectionId;
+            if (!connectionId) {
+                // Global script - add to Active Connection's favorites
+                const active = databaseTreeDataProvider.getActiveConnection();
+                if (active) {
+                    connectionId = active.id;
+                } else {
+                     vscode.window.showWarningMessage('Please activate a database connection to add global scripts to favorities.');
+                     return;
+                }
+            }
+            // Add script
+            await databaseTreeDataProvider.addFavoriteScript(connectionId!, node.data.id, node.data.name);
+        } else if (node instanceof IndexItem) {
+            // IndexItem has connection, indexName
+            await databaseTreeDataProvider.addFavorite(node.connection, node.indexName, 'index' as any);
+        } else if (node && node.connection && node.objectName && node.type) {
+             await databaseTreeDataProvider.addFavorite(node.connection, node.objectName, node.type);
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.removeFromFavorites', async (node: any) => {
+         if (node && node.contextValue === 'favorite-folder') {
+             vscode.commands.executeCommand('firebird.deleteFavoriteFolder', node);
+             return;
+         }
+
+         if (node && node.contextValue === 'script-favorite') {
+             const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove script '${node.label}' from favorites?`, { modal: true }, 'Remove');
+             if (confirm === 'Remove') {
+                 // node.data is FavoriteItem
+                 await databaseTreeDataProvider.removeFavoriteItem(node.data);
+             }
+             return;
+         }
+
+         // Script toggle (from regular tree view)
+         if (node instanceof ScriptItem && node.isFavorite) {
+             const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove script '${node.data.name}' from favorites?`, { modal: true }, 'Remove');
+             if (confirm === 'Remove') {
+                 await databaseTreeDataProvider.removeScriptFavorite(node.data.id);
+             }
+             return;
+         }
+
+         if (node && node.connection && node.objectName && node.type) {
+             const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove '${node.objectName}' from favorites?`, { modal: true }, 'Remove');
+             if (confirm === 'Remove') {
+                 await databaseTreeDataProvider.removeFavoriteObject(node.connection, node.objectName, node.type);
+             }
+         }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.createFavoriteFolder', async (node: any) => {
+        if (node && node.contextValue === 'favorites-root') {
+             await databaseTreeDataProvider.createFavoriteFolder(node.connection);
+        } else if (node && node.contextValue === 'favorite-folder') {
+             await databaseTreeDataProvider.createFavoriteFolder(node.connection, node.data);
+        } else {
+             const conn = databaseTreeDataProvider.getActiveConnection();
+             if (conn) {
+                 await databaseTreeDataProvider.createFavoriteFolder(conn);
+             }
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.deleteFavoriteFolder', async (node: any) => {
+         if (node && node.data) {
+             const confirm = await vscode.window.showWarningMessage(`Are you sure you want to delete folder '${node.label}'?`, { modal: true }, 'Delete');
+             if (confirm === 'Delete') {
+                 await databaseTreeDataProvider.deleteFavoriteFolder(node.data);
+             }
+         }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.openFavoriteScript', async (data: any) => {
+        if (data && data.scriptId) {
+             const service = ScriptService.getInstance();
+             let scriptItem = service.getScriptById(data.scriptId);
+             
+             if (scriptItem) {
+                 vscode.commands.executeCommand('firebird.openScript', scriptItem);
+             } else {
+                 vscode.window.showErrorMessage('Referenced script not found.');
+             }
+        }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.renameFavoriteFolder', async (node: any) => {
+         if (node && node.data) {
+             await databaseTreeDataProvider.renameFavoriteFolder(node.data);
+         }
     }));
 
 

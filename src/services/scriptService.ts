@@ -204,6 +204,10 @@ export class ScriptService {
         return undefined;
     }
 
+    public getScriptById(id: string): ScriptItemData | undefined {
+        return this.findItem(id);
+    }
+
     private findInCollection(collection: ScriptItemData[], id: string): ScriptItemData | undefined {
         for (const item of collection) {
             if (item.id === id) return item;

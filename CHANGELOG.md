@@ -1,7 +1,15 @@
 # Changelog
 
+## [ ... ]
+### Features
+- **Favorites**:
+  - Added a favorites list for objects (tables, views, triggers, etc.) and scripts.
+
 ## [0.8.0]
 ### Features
+- **Favorites**:
+  - Added support for adding **Indexes** to favorites.
+  - Added **toggle state** for favorited scripts in the tree view (star icon indicator).
 - **Query Execution**:
   - **Parameter Injection**: Added support for named parameters (e.g. `:id`) and `@value` tag in comments (e.g. `col=:id -- @value=1`).
 - **Smart SQL Extraction**:

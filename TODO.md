@@ -4,7 +4,7 @@
 - [x] Trigger activation and deactivation
 - [x] Ability to create a new SQL file from the DB explorer
 - [x] Scripts folder (shared + separate for each database)
-- [ ] Favorites list for objects (triggers, tables, etc.)
+- [x] Favorites list for objects (triggers, tables, etc.)
 - [x] Object search
 - [x] Prominently display currently selected database in SQL file tab
 - [x] Color settings for folders/databases to distinguish production and dev connections

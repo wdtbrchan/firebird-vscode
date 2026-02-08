@@ -3,8 +3,7 @@
 </p>
 
 # Firebird SQL
-
-Firebird database management extension for VS Code, Antigravity, Cursor and other VS Code compatible editors.
+Firebird database management extension for VS Code, Antigravity, Cursor and other VS Code compatible editors. Take advantage of AI autocomplete features in AI-powered IDEs like Antigravity, Cursor and similar.
 
 ![Screenshot](docs/screen.png)
 
@@ -39,9 +38,9 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 
 ## Advanced Usage
 
-### SQL Execution in PHP (Parameter Injection)
+### SQL Execution in Source Code (Parameter Injection)
 
-You can execute SQL queries directly from PHP (or other configured) files. Use comments to inject values for parameters (`?` or `:name`). Use `--@val=...` or `--@value=...`.
+You can execute SQL queries directly from within source code files (PHP, Python, etc.). Use comments to inject values for parameters (`?` or `:name`) using `--@val=...`, `--@value=...`, or `/*@val=...*/`.
 
 **Example:**
 Place the cursor inside the SQL string (or highlight the query) and press `CTRL+Enter`.
@@ -60,4 +59,4 @@ $sql = "
 ";
 ```
 **Configuration:**
-Add "php" to `firebird.allowedLanguages` in VS Code settings to enable this feature for PHP files.
+Add the language identifier (e.g., "php") to `firebird.allowedLanguages` in VS Code settings to enable this feature for those files.
