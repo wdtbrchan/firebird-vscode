@@ -1,6 +1,6 @@
 # Changelog
 
-## [ ... ]
+## [0.9.0] - 2026-02-08
 ### Features
 - **Favorites**:
   - Added a favorites list for objects (tables, views, triggers, etc.) and scripts.
