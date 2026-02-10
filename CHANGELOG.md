@@ -1,6 +1,6 @@
 # Changelog
 
-## [ ... ]
+## [0.9.1]
 ### UI Improvements
 - **Connection Settings**:
   - Redesigned the editor to use a two-column layout for a more compact view.
