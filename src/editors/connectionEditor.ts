@@ -119,8 +119,14 @@ export class ConnectionEditor {
             { code: 'zh-CN', label: 'Chinese (Simplified)' },
             { code: 'ja-JP', label: 'Japanese (Japan)' },
         ];
+        const localeCodes = locales.map(l => l.code).filter(c => c); // Just codes for autocomplete
 
-        const localeOptions = locales.map(l => `<option value="${l.code}" ${l.code === resultLocale ? 'selected' : ''}>${l.label}</option>`).join('');
+        const commonCharsets = [
+            'NONE', 'UTF8', 'ASCII', 'OCTETS', 'UNICODE_FSS', 
+            'WIN1250', 'WIN1251', 'WIN1252', 'WIN1253', 'WIN1254', 'WIN1255', 'WIN1256', 'WIN1257', 'WIN1258',
+            'ISO8859_1', 'ISO8859_2', 'ISO8859_3', 'ISO8859_4', 'ISO8859_5', 'ISO8859_6', 'ISO8859_7', 'ISO8859_8', 'ISO8859_9', 'ISO8859_13',
+            'BIG_5', 'GB2312', 'KSC_5601', 'SJIS', 'CYRL', 'DOS437', 'DOS850', 'DOS852', 'DOS857', 'DOS860', 'DOS861', 'DOS863', 'DOS865'
+        ];
         const isEdit = !!connection;
 
         const groupOptions = groups.map(g => `<option value="${g.id}" ${g.id === groupId ? 'selected' : ''}>${g.name}</option>`).join('');
@@ -137,100 +143,218 @@ export class ConnectionEditor {
             <!-- Fallback for icons if not using codicons directly from node_modules correctly -->
             <style>
                 body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); background-color: var(--vscode-editor-background); }
-                .form-group { margin-bottom: 15px; }
-                label { display: block; margin-bottom: 5px; font-weight: bold; }
-                input, select { width: 100%; padding: 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); }
-                .actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
-                button { padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; }
+                .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+                .full-width { grid-column: span 2; }
+                .form-group { margin-bottom: 5px; position: relative; }
+                label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9em; }
+                input, select { width: 100%; padding: 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); box-sizing: border-box; }
+                .autocomplete-items { position: absolute; border: 1px solid var(--vscode-input-border); border-bottom: none; border-top: none; z-index: 99; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background-color: var(--vscode-dropdown-background); }
+                .autocomplete-items div { padding: 8px; cursor: pointer; border-bottom: 1px solid var(--vscode-input-border); color: var(--vscode-dropdown-foreground); }
+                .autocomplete-items div:hover { background-color: var(--vscode-list-hoverBackground); }
+                .autocomplete-active { background-color: var(--vscode-list-activeSelectionBackground) !important; color: var(--vscode-list-activeSelectionForeground) !important; }
+                .actions { margin-top: 30px; display: flex; gap: 10px; justify-content: flex-end; align-items: center; border-top: 1px solid var(--vscode-panel-border); padding-top: 20px; }
+                button { padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
                 button:hover { background: var(--vscode-button-hoverBackground); }
                 button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
-                button.save { background: var(--vscode-charts-green); color: white; }
-                button.save:hover { opacity: 0.9; }
-                button.danger { background: var(--vscode-charts-red); color: white; display: flex; align-items: center; gap: 5px; margin-right: auto; }
+                button.save { background: #1e7e34; color: white; }
+                button.save:hover { background: #155d25; }
+                button.danger { background: var(--vscode-charts-red); color: white; margin-right: auto; }
                 button.danger:hover { opacity: 0.9; }
                 .spacer { flex-grow: 1; }
             </style>
         </head>
         <body>
             <h2>${isEdit ? 'Edit Connection' : 'New Connection'}</h2>
-            <div class="form-group">
-                <label>Name (Alias)</label>
-                <input type="text" id="name" value="${name}" placeholder="My Database">
-            </div>
-            <div class="form-group">
-                <label>Folder / Group</label>
-                <select id="groupId">
-                    ${defaultGroupOption}
-                    ${groupOptions}
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Host</label>
-                <input type="text" id="host" value="${host}">
-            </div>
-            <div class="form-group">
-                <label>Port</label>
-                <input type="number" id="port" value="${port}">
-            </div>
-            <div class="form-group">
-                <label>Database Path (.fdb)</label>
-                <input type="text" id="database" value="${database.replace(/\\/g, '\\\\')}"> 
-            </div>
-            <div class="form-group">
-                <label>User</label>
-                <input type="text" id="user" value="${user}">
-            </div>
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" id="password" value="${password}">
-            </div>
-            <div class="form-group">
-                <label>Role</label>
-                <input type="text" id="role" value="${role}">
-            </div>
-            <div class="form-group">
-                <label>Charset</label>
-                <input type="text" id="charset" value="${charset}">
-            </div>
-            <div class="form-group">
-                <label>Result Locale (Format)</label>
-                <select id="resultLocale">
-                    ${localeOptions}
-                </select>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Connection Color / Environment</label>
-                <select id="color">
-                    <option value="" ${!connection?.color ? 'selected' : ''}>None</option>
-                    <option value="blue" ${connection?.color === 'blue' ? 'selected' : ''}>🟦 Blue</option>
-                    <option value="green" ${connection?.color === 'green' ? 'selected' : ''}>🟩 Green (Development)</option>
-                    <option value="orange" ${connection?.color === 'orange' ? 'selected' : ''}>🟧 Orange</option>
-                    <option value="purple" ${connection?.color === 'purple' ? 'selected' : ''}>🟪 Purple</option>
-                    <option value="red" ${connection?.color === 'red' ? 'selected' : ''}>🟥 Red (Production)</option>
-                    <option value="yellow" ${connection?.color === 'yellow' ? 'selected' : ''}>🟨 Yellow</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Shortcut Slot</label>
-                <select id="shortcutSlot">
-                    ${slotOptions}
-                </select>
-                <small style="display:block; margin-top:4px; opacity:0.8;">Allows quick connection via keyboard shortcuts (Default: Ctrl+Alt+1...9)</small>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label>Name (Alias)</label>
+                    <input type="text" id="name" value="${name}" placeholder="My Database">
+                </div>
+                <div class="form-group">
+                    <label>Folder / Group</label>
+                    <select id="groupId">
+                        ${defaultGroupOption}
+                        ${groupOptions}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Shortcut Slot</label>
+                    <select id="shortcutSlot">
+                        ${slotOptions}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Host</label>
+                    <input type="text" id="host" value="${host}">
+                </div>
+                <div class="form-group">
+                    <label>Port</label>
+                    <input type="number" id="port" value="${port}">
+                </div>
+                <div class="form-group full-width">
+                    <label>Database Path (.fdb)</label>
+                    <input type="text" id="database" value="${database.replace(/\\/g, '\\\\')}"> 
+                </div>
+                <div class="form-group">
+                    <label>User</label>
+                    <input type="text" id="user" value="${user}">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="password" value="${password}">
+                </div>
+                <div class="form-group">
+                    <label>Role</label>
+                    <input type="text" id="role" value="${role}">
+                </div>
+                <div class="form-group">
+                    <label>Charset</label>
+                    <div class="autocomplete">
+                         <input type="text" id="charset" value="${charset}" placeholder="UTF8">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Result Locale (Format)</label>
+                    <div class="autocomplete">
+                        <input type="text" id="resultLocale" value="${resultLocale}" placeholder="en-US">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Connection Color / Environment</label>
+                    <select id="color">
+                        <option value="" ${!connection?.color ? 'selected' : ''}>None</option>
+                        <option value="blue" ${connection?.color === 'blue' ? 'selected' : ''}>🟦 Blue</option>
+                        <option value="green" ${connection?.color === 'green' ? 'selected' : ''}>🟩 Green (Development)</option>
+                        <option value="orange" ${connection?.color === 'orange' ? 'selected' : ''}>🟧 Orange</option>
+                        <option value="purple" ${connection?.color === 'purple' ? 'selected' : ''}>🟪 Purple</option>
+                        <option value="red" ${connection?.color === 'red' ? 'selected' : ''}>🟥 Red (Production)</option>
+                        <option value="yellow" ${connection?.color === 'yellow' ? 'selected' : ''}>🟨 Yellow</option>
+                    </select>
+                </div>
             </div>
 
             <div class="actions">
                 ${isEdit ? `
                 <button class="danger" onclick="deleteConnection()">
-                    <span class="codicon codicon-trash"></span> Delete
+                    <i class="fa-solid fa-trash-can"></i> Delete
                 </button>` : ''}
                 ${!isEdit ? '<div class="spacer"></div>' : ''} 
-                <button class="secondary" onclick="cancel()">Cancel</button>
-                <button class="save" onclick="save()">Save</button>
+                <button class="secondary" onclick="cancel()">
+                    <i class="fa-solid fa-xmark"></i> Cancel
+                </button>
+                <button class="save" onclick="save()">
+                    <i class="fa-solid fa-floppy-disk"></i> Save
+                </button>
             </div>
 
             <script>
                 const vscode = acquireVsCodeApi();
+
+                const possibleCharsets = ${JSON.stringify(commonCharsets)};
+                const possibleLocales = ${JSON.stringify(localeCodes)};
+
+                function autocomplete(inp, arr) {
+                    let currentFocus;
+                    
+                    function showList(filterVal) {
+                        closeAllLists();
+                        if (!filterVal && filterVal !== '') return; // Should not happen with our calls
+                        
+                        currentFocus = -1;
+                        const a = document.createElement("DIV");
+                        a.setAttribute("id", inp.id + "autocomplete-list");
+                        a.setAttribute("class", "autocomplete-items");
+                        inp.parentNode.appendChild(a);
+                        
+                        let count = 0;
+                        const valUpper = filterVal.toUpperCase();
+                        
+                        // User requested: "mozna pri psani nedavej omezovani podpolozek"
+                        // But strictly showing EVERYTHING while typing makes finding things hard if the list is long.
+                        // Compromise: If filterVal is empty (click/focus), show all.
+                        // If filterVal has text, filter. 
+                        
+                        for (let i = 0; i < arr.length; i++) {
+                            // Logic: Show if matches filter OR if filter is empty
+                            if (filterVal === '' || arr[i].toUpperCase().indexOf(valUpper) > -1) {
+                                const b = document.createElement("DIV");
+                                b.innerHTML = arr[i];
+                                b.innerHTML += "<input type='hidden' value='" + arr[i] + "'>";
+                                b.addEventListener("click", function(e) {
+                                    e.stopPropagation(); // Stop click from closing list immediately via document listener
+                                    inp.value = this.getElementsByTagName("input")[0].value;
+                                    closeAllLists();
+                                });
+                                a.appendChild(b);
+                                count++;
+                                // if (count > 50 && filterVal !== '') break; // Limit only when filtering? No, large lists are bad for DOM.
+                            }
+                        }
+                    }
+
+                    inp.addEventListener("input", function(e) {
+                        showList(this.value);
+                    });
+
+                    // Show all on click (even if has value, user wants to see options)
+                    inp.addEventListener("click", function(e) {
+                        e.stopPropagation(); // Don't trigger document close
+                        showList(""); 
+                    });
+
+                     // Show all on focus
+                    inp.addEventListener("focus", function() {
+                         showList("");
+                    });
+                    
+                    inp.addEventListener("keydown", function(e) {
+                        let x = document.getElementById(this.id + "autocomplete-list");
+                        if (x) x = x.getElementsByTagName("div");
+                        if (e.keyCode == 40) { // DOWN
+                            currentFocus++;
+                            addActive(x);
+                        } else if (e.keyCode == 38) { // UP
+                            currentFocus--;
+                            addActive(x);
+                        } else if (e.keyCode == 13) { // ENTER
+                            e.preventDefault();
+                            if (currentFocus > -1) {
+                                if (x) x[currentFocus].click();
+                            }
+                        }
+                    });
+
+                    function addActive(x) {
+                        if (!x) return false;
+                        removeActive(x);
+                        if (currentFocus >= x.length) currentFocus = 0;
+                        if (currentFocus < 0) currentFocus = (x.length - 1);
+                        x[currentFocus].classList.add("autocomplete-active");
+                        x[currentFocus].scrollIntoView({block: "nearest"});
+                    }
+
+                    function removeActive(x) {
+                        for (let i = 0; i < x.length; i++) {
+                            x[i].classList.remove("autocomplete-active");
+                        }
+                    }
+
+                    function closeAllLists(elmnt) {
+                        const x = document.getElementsByClassName("autocomplete-items");
+                        for (let i = 0; i < x.length; i++) {
+                            if (elmnt != x[i] && elmnt != inp) {
+                                x[i].parentNode.removeChild(x[i]);
+                            }
+                        }
+                    }
+                    
+                    document.addEventListener("click", function (e) {
+                        closeAllLists(e.target);
+                    });
+                }
+
+                autocomplete(document.getElementById("charset"), possibleCharsets);
+                autocomplete(document.getElementById("resultLocale"), possibleLocales);
 
                 function save() {
                     const conn = {

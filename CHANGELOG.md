@@ -1,6 +1,13 @@
 # Changelog
 
 ## [ ... ]
+### UI Improvements
+- **Connection Settings**:
+  - Redesigned the editor to use a two-column layout for a more compact view.
+  - Added icons to buttons (Save, Cancel, Delete).
+  - Changed the "Save" button color to a distinct dark green.
+  - Replaced native charset/locale selection with a custom autocomplete for better positioning and "show all on focus" behavior.
+
 ### Fixes
 - **Explorer**: Fixed alignment glitch for the last database connection in a folder by adding a dummy padding item.
 
