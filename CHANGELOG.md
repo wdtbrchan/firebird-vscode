@@ -1,9 +1,9 @@
 # Changelog
 
-## [ ... ]
+## [0.9.2]
 ### Features
-- **Favorites**: Added "Clear All Favorites" with a confirmation dialog.
 - **Favorites**: Added support for adding and removing triggers from favorites.
+- **Favorites**: Added "Clear All Favorites" with a confirmation dialog.
 
 ### UI Improvements
 - **Explorer**: Improved initial loading state by showing a spinner immediately instead of flashing the "Add Database" button.
