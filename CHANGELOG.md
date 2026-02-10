@@ -1,6 +1,6 @@
 # Changelog
 
-## [...]
+## [0.10.0]
 ### Features
 - Added **Backup and Restore** functionality for database connections (including favorites and scripts).
 
