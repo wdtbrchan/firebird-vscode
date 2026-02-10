@@ -945,11 +945,22 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
              return;
          }
 
-         if (node && node.contextValue === 'script-favorite') {
-             const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove script '${node.label}' from favorites?`, { modal: true }, 'Remove');
+         // Handle favorite items that have a 'data' property (FavoriteItem)
+         // This covers index-favorite, script-favorite and others when they are rendered as dedicated items
+         if (node && node.data && node.contextValue && (node.contextValue.endsWith('-favorite') || node.contextValue === 'script-favorite' || node.contextValue === 'script-file-favorite')) {
+             const label = node.label || node.data.label;
+             const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove '${label}' from favorites?`, { modal: true }, 'Remove');
              if (confirm === 'Remove') {
-                 // node.data is FavoriteItem
                  await databaseTreeDataProvider.removeFavoriteItem(node.data);
+             }
+             return;
+         }
+
+         // Fallback/Native toggle (from regular tree view)
+         if (node && node.connection && node.objectName && node.type) {
+             const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove '${node.objectName}' from favorites?`, { modal: true }, 'Remove');
+             if (confirm === 'Remove') {
+                 await databaseTreeDataProvider.removeFavoriteObject(node.connection, node.objectName, node.type);
              }
              return;
          }
@@ -961,13 +972,6 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
                  await databaseTreeDataProvider.removeScriptFavorite(node.data.id);
              }
              return;
-         }
-
-         if (node && node.connection && node.objectName && node.type) {
-             const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove '${node.objectName}' from favorites?`, { modal: true }, 'Remove');
-             if (confirm === 'Remove') {
-                 await databaseTreeDataProvider.removeFavoriteObject(node.connection, node.objectName, node.type);
-             }
          }
     }));
 
@@ -1010,6 +1014,28 @@ CREATE INDEX IX_${tableName}_1 ON ${tableName} (column_name);`;
          if (node && node.data) {
              await databaseTreeDataProvider.renameFavoriteFolder(node.data);
          }
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.favorites.clear', async (node: any) => {
+        let connectionId: string | undefined;
+
+        if (node && node.connection) {
+            connectionId = node.connection.id;
+        } else {
+            const active = databaseTreeDataProvider.getActiveConnection();
+            if (active) {
+                connectionId = active.id;
+            }
+        }
+
+        if (connectionId) {
+            const confirm = await vscode.window.showWarningMessage('Are you sure you want to clear all favorites for this connection?', { modal: true }, 'Clear All');
+            if (confirm === 'Clear All') {
+                await databaseTreeDataProvider.clearFavorites(connectionId);
+            }
+        } else {
+            vscode.window.showWarningMessage('No connection selected to clear favorites.');
+        }
     }));
 
 

@@ -1,6 +1,17 @@
 # Changelog
 
 ## [ ... ]
+### Features
+- **Favorites**: Added "Clear All Favorites" with a confirmation dialog.
+- **Favorites**: Added support for adding and removing triggers from favorites.
+
+### UI Improvements
+- **Explorer**: Improved initial loading state by showing a spinner immediately instead of flashing the "Add Database" button.
+
+### Fixes
+- **Favorites**: Fixed an issue where favorite items in subfolders sometimes could not be removed.
+- **Favorites**: Fixed individual deletion for indexes and views by using more robust matching and case-insensitive labels.
+
 ### Internal / Refactoring
 - **Codebase Organization**: Split the monolithic `databaseTreeDataProvider.ts` into multiple specialized files for better maintainability.
 - **Unified Loading**: Centralized database object loading and filtering logic to reduce code duplication.

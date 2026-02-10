@@ -72,6 +72,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         // and doesn't flash "No data" if dependent on async activation
         setTimeout(() => {
             this._loading = false;
+            vscode.commands.executeCommand('setContext', 'firebird.isInitialized', true);
             this._onDidChangeTreeData.fire(undefined);
         }, 500);
     }
@@ -229,9 +230,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     }
     async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | PaddingItem | vscode.TreeItem)[]> {
         if (this._loading && !element) {
-            const loadingItem = new vscode.TreeItem('Loading...');
-            loadingItem.iconPath = new vscode.ThemeIcon('loading~spin');
-            return [loadingItem];
+            return [];
         }
 
         if (element) {
@@ -246,6 +245,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                     } else if (f.objectType === 'index') {
                         // For index favorites, create a simplified item
                         return new FavoriteIndexItem(f, element.connection);
+                    } else if (f.objectType === 'trigger') {
+                        return new TriggerItem(element.connection, f.label, 0, false, true, f.id);
                     } else {
                         // Use ObjectItem for favorite objects so they behave like normal objects (expandable etc.)
                         return new ObjectItem(f.label, f.objectType as 'table' | 'view' | 'trigger' | 'procedure' | 'generator' | 'function', element.connection, undefined, true, f.id);
@@ -260,6 +261,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                             return new FavoriteScriptItem(f, element.connection);
                         } else if (f.objectType === 'index') {
                             return new FavoriteIndexItem(f, element.connection);
+                        } else if (f.objectType === 'trigger') {
+                            return new TriggerItem(element.connection, f.label, 0, false, true, f.id);
                         } else {
                             return new ObjectItem(f.label, f.objectType as 'table' | 'view' | 'trigger' | 'procedure' | 'generator' | 'function', element.connection, undefined, true, f.id);
                         }
@@ -362,7 +365,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                 });
                 
                 return sorted.map(t => {
-                     return new TriggerItem(element.connection, t.name, t.sequence, t.inactive);
+                     const isFav = !!this.getFavorite(element.connection.id, t.name, 'trigger');
+                     return new TriggerItem(element.connection, t.name, t.sequence, t.inactive, isFav);
                 });
             } else if (element instanceof TriggerItem) {
                  const ops: TriggerOperationItem[] = [];
@@ -754,7 +758,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         items.push(newItem);
         this.favorites.set(connectionId, items);
         this.saveFavorites();
-        this._onDidChangeTreeData.fire(undefined);
     }
 
     public async addFavorite(connection: DatabaseConnection, objectName: string, objectType: 'table' | 'view' | 'trigger' | 'procedure' | 'generator' | 'function' | 'index') {
@@ -804,6 +807,13 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         }
     }
 
+    public async clearFavorites(connectionId: string) {
+        if (this.favorites.has(connectionId)) {
+            this.favorites.set(connectionId, []);
+            this.saveFavorites();
+        }
+    }
+
     public async createFavoriteFolder(connection: DatabaseConnection, parent?: FavoriteItem) {
         const name = await vscode.window.showInputBox({ prompt: 'Folder Name' });
         if (!name) return;
@@ -835,7 +845,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                 return false;
             };
             findAndAdd(rootItems);
-            // Update reference
             this.favorites.set(connection.id, rootItems);
         } else {
              // Add to root
@@ -964,7 +973,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         const items = this.favorites.get(connection.id) || [];
         
         const findAndRemove = (list: FavoriteItem[]): boolean => {
-            const idx = list.findIndex(i => i.type === 'object' && i.label === objectName && i.objectType === objectType);
+            const idx = list.findIndex(i => i.type === 'object' && i.label.toUpperCase() === objectName.toUpperCase() && i.objectType === objectType);
             if (idx !== -1) {
                 list.splice(idx, 1);
                 return true;
@@ -993,9 +1002,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this._onDidChangeTreeData.fire(undefined);
     }
     public async removeFavoriteItem(item: FavoriteItem) {
-        if (!item.connectionId) return;
-        const items = this.favorites.get(item.connectionId) || [];
-        
+        let changed = false;
+
         const removeRecursive = (list: FavoriteItem[]): boolean => {
              const idx = list.findIndex(i => i.id === item.id);
              if (idx !== -1) {
@@ -1010,8 +1018,21 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
              return false;
         };
 
-        if (removeRecursive(items)) {
-            this.favorites.set(item.connectionId, items);
+        if (item.connectionId && this.favorites.has(item.connectionId)) {
+            const items = this.favorites.get(item.connectionId)!;
+            if (removeRecursive(items)) {
+                changed = true;
+            }
+        } else {
+            // Fallback: search all connections if connectionId is missing (stuck items fix)
+            this.favorites.forEach((items, connId) => {
+                if (removeRecursive(items)) {
+                    changed = true;
+                }
+            });
+        }
+
+        if (changed) {
             this.saveFavorites();
         }
     }

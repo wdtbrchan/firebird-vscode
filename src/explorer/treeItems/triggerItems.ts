@@ -28,14 +28,20 @@ export class TableTriggersItem extends vscode.TreeItem {
 }
 
 export class TriggerItem extends vscode.TreeItem {
+    public readonly type: 'trigger';
+    public readonly objectName: string;
     constructor(
         public readonly connection: DatabaseConnection,
         public readonly triggerName: string,
         public readonly sequence: number,
-        public readonly inactive: boolean
+        public readonly inactive: boolean,
+        public readonly isFavorite: boolean = false,
+        public readonly favoriteId?: string
     ) {
         super(triggerName, vscode.TreeItemCollapsibleState.Collapsed);
-        this.contextValue = 'trigger-item';
+        this.type = 'trigger';
+        this.objectName = triggerName;
+        this.contextValue = this.isFavorite ? 'trigger-favorite' : 'trigger';
         this.iconPath = new vscode.ThemeIcon('zap');
         this.description = [
             `(${sequence})`,

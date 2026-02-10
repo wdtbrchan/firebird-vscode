@@ -233,6 +233,11 @@
         "command": "firebird.renameFavoriteFolder",
         "title": "Rename Folder",
         "icon": "$(edit)"
+      },
+      {
+        "command": "firebird.favorites.clear",
+        "title": "Clear All Favorites",
+        "icon": "$(clear-all)"
       }
     ],
     "keybindings": [
@@ -332,7 +337,13 @@
     "viewsWelcome": [
       {
         "view": "firebird.databases",
-        "contents": "No firebird connections found.\n[Add Database](command:firebird.addDatabase)"
+        "contents": "$(loading~spin) Loading...",
+        "when": "!firebird.isInitialized"
+      },
+      {
+        "view": "firebird.databases",
+        "contents": "No firebird connections found.\n[Add Database](command:firebird.addDatabase)",
+        "when": "firebird.isInitialized"
       }
     ],
     "menus": {
@@ -469,6 +480,11 @@
         {
           "command": "firebird.renameFavoriteFolder",
           "when": "view == firebird.databases && viewItem == favorite-folder",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.favorites.clear",
+          "when": "view == firebird.databases && viewItem == favorites-root",
           "group": "inline"
         }
       ]
