@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
 import { Database } from './db';
 import { ResultsPanel } from './resultsPanel';
-import { DatabaseTreeDataProvider, DatabaseConnection, DatabaseDragAndDropController, ObjectItem, OperationItem, CreateNewIndexItem, IndexItem, IndexOperationItem, ScriptItem } from './explorer/databaseTreeDataProvider';
+import { DatabaseTreeDataProvider } from './explorer/databaseTreeDataProvider';
+import { DatabaseConnection, ObjectItem } from './explorer/treeItems/databaseItems';
+import { DatabaseDragAndDropController } from './explorer/databaseDragAndDropController';
+import { OperationItem } from './explorer/treeItems/operationItems';
+import { CreateNewIndexItem, IndexItem, IndexOperationItem } from './explorer/treeItems/indexItems';
+import { ScriptItem } from './explorer/treeItems/scriptItems';
 import { MetadataService } from './services/metadataService';
 import { ScriptParser } from './services/scriptParser';
 import { DDLProvider } from './services/ddlProvider';

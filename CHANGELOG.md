@@ -1,5 +1,13 @@
 # Changelog
 
+## [ ... ]
+### Internal / Refactoring
+- **Codebase Organization**: Split the monolithic `databaseTreeDataProvider.ts` into multiple specialized files for better maintainability.
+- **Unified Loading**: Centralized database object loading and filtering logic to reduce code duplication.
+- **Testing**:
+  - Established a unit testing framework for explorer components.
+  - Implemented unit tests for primary TreeItem classes (`FolderItem`, `ObjectItem`, `TriggerItem`, `IndexItem`, `FavoritesRootItem`).
+
 ## [0.9.1]
 ### UI Improvements
 - **Connection Settings**:

@@ -1,6 +1,6 @@
 
 import { Database } from '../db';
-import { DatabaseConnection } from '../explorer/databaseTreeDataProvider';
+import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
 
 export class MetadataService {
 

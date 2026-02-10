@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { DatabaseConnection, ConnectionGroup } from '../explorer/databaseTreeDataProvider';
+import { DatabaseConnection, ConnectionGroup } from '../explorer/treeItems/databaseItems';
 
 export class ConnectionEditor {
     public static currentPanel: ConnectionEditor | undefined;
