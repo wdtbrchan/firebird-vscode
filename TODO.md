@@ -22,3 +22,4 @@
 - [ ] Export results to CSV
 - [ ] Support multiple simultaneous active database connections
 - [x] Bug: Query ending with a comment throws an error regarding unterminated query
+- [x] Fix alignment glitch in DB explorer

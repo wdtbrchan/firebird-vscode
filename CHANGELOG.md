@@ -1,5 +1,9 @@
 # Changelog
 
+## [ ... ]
+### Fixes
+- **Explorer**: Fixed alignment glitch for the last database connection in a folder by adding a dummy padding item.
+
 ## [0.9.0]
 ### Features
 - **Favorites**:

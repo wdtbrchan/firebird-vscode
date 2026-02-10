@@ -415,9 +415,19 @@ export class ScriptFolderItem extends vscode.TreeItem {
 // Need to import uuid to generate IDs for favorites
 import { v4 as uuidv4 } from 'uuid';
 
-export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | vscode.TreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | vscode.TreeItem | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
+export class PaddingItem extends vscode.TreeItem {
+    constructor() {
+        super('', vscode.TreeItemCollapsibleState.None);
+        this.contextValue = 'padding-item';
+        this.iconPath = undefined;
+        this.description = '';
+        this.tooltip = '';
+    }
+}
+
+export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void>();
+    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
 
     private connections: DatabaseConnection[] = [];
@@ -478,7 +488,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         return this.connections.find(c => c.id === id);
     }
 
-    getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | vscode.TreeItem): vscode.TreeItem {
+    getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | PaddingItem | vscode.TreeItem): vscode.TreeItem {
         if (element instanceof vscode.TreeItem) {
             return element;
         }
@@ -500,7 +510,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             
             // Assign Resource URI to enable FileDecorationProvider
             // Add timestamp to force cache busting for decorations
-            treeItem.resourceUri = vscode.Uri.parse(`firebird-connection:/${element.id}?_=${Date.now()}`);
+            treeItem.resourceUri = vscode.Uri.parse(`firebird-connection:/${element.id}`);
 
             treeItem.tooltip = `${element.user}@${element.host}:${element.port}/${element.database}`;
             treeItem.id = element.id;
@@ -595,13 +605,13 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         return undefined;
     }
 
+
     private getIconUri(color: string): vscode.Uri {
         // Create a 16x16 square icon with the specified color
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" fill="${color}"/></svg>`;
         return vscode.Uri.parse(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
     }
-
-    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | vscode.TreeItem)[]> {
+    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | PaddingItem | vscode.TreeItem)[]> {
         if (this._loading && !element) {
             const loadingItem = new vscode.TreeItem('Loading...');
             loadingItem.iconPath = new vscode.ThemeIcon('loading~spin');
@@ -825,14 +835,17 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             } else {
                 // It's a group
                 const groupConns = this.connections.filter(c => c.groupId === element.id);
-                return groupConns;
+                // Workaround: Add a padding item to fix alignment of the last real item
+                return [...groupConns, new PaddingItem()];
             }
         }
         
         // Root
         const rootGroups = this.groups;
         const ungroupedConns = this.connections.filter(c => !c.groupId || !this.groups.find(g => g.id === c.groupId));
-        return [...rootGroups, ...ungroupedConns];
+        
+        // Workaround: Add a padding item to fix alignment of the last real item
+        return [...rootGroups, ...ungroupedConns, new PaddingItem()];
     }
 
     async getGroupedTriggers(connection: DatabaseConnection, tableName?: string, filter?: string, expanded: boolean = false): Promise<TriggerGroupItem[]> {
