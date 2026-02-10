@@ -103,6 +103,16 @@
         "icon": "$(edit)"
       },
       {
+        "command": "firebird.backupConnections",
+        "title": "Backup Connections",
+        "icon": "$(save-all)"
+      },
+      {
+        "command": "firebird.restoreConnections",
+        "title": "Restore Connections",
+        "icon": "$(cloud-upload)"
+      },
+      {
         "command": "firebird.commit",
         "title": "Commit Transaction",
         "icon": "$(check)",
@@ -357,6 +367,16 @@
           "command": "firebird.createGroup",
           "when": "view == firebird.databases",
           "group": "navigation"
+        },
+        {
+          "command": "firebird.backupConnections",
+          "when": "view == firebird.databases",
+          "group": "navigation@9"
+        },
+        {
+          "command": "firebird.restoreConnections",
+          "when": "view == firebird.databases",
+          "group": "navigation@9"
         }
       ],
       "editor/title": [

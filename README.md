@@ -14,6 +14,7 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 - **Explorer**: View databases, tables, views, procedures, triggers and more.
 - **Object Search**: Quickly filter and find database objects.
 - **Object Management**: Create and manage tables, views, procedures, triggers, indexes, etc.
+- **Backup & Restore**: Easily backup and restore your connection settings, including favorites and scripts.
 
 ## Requirements
 

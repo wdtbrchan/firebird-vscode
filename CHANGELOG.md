@@ -1,5 +1,13 @@
 # Changelog
 
+## [...]
+### Features
+- Added **Backup and Restore** functionality for database connections (including favorites and scripts).
+
+### Fixes
+- Fixed an issue where queries ending with a comment caused an error.
+- Fixed alignment glitch in Database Explorer.
+
 ## [0.9.2]
 ### Features
 - **Favorites**: Added support for adding and removing triggers from favorites.

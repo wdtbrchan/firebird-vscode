@@ -427,6 +427,14 @@ export function activate(context: vscode.ExtensionContext) {
         await databaseTreeDataProvider.deleteGroup(group);
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.backupConnections', async () => {
+        await databaseTreeDataProvider.backupConnections();
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.restoreConnections', async () => {
+        await databaseTreeDataProvider.restoreConnections();
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('firebird.openObject', async (type: string, name: string, connection: DatabaseConnection) => {
         try {
             let ddl = '';

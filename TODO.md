@@ -23,3 +23,5 @@
 - [ ] Support multiple simultaneous active database connections
 - [x] Bug: Query ending with a comment throws an error regarding unterminated query
 - [x] Fix alignment glitch in DB explorer
+- [x] Backup and restore connections in DB explorer
+- [ ] Add setting to enable space as sql query separator

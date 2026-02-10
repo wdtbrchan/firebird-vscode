@@ -56,6 +56,15 @@ export class ScriptService {
         this._onDidChangeScripts.fire();
     }
 
+    public getFullState(): ScriptsState {
+        return this.state;
+    }
+
+    public setFullState(state: ScriptsState) {
+        this.state = state;
+        this.save();
+    }
+
     public getScripts(connectionId?: string): ScriptItemData[] {
         if (connectionId) {
              if (!this.state.connections[connectionId]) {
