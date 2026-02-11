@@ -18,6 +18,12 @@ export class ResultsPanel {
     private _currentAutoRollbackAt: number | undefined;
     private _lastExecutionTime: number | undefined;
     private _lastTransactionAction: string | undefined;
+    private _lastContext: string | undefined;
+    private _lastIsError: boolean = false;
+    private _isLoading: boolean = false;
+    private _hasMore: boolean = false;
+    private _affectedRows: number | undefined;
+    private _startTime: number | undefined;
 
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
@@ -76,28 +82,61 @@ export class ResultsPanel {
 
     public showLoading() {
         this._isLoading = true;
-        this._panel.webview.html = `<!DOCTYPE html>
+        this._startTime = Date.now();
+        // Initial HTML generation logic moved fully into webview.html assignment below for safety
+        // Removed pre-calculated script string to avoid template literal complexity
+
+         this._panel.webview.html = `<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
             <style>
-                body { font-family: sans-serif; padding: 20px; display: flex; align-items: center; justify-content: center; height: 100vh; color: #888; flex-direction: column; }
-                .loader { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 15px; }
+                body {
+                    font-family: sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                    background-color: transparent;
+                    color: #ccc;
+                }
+                .loading-container {
+                    /* Inline styles used below overrides this class, but keeping for reference */
+                }
+                .spinner {
+                    border: 3px solid rgba(255, 255, 255, 0.3);
+                    border-radius: 50%;
+                    border-top: 3px solid #ffffff;
+                    width: 20px;
+                    height: 20px;
+                    animation: spin 1s linear infinite;
+                }
                 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                .timer { font-size: 0.9em; margin-top: 5px; color: #aaa; }
             </style>
-            <script>
-                const startTime = Date.now();
-                setInterval(() => {
-                    const elapsed = (Date.now() - startTime) / 1000;
-                    document.getElementById('timer').innerText = elapsed.toFixed(1) + 's';
-                }, 100);
-            </script>
         </head>
         <body>
-            <div class="loader"></div>
-            <div>Executing query...</div>
-            <div id="timer" class="timer">0.0s</div>
+            <div id="loading-box" style="position: fixed; top: 0; left: 0; width: 100%; text-align: center; background-color: #1e7e34; color: #ffffff; padding: 10px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; justify-content: center; gap: 10px; align-items: center; z-index: 9999;">
+                <div class="spinner"></div>
+                Executing... <span id="executing-timer" style="margin-left: 5px;">(0.0s)</span>
+            </div>
+            <script>
+                // Use IIFE to ensure scope doesn't leak and runs
+                (function() {
+                    const startTime = ${this._startTime};
+                    const timerEl = document.getElementById('executing-timer');
+                    
+                    if (timerEl) {
+                        function update() {
+                            const now = Date.now();
+                            const diff = ((now - startTime) / 1000).toFixed(1);
+                            timerEl.textContent = '(' + diff + 's)';
+                        }
+                        setInterval(update, 100);
+                        update(); // Initial call
+                    }
+                })();
+            </script>
         </body>
         </html>`;
     }
@@ -107,7 +146,12 @@ export class ResultsPanel {
     }
 
     public showError(message: string, hasTransaction: boolean, context?: string) {
-        this._updateContent([], message, hasTransaction, true, context);
+        this._isLoading = false;
+        this._lastIsError = true;
+        this._lastMessage = message;
+        this._showButtons = hasTransaction; // Show buttons if transaction is active
+        this._lastContext = context || this._currentContext;
+        this._panel.webview.html = this._getHtmlForWebview([], message, hasTransaction, true, this._lastContext);
     }
 
     public async runNewQuery(query: string, connection: any, context?: string) {
@@ -156,7 +200,7 @@ export class ResultsPanel {
                      await this._fetchAndDisplay();
                 } else {
                     // Intermediate statement - execute and ignore result unless error
-                    await Database.executeQuery(stmt, connection, { limit: 1000, offset: 0 }); // Ignoring limit practically
+                    await Database.executeQuery(stmt, connection, { limit: 1000, offset: 0 }); 
                 }
                 executedCount++;
             }
@@ -242,10 +286,13 @@ export class ResultsPanel {
             }
 
             const start = performance.now();
-            const results = await Database.executeQuery(this._currentQuery, this._currentConnection, {
+            const queryResult = await Database.executeQuery(this._currentQuery, this._currentConnection, {
                 limit: this._limit,
                 offset: this._currentOffset
             });
+            const results = queryResult.rows;
+            const affectedRows = queryResult.affectedRows;
+
             const end = performance.now();
             if (!append) {
                 this._lastExecutionTime = (end - start) / 1000;
@@ -289,10 +336,10 @@ export class ResultsPanel {
             
             this._lastResults = displayResults;
 
-            if (this._lastResults.length > 0) {
-                 this._updateContentForTable(this._lastResults, hasTransaction, undefined, hasMore);
+            if (this._lastResults.length > 0 || (affectedRows !== undefined && affectedRows >= 0)) {
+                 this._updateContentForTable(this._lastResults, hasTransaction, undefined, hasMore, affectedRows);
             } else {
-                 this.showSuccess('Query executed successfully. No rows returned.', hasTransaction);
+                 this._updateContentForTable([], hasTransaction, undefined, false, undefined);
             }
 
         } catch (err: any) {
@@ -302,7 +349,7 @@ export class ResultsPanel {
         }
     }
 
-    private _updateContentForTable(results: any[], hasTransaction: boolean, context?: string, hasMore: boolean = false) {
+    private _updateContentForTable(results: any[], hasTransaction: boolean, context?: string, hasMore: boolean = false, affectedRows?: number) {
          this._isLoading = false;
          // this._lastResults is already updated in _fetchAndDisplay if that was called.
          // If called from outside (just update()), we trust results passed.
@@ -316,7 +363,8 @@ export class ResultsPanel {
          if (context) this._lastContext = context;
          else this._lastContext = this._currentContext;
         
-         this._panel.webview.html = this._getHtmlForWebview(results, undefined, hasTransaction, false, this._lastContext, hasMore);
+         this._affectedRows = affectedRows;
+         this._panel.webview.html = this._getHtmlForWebview(results, undefined, hasTransaction, false, this._lastContext, hasMore, undefined, affectedRows);
     }
 
 
@@ -327,9 +375,6 @@ export class ResultsPanel {
         this._updateContentForTable(results, hasTransaction, context, false);
     }
 
-    private _lastIsError: boolean = false;
-    private _isLoading: boolean = false;
-    private _lastContext: string | undefined;
 
     // Modified signature to generic _updateContent not really valid anymore with new logic, removing it or adapting.
     // Let's keep a generic internal setter for message based updates.
@@ -341,6 +386,7 @@ export class ResultsPanel {
          this._lastIsError = isError;
          // Use provided context or fallback to current established context
          this._lastContext = context || this._currentContext;
+         this._affectedRows = undefined;
          this._panel.webview.html = this._getHtmlForWebview(results, message, showButtons, isError, this._lastContext, false);
     }
 
@@ -352,16 +398,27 @@ export class ResultsPanel {
              this._lastTransactionAction = lastAction;
         }
 
-        if (this._isLoading) return;
-        
-        this._panel.webview.html = this._getHtmlForWebview(this._lastResults, this._lastMessage, hasTransaction, this._lastIsError, this._lastContext, this._hasMore, this._lastTransactionAction);
+        // Do not update the view if we are currently loading a query, 
+        // to prevent flashing "0 rows" or empty table before results arrive.
+        if (this._isLoading) {
+            return;
+        }
+
+        this._panel.webview.html = this._getHtmlForWebview(this._lastResults, this._lastMessage, hasTransaction, this._lastIsError, this._lastContext, this._hasMore, this._lastTransactionAction, this._affectedRows);
     }
 
-    private _hasMore: boolean = false;
 
-    private _getHtmlForWebview(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string, hasMore: boolean = false, transactionAction?: string) {
+    private _getHtmlForWebview(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string, hasMore: boolean = false, transactionAction?: string, affectedRows?: number) {
         this._hasMore = hasMore;
-        const countText = results ? `${results.length} rows` : '0 rows';
+        let countText = results ? `${results.length} rows` : '0 rows';
+        if (affectedRows !== undefined && affectedRows >= 0) {
+            if (results && results.length > 0) {
+                 countText += `, ${affectedRows} affected`;
+            } else {
+                 countText = `${affectedRows} rows affected`;
+            }
+        }
+        
         const rowsText = hasMore ? `First ${countText}` : countText;
         const timeText = this._lastExecutionTime !== undefined ? `${this._lastExecutionTime.toFixed(3)}s` : '';
         const contextText = context || 'Unknown Database';
@@ -487,8 +544,8 @@ export class ResultsPanel {
             .btn { border: none; padding: 5px 10px; color: white; cursor: pointer; border-radius: 3px; font-size: 12px; }
             .btn.success { background-color: #28a745; }
             .btn.success:hover { background-color: #218838; }
-            .btn.danger { background-color: #dc3545; }
-            .btn.danger:hover { background-color: #c82333; }
+            .btn.danger { background-color: #8b0000; }
+            .btn.danger:hover { background-color: #a50000; }
             .content-area { flex-grow: 1; overflow: auto; padding: 0; }
             table { border-collapse: collapse; width: 100%; font-size: 12px; }
             th, td { padding: 2px 4px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
@@ -537,7 +594,7 @@ export class ResultsPanel {
         const header = `
             <div class="header-container" style="${headerStyle}">
                 <div class="header-content">
-                    ${isError || message ? `<h3>${isError ? 'Error' : message}</h3>` : ''} 
+                    ${!isError && message ? `<h3>${message}</h3>` : ''}
                     <div style="display: flex; align-items: baseline; gap: 10px;">
                         ${!isError && subtitle ? `<div class="subtitle">${subtitle}</div>` : ''}
                         ${contextText ? `<div style="font-size: 0.85em; font-weight: bold; color: ${connectionColor || '#888'};">${contextText}</div>` : ''}
@@ -548,40 +605,109 @@ export class ResultsPanel {
             </div>
         `;
         
-        if (message) {
-            const messageClass = isError ? 'error-message' : 'success-message';
+        let errorMessageHtml = '';
+        if (isError && message) {
+            errorMessageHtml = `
+                <div style="width: 100%; padding: 10px 15px; display: flex; align-items: center; box-sizing: border-box; margin-bottom: 0; background-color: #dc3545; color: #ffffff;">
+                    <span style="font-size: 1.5em; margin-right: 10px;">⚠</span>
+                    <div style="font-weight: 500; font-size: 1.1em;">Error: ${message}</div>
+                </div>
+            `;
+        }
+
+        // Generate transaction message separately from main message/error
+        let transactionMessageHtml = '';
+        const transactionMsg = transactionAction;
+        
+        // Connection color banner style for generic success
+        const bannerStyle = connectionColor ? 
+            `background-color: ${connectionColor}; color: #ffffff;` : 
+            'background-color: #666666; color: #ffffff;';
+
+        if (transactionMsg) {
+            let icon = '';
+            let msgStyle = '';
+            const msgLower = transactionMsg.toLowerCase();
+            
+            if (msgLower.includes('committed')) {
+                icon = '<span style="font-size: 1.5em; margin-right: 10px;">✓</span>';
+                msgStyle = 'background-color: #1e7e34; color: #ffffff;'; // Green
+            } else if (msgLower.includes('roll')) { 
+                icon = '<span style="font-size: 1.5em; margin-right: 10px;">✗</span>';
+                msgStyle = 'background-color: #8b0000; color: #ffffff;'; // Dark Red
+            } else {
+                 msgStyle = bannerStyle;
+            }
+
+            transactionMessageHtml = `
+                <div style="width: 100%; padding: 10px 15px; display: flex; align-items: center; box-sizing: border-box; margin-bottom: 0; ${msgStyle}">
+                    ${icon}
+                    <div style="font-weight: 500; font-size: 1.1em;">${transactionMsg}</div>
+                </div>
+            `;
+        }
+
+        // Handle generic message if it's NOT a transaction action (or if we want to show both?)
+        // If message is error, we show it (already handled in header or below).
+        // If message is same as transactionAction, we don't show it again.
+        
+        // Let's rely on 'message' being for Errors or Generic infos.
+        // 'transactionAction' is strictly for Commit/Rollback feedback.
+
+        // Affected rows strip (Full width, top)
+        let affectedRowsHtml = '';
+
+        if (affectedRows !== undefined && affectedRows >= 0) {
+             affectedRowsHtml = `
+                <div style="width: 100%; padding: 10px 20px; display: flex; align-items: center; box-sizing: border-box; margin-bottom: 0; ${bannerStyle}">
+                    <div style="font-size: 1.1em; font-weight: 400;"><strong style="font-weight: 700;">${affectedRows}</strong> rows affected</div>
+                </div>
+            `;
+        }
+
+        if (!results || results.length === 0) {
+            let content = '';
+            
+            if (affectedRowsHtml) {
+                // If we have affected rows, that's our content (plus transaction msg if any)
+                content = affectedRowsHtml;
+            } else if (!message) {
+                 // No results and no specific message (e.g. SELECT with 0 rows)
+                 content = `
+                    <div style="width: 100%; padding: 10px 20px; display: flex; align-items: center; box-sizing: border-box; margin-bottom: 0; ${bannerStyle}">
+                         <div style="font-size: 1.1em; font-weight: 500;">0 rows returned</div>
+                    </div>
+                 `;
+            }
+
             return `<!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
-                <style>${style}</style>
+                <style>
+                    ${style}
+                    .content-area {
+                        display: flex !important;
+                        flex-direction: column;
+                        align-items: stretch;
+                        justify-content: flex-start;
+                    }
+                </style>
                 <script>${script}</script>
             </head>
             <body>
                  ${header}
                 <div class="content-area">
-                    ${message && !isError ? '' : `<div class="${messageClass}">${message}</div>`}
+                    ${errorMessageHtml}
+                    ${affectedRowsHtml && !content.includes(affectedRowsHtml) ? affectedRowsHtml : ''} 
+                    ${content}
+                    ${transactionMessageHtml}
                 </div>
             </body>
             </html>`;
         }
 
-        if (!results || results.length === 0) {
-            return `<!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <style>${style}</style>
-                <script>${script}</script>
-            </head>
-            <body>
-                 ${header}
-                <div class="content-area">
-                    <p>No results found or empty result set.</p>
-                </div>
-            </body>
-            </html>`;
-        }
+
 
         // Generate table headers
         const columns = Object.keys(results[0]);
@@ -635,6 +761,9 @@ export class ResultsPanel {
         <body>
              ${header}
             <div class="content-area">
+                ${errorMessageHtml}
+                ${affectedRowsHtml}
+                ${transactionMessageHtml}
                 <table>
                     <thead>
                         <tr>${headerRow}</tr>

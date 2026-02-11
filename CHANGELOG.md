@@ -1,5 +1,12 @@
 # Changelog
 
+## [ ... ]
+### Features
+- Added affected rows count to the query results info bar.
+
+### Fixes
+- Fixed an issue where "Unknown Database" was displayed in the results panel info bar when a query resulted in an SQL error.
+
 ## [0.10.0]
 ### Features
 - Added **Backup and Restore** functionality for database connections (including favorites and scripts).
