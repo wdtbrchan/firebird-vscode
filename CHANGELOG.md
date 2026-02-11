@@ -14,6 +14,7 @@
 - **Transaction Safety**: Added automatic rollback when closing the query results panel to prevent stuck transactions.
 ### UI / UX
 - **Results Panel**: Swapped positions of Commit and Rollback buttons for better ergonomics.
+- **Query Execution**: Preserved editor focus and cursor position after query execution to allow seamless typing.
 
 
 ## [0.11.0]

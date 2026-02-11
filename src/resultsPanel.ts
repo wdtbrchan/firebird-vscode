@@ -62,14 +62,14 @@ export class ResultsPanel {
             : undefined;
 
         if (ResultsPanel.currentPanel) {
-            ResultsPanel.currentPanel._panel.reveal(column);
+            ResultsPanel.currentPanel._panel.reveal(column, true);
             return;
         }
 
         const panel = vscode.window.createWebviewPanel(
             'firebirdResults',
             'Query Results',
-            column || vscode.ViewColumn.Two,
+            { viewColumn: column || vscode.ViewColumn.Two, preserveFocus: true },
             {
                 enableScripts: true,
                 localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]

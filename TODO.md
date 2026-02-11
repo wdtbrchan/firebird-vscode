@@ -31,6 +31,7 @@
 - [x] Try to show codelens with active db connection above active sql query
 - [ ] Refactor big source files
 - [x] Add rollback when closing query result
-- [ ] Fix cursor position after query execution
+- [x] Fix cursor position after query execution
 - [x] Switch Commit and rolback buttons positions
 - [ ] DDL formating - fix extra empty lines
+- [ ] diff between SQL in the editor and actual DDL in database
