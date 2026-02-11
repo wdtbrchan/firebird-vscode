@@ -20,7 +20,7 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
         const activeConnDetails = this.dbProvider.getActiveConnectionDetails();
         const activeConnection = this.dbProvider.getActiveConnection();
 
-        if (activeConnection) {
+        if (activeConnection && activeConnDetails) {
             const range = new vscode.Range(0, 0, 0, 0);
             
             let icon = '⬜'; // Default gray/white
@@ -34,14 +34,11 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
                     case 'purple': icon = '🟪'; break;
                 }
             } else {
-                 // Default to green if no color specified but active? Or keep neutral?
-                 // Existing logic defaults icon to green in tree provider if unspecified.
-                 // let's stick to neutral if truly unspecified, or match tree provider default?
-                 // Tree provider uses: const hexColor = colorMap[element.color || ''] || '#37946e'; (Green)
                  icon = '🟩';
             }
 
-            const title = `${icon} Active: ${activeConnection.name || activeConnection.database}`;
+            const folderPart = activeConnDetails.group && activeConnDetails.group !== 'Root' ? `${activeConnDetails.group} / ` : '';
+            const title = `${icon} Active: ${folderPart}${activeConnDetails.name}`;
             
             const command: vscode.Command = {
                 title: title,

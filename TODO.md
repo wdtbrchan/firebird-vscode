@@ -27,5 +27,5 @@
 - [x] Add button to the editor settings
 - [x] Add setting to enable empty line as sql queries separator
 - [x] Add affected rows count to query result
-- [ ] Add db connection folder to codelens
+- [x] Add db connection folder to codelens
 - [ ] Try to show codelens with active db connection above active sql query

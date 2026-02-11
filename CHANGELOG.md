@@ -2,6 +2,7 @@
 
 ## [ ... ]
 ### Features
+- **CodeLens Enhancements**: Added database connection folder (group) name to the CodeLens display in the editor.
 - **Empty Line as Separator**: Added setting `firebird.useEmptyLineAsSeparator` to treat empty lines (two or more newlines) as SQL statement separators.
   - Added comprehensive unit tests for query extraction and script parsing logic.
 
