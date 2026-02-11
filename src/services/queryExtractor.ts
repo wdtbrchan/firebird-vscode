@@ -92,7 +92,12 @@ export class QueryExtractor {
              }
         }
         
-        return { text: text.substring(start, end).trim(), startOffset: start };
+        const content = text.substring(start, end);
+        // Find leading whitespace length
+        const leadingWhitespace = content.length - content.trimStart().length;
+        const actualStart = start + leadingWhitespace;
+        
+        return { text: content.trim(), startOffset: actualStart };
     }
 
     private static findOutermostString(text: string, offset: number): { content: string, quoteChar: string, length: number, start: number } | null {

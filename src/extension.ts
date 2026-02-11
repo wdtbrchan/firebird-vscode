@@ -69,8 +69,15 @@ export function activate(context: vscode.ExtensionContext) {
         databaseTreeDataProvider.setTreeView(treeView);
 
         // Register CodeLens Provider for Active Connection
+        // Register CodeLens Provider for Active Connection
         const activeConnectionCodeLensProvider = new ActiveConnectionCodeLensProvider(databaseTreeDataProvider);
-        context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'sql' }, activeConnectionCodeLensProvider));
+        context.subscriptions.push(activeConnectionCodeLensProvider);
+        
+        const config = vscode.workspace.getConfiguration('firebird');
+        const allowedLanguages = config.get<string[]>('allowedLanguages', ['sql']);
+        const selector: vscode.DocumentFilter[] = allowedLanguages.map(lang => ({ language: lang }));
+        
+        context.subscriptions.push(vscode.languages.registerCodeLensProvider(selector, activeConnectionCodeLensProvider));
 
         // Listen for transaction state changes
         let activeAutoRollbackAt: number | undefined;

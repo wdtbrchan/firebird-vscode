@@ -51,6 +51,11 @@
           "type": "boolean",
           "default": false,
           "description": "Treat empty lines (two or more newlines) as SQL statement separators."
+        },
+        "firebird.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the Active Connection CodeLens."
         }
       }
     },
