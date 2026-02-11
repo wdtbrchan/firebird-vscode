@@ -1,6 +1,6 @@
 # Changelog
 
-## [ ... ]
+## [0.11.0]
 ### UI / UX
 - **Results Panel Redesign**: Complete overhaul of the results panel with a modern block-based layout.
   - Full-width sticky headers and "Executing..." status bar.
