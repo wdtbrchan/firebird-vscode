@@ -53,8 +53,7 @@ export class ResultsPanel {
             null,
             this._disposables
         );
-
-        this._updateContent([], undefined, false);
+        this._updateContentForTable([], false);
     }
 
     public static createOrShow(extensionUri: vscode.Uri) {
@@ -80,48 +79,104 @@ export class ResultsPanel {
         ResultsPanel.currentPanel = new ResultsPanel(panel, extensionUri);
     }
 
+    private _getHeaderHtml(contextTitle: string, connectionColor: string): string {
+        const bgStyle = connectionColor ? `background-color: ${connectionColor}; color: #fff;` : `background-color: #444; color: #fff;`;
+        
+        return `
+            <div class="header-container" style="${bgStyle}">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="db-icon">
+                        <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M8 1c-3.87 0-7 1.34-7 3v8c0 1.66 3.13 3 7 3s7-1.34 7-3V4c0-1.66-3.13-3-7-3zm0 2c3.31 0 6 1.12 6 2.5S11.31 8 8 8s-6-1.12-6-2.5S4.69 3 8 3z"/></svg>
+                    </div>
+                    <div style="font-size: 0.9em; font-weight: 700;">${contextTitle}</div>
+                </div>
+            </div>
+        `;
+    }
+
     public showLoading() {
         this._isLoading = true;
         this._startTime = Date.now();
-        // Initial HTML generation logic moved fully into webview.html assignment below for safety
-        // Removed pre-calculated script string to avoid template literal complexity
+        
+        let connectionColor = '';
+        if (this._currentConnection && this._currentConnection.color) {
+            switch (this._currentConnection.color) {
+                case 'red': connectionColor = '#F14C4C'; break;
+                case 'orange': connectionColor = '#d18616'; break;
+                case 'yellow': connectionColor = '#CCA700'; break;
+                case 'green': connectionColor = '#37946e'; break;
+                case 'blue': connectionColor = '#007acc'; break;
+                case 'purple': connectionColor = '#652d90'; break;
+            }
+        }
+        
+        const contextTitle = this._currentContext || 'Unknown Database';
+        const headerHtml = this._getHeaderHtml(contextTitle, connectionColor);
 
-         this._panel.webview.html = `<!DOCTYPE html>
+        this._panel.webview.html = `<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
             <style>
                 body {
-                    font-family: sans-serif;
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                     display: flex;
-                    justify-content: center;
-                    align-items: center;
+                    flex-direction: column;
                     height: 100vh;
-                    margin: 0;
+                    margin: 0 !important;
+                    padding: 0 !important;
                     background-color: transparent;
-                    color: #ccc;
+                    color: #fff;
+                    overflow: hidden;
                 }
-                .loading-container {
-                    /* Inline styles used below overrides this class, but keeping for reference */
+                .header-container {
+                     width: 100%;
+                     box-sizing: border-box;
+                     padding: 0; 
+                     display: flex; 
+                     align-items: center; 
+                     height: 32px; 
+                     flex-shrink: 0;
                 }
+                .db-icon { display: flex; align-items: center; margin: 0 8px 0 15px; }
+                .executing-bar {
+                    width: 100%;
+                    box-sizing: border-box;
+                    background-color: #1e7e34;
+                    color: #fff;
+                    padding: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    font-weight: bold;
+                    flex-shrink: 0;
+                    min-height: 60px;
+                }
+                .executing-bar > div { margin-left: 15px; }
+                .executing-bar > span { margin-right: 15px; }
                 .spinner {
-                    border: 3px solid rgba(255, 255, 255, 0.3);
+                    border: 2px solid rgba(255, 255, 255, 0.3);
                     border-radius: 50%;
-                    border-top: 3px solid #ffffff;
-                    width: 20px;
-                    height: 20px;
+                    border-top: 2px solid #ffffff;
+                    width: 14px;
+                    height: 14px;
                     animation: spin 1s linear infinite;
+                    margin-right: 10px;
                 }
                 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
             </style>
         </head>
         <body>
-            <div id="loading-box" style="position: fixed; top: 0; left: 0; width: 100%; text-align: center; background-color: #1e7e34; color: #ffffff; padding: 10px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display: flex; justify-content: center; gap: 10px; align-items: center; z-index: 9999;">
-                <div class="spinner"></div>
-                Executing... <span id="executing-timer" style="margin-left: 5px;">(0.0s)</span>
+            ${headerHtml}
+            <div class="executing-bar">
+                <div style="display: flex; align-items: center;">
+                    <div class="spinner"></div>
+                    <span>Executing...</span>
+                </div>
+                <span id="executing-timer">0.0s</span>
             </div>
+            <div style="flex-grow: 1;"></div>
             <script>
-                // Use IIFE to ensure scope doesn't leak and runs
                 (function() {
                     const startTime = ${this._startTime};
                     const timerEl = document.getElementById('executing-timer');
@@ -130,10 +185,10 @@ export class ResultsPanel {
                         function update() {
                             const now = Date.now();
                             const diff = ((now - startTime) / 1000).toFixed(1);
-                            timerEl.textContent = '(' + diff + 's)';
+                            timerEl.textContent = diff + 's';
                         }
                         setInterval(update, 100);
-                        update(); // Initial call
+                        update(); 
                     }
                 })();
             </script>
@@ -142,14 +197,19 @@ export class ResultsPanel {
     }
 
     public showSuccess(message: string, hasTransaction: boolean, context?: string) {
-        this._updateContent([], message, hasTransaction, false, context);
+        this._isLoading = false;
+        this._lastIsError = false;
+        this._lastMessage = message;
+        this._showButtons = hasTransaction;
+        this._lastContext = context || this._currentContext;
+        this._panel.webview.html = this._getHtmlForWebview([], message, hasTransaction, false, this._lastContext);
     }
 
     public showError(message: string, hasTransaction: boolean, context?: string) {
         this._isLoading = false;
         this._lastIsError = true;
         this._lastMessage = message;
-        this._showButtons = hasTransaction; // Show buttons if transaction is active
+        this._showButtons = hasTransaction;
         this._lastContext = context || this._currentContext;
         this._panel.webview.html = this._getHtmlForWebview([], message, hasTransaction, true, this._lastContext);
     }
@@ -162,6 +222,9 @@ export class ResultsPanel {
         this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
         this._lastResults = [];
         this._lastTransactionAction = undefined;
+        this._affectedRows = undefined;
+        this._lastExecutionTime = undefined;
+        this._hasMore = false; // Reset hasMore
         
         await this._fetchAndDisplay();
     }
@@ -172,9 +235,10 @@ export class ResultsPanel {
         this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
         this._lastResults = [];
         this._lastTransactionAction = undefined;
+        this._affectedRows = undefined;
+        this._lastExecutionTime = undefined;
 
         this.showLoading();
-        // Custom loading message for script
         this._panel.webview.postMessage({ command: 'message', text: 'Executing script...' });
 
         let executedCount = 0;
@@ -183,36 +247,16 @@ export class ResultsPanel {
         try {
             for (let i = 0; i < total; i++) {
                 const stmt = statements[i];
-                // Update UI to show progress? 
-                // We'll rely on the final result or error.
-                // Or we can try to show intermediate success messages?
-                // For now, let's run them.
-                
-                // If it's the last statement, we want to show its results if it is a SELECT.
-                // If it is DDL/DML, we show success.
-                
-                // We reuse _currentQuery logic partially or direct Database call.
-                this._currentQuery = stmt; // Set strictly for potential error reporting or refresh
+                this._currentQuery = stmt;
                 
                 if (i === total - 1) {
-                    // Last statement - standard display
                      this._currentOffset = 0;
                      await this._fetchAndDisplay();
                 } else {
-                    // Intermediate statement - execute and ignore result unless error
                     await Database.executeQuery(stmt, connection, { limit: 1000, offset: 0 }); 
                 }
                 executedCount++;
             }
-            
-            if (total > 1 && executedCount === total) {
-                 // If we had multiple statements and all succeeded, and the last one didn't return rows (e.g. DDL script),
-                 // _fetchAndDisplay (called for last one) would handle showing "Success".
-                 // We might want to append a summary message.
-                 // But _fetchAndDisplay overwrites the view.
-                 // Let's assume the user is happy seeing the result of the last statement.
-            }
-
         } catch (err: any) {
             const hasTransaction = Database.hasActiveTransaction;
             this.showError(`Script error at statement ${executedCount + 1}: ${err.message}`, hasTransaction);
@@ -223,16 +267,13 @@ export class ResultsPanel {
         this._currentOffset += this._limit;
         try {
             if (this._useClientSidePagination) {
-                // Client-side: just slice more from already fetched data
                 const startIndex = this._currentOffset;
                 const endIndex = this._currentOffset + this._limit;
                 const newRows = this._allResults.slice(startIndex, endIndex);
                 const hasMore = endIndex < this._allResults.length;
                 this._lastResults = this._allResults.slice(0, endIndex);
-                // Append rows via postMessage to preserve scroll
                 this._appendRowsToWebview(newRows, startIndex, hasMore);
             } else {
-                // Server-side: fetch next page
                 await this._fetchAndDisplay(true);
             }
         } catch (e) {
@@ -268,24 +309,35 @@ export class ResultsPanel {
             }).join('');
             return `<tr><td class="row-index">${rowIndex}</td>${cells}</tr>`;
         }).join('');
+
+        const rowCount = this._lastResults.length;
+        let rowsText = '';
+        if (hasMore) {
+             rowsText = `First ${rowCount} rows fetched`;
+        } else {
+             rowsText = `${rowCount} rows fetched`;
+        }
+        if (this._affectedRows !== undefined && this._affectedRows >= 0) {
+             rowsText += `, ${this._affectedRows} affected`;
+        }
         
         this._panel.webview.postMessage({
             command: 'appendRows',
             rowsHtml: rowsHtml,
             hasMore: hasMore,
-            totalRows: this._lastResults.length
+            rowsText: rowsText
         });
     }
 
     private async _fetchAndDisplay(append: boolean = false) {
         if (!this._currentQuery) return;
 
+        const start = performance.now();
         try {
             if (!append) {
                 this.showLoading();
             }
 
-            const start = performance.now();
             const queryResult = await Database.executeQuery(this._currentQuery, this._currentConnection, {
                 limit: this._limit,
                 offset: this._currentOffset
@@ -299,50 +351,43 @@ export class ResultsPanel {
             }
             const hasTransaction = Database.hasActiveTransaction;
 
-            const activeDetails = this._currentConnection; 
-             // Note: Connection details passed might be raw options or the object from tree. 
-             // Ideally we pass context string or reconstruct it.
-             // For now let's assume calling code handled context title, but here we need to update it mostly for successful APPENDs or REFRESHES.
-             // But actually runQuery command sets context initially.
-            
-            // Heuristic for context title if missing? 
-            // We'll rely on update() being called with accumulated results?
-            // No, we need to accumulate results here if appending.
-
-            // Check if server applied pagination (returned exactly limit rows)
-            // If more rows returned, server didn't paginate - use client-side
             this._useClientSidePagination = !append && results.length > this._limit;
             
             let displayResults: any[];
             let hasMore: boolean;
             
             if (this._useClientSidePagination) {
-                // Server returned all rows - use client-side pagination
                 this._allResults = results;
                 displayResults = results.slice(0, this._limit);
                 hasMore = results.length > this._limit;
             } else if (append) {
-                // Server-side pagination: appending to existing results
                 this._lastResults = [...this._lastResults, ...results];
-                displayResults = this._lastResults;
+                displayResults = results; // Use newly fetched results for append
                 hasMore = results.length === this._limit;
             } else {
-                // Server-side pagination: initial fetch
                 this._allResults = [];
                 this._lastResults = results;
                 displayResults = results;
                 hasMore = results.length === this._limit;
             }
             
-            this._lastResults = displayResults;
-
-            if (this._lastResults.length > 0 || (affectedRows !== undefined && affectedRows >= 0)) {
-                 this._updateContentForTable(this._lastResults, hasTransaction, undefined, hasMore, affectedRows);
+            if (!append) {
+                 this._lastResults = displayResults;
+            }
+            
+            if (append) {
+                 this._appendRowsToWebview(displayResults, this._currentOffset, hasMore);
+            } else if (displayResults.length > 0 || (affectedRows !== undefined && affectedRows >= 0)) {
+                 this._updateContentForTable(displayResults, hasTransaction, undefined, hasMore, affectedRows);
             } else {
                  this._updateContentForTable([], hasTransaction, undefined, false, undefined);
             }
 
         } catch (err: any) {
+            const end = performance.now();
+            if (!append) {
+                this._lastExecutionTime = (end - start) / 1000;
+            }
             const hasTransaction = Database.hasActiveTransaction;
             this.showError(err.message, hasTransaction);
             throw err;
@@ -351,15 +396,11 @@ export class ResultsPanel {
 
     private _updateContentForTable(results: any[], hasTransaction: boolean, context?: string, hasMore: boolean = false, affectedRows?: number) {
          this._isLoading = false;
-         // this._lastResults is already updated in _fetchAndDisplay if that was called.
-         // If called from outside (just update()), we trust results passed.
          this._lastResults = results;
          this._lastMessage = undefined;
-         this._lastTransactionAction = undefined; // Clear action on new results
+         this._lastTransactionAction = undefined;
          this._showButtons = hasTransaction;
          this._lastIsError = false;
-         this._lastIsError = false;
-         // Use the passed context or the stored context context
          if (context) this._lastContext = context;
          else this._lastContext = this._currentContext;
         
@@ -367,27 +408,8 @@ export class ResultsPanel {
          this._panel.webview.html = this._getHtmlForWebview(results, undefined, hasTransaction, false, this._lastContext, hasMore, undefined, affectedRows);
     }
 
-
     public update(results: any[], hasTransaction: boolean, context?: string) {
-        // Legacy update method, or for simple internal updates. 
-        // We assume no pagination if this is called directly? 
-        // Or we just show what we are given.
         this._updateContentForTable(results, hasTransaction, context, false);
-    }
-
-
-    // Modified signature to generic _updateContent not really valid anymore with new logic, removing it or adapting.
-    // Let's keep a generic internal setter for message based updates.
-    private _updateContent(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string) {
-         this._isLoading = false;
-         this._lastResults = results;
-         this._lastMessage = message;
-         this._showButtons = showButtons;
-         this._lastIsError = isError;
-         // Use provided context or fallback to current established context
-         this._lastContext = context || this._currentContext;
-         this._affectedRows = undefined;
-         this._panel.webview.html = this._getHtmlForWebview(results, message, showButtons, isError, this._lastContext, false);
     }
 
     public setTransactionStatus(hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) {
@@ -398,183 +420,23 @@ export class ResultsPanel {
              this._lastTransactionAction = lastAction;
         }
 
-        // Do not update the view if we are currently loading a query, 
-        // to prevent flashing "0 rows" or empty table before results arrive.
         if (this._isLoading) {
             return;
         }
 
-        this._panel.webview.html = this._getHtmlForWebview(this._lastResults, this._lastMessage, hasTransaction, this._lastIsError, this._lastContext, this._hasMore, this._lastTransactionAction, this._affectedRows);
+        // instead of setting webview.html, we update only the transaction section to preserve scroll
+        this._panel.webview.postMessage({
+             command: 'updateTransaction',
+             hasTransaction: hasTransaction,
+             autoRollbackAt: autoRollbackAt,
+             lastAction: lastAction || this._lastTransactionAction
+        });
     }
 
-
-    private _getHtmlForWebview(results: any[], message?: string, showButtons: boolean = false, isError: boolean = false, context?: string, hasMore: boolean = false, transactionAction?: string, affectedRows?: number) {
-        this._hasMore = hasMore;
-        let countText = results ? `${results.length} rows` : '0 rows';
-        if (affectedRows !== undefined && affectedRows >= 0) {
-            if (results && results.length > 0) {
-                 countText += `, ${affectedRows} affected`;
-            } else {
-                 countText = `${affectedRows} rows affected`;
-            }
-        }
+    private _getHtmlForWebview(results: any[], message: string | undefined, showButtons: boolean, isError: boolean, context: string | undefined, hasMore?: boolean, transactionAction?: string, affectedRows?: number): string {
+        this._hasMore = hasMore || false;
         
-        const rowsText = hasMore ? `First ${countText}` : countText;
-        const timeText = this._lastExecutionTime !== undefined ? `${this._lastExecutionTime.toFixed(3)}s` : '';
-        const contextText = context || 'Unknown Database';
-        
-        let querySnippet = '';
-        if (this._currentQuery) {
-            const cleanQuery = this._currentQuery.replace(/\s+/g, ' ').trim();
-            querySnippet = cleanQuery.length > 50 ? cleanQuery.substring(0, 50) + '...' : cleanQuery;
-        }
-
-
-
-        const subtitleParts = [];
-        if (!isError && !message) {
-            subtitleParts.push(rowsText);
-        }
-        // Context is now shown separately with color
-        if (timeText && !isError) subtitleParts.push(timeText);
-        if (transactionAction) subtitleParts.push(transactionAction);
-
-        const subtitle = subtitleParts.join(' • ');
-
-        const script = `
-            const vscode = acquireVsCodeApi();
-            function commit() { vscode.postMessage({ command: 'commit' }); }
-            function rollback() { vscode.postMessage({ command: 'rollback' }); }
-            function loadMore() { 
-                const btn = document.getElementById('loadMoreBtn');
-                if(btn) btn.innerText = 'Loading...';
-                vscode.postMessage({ command: 'loadMore' }); 
-            }
-            
-            // Handle messages from extension
-            window.addEventListener('message', event => {
-                const message = event.data;
-                if (message.command === 'appendRows') {
-                    const tbody = document.querySelector('tbody');
-                    if (tbody) {
-                        tbody.insertAdjacentHTML('beforeend', message.rowsHtml);
-                    }
-                    // Update row count in header
-                    const subtitle = document.querySelector('.subtitle');
-                    if (subtitle) {
-                        const prefix = message.hasMore ? 'First ' : '';
-                        subtitle.textContent = prefix + message.totalRows + ' rows';
-                    }
-                    // Update or hide Load More button
-                    const btn = document.getElementById('loadMoreBtn');
-                    if (btn) {
-                        if (message.hasMore) {
-                            btn.innerText = 'Load More Results';
-                        } else {
-                            btn.parentElement.remove();
-                        }
-                    }
-                }
-            });
-            
-            let rollbackDeadline = ${this._currentAutoRollbackAt || 0};
-            
-            function updateTimer() {
-                const span = document.getElementById('rollbackTimer');
-                if (!rollbackDeadline || !span) return;
-                
-                const now = Date.now();
-                const remaining = Math.ceil((rollbackDeadline - now) / 1000);
-                
-                if (remaining > 0) {
-                    span.innerText = 'Auto-rollback: ' + remaining + 's';
-                } else {
-                    span.innerText = '';
-                }
-            }
-
-            if (rollbackDeadline > 0) {
-               const startTimer = () => {
-                    updateTimer(); // Initial update
-                    setInterval(updateTimer, 1000);
-               };
-
-               if (document.readyState === 'loading') {
-                   document.addEventListener('DOMContentLoaded', startTimer);
-               } else {
-                   startTimer();
-               }
-            }
-
-            function updateTimer() {
-                const span = document.getElementById('rollbackTimer');
-                if (!rollbackDeadline || !span) return;
-                
-                const now = Date.now();
-                const remaining = Math.ceil((rollbackDeadline - now) / 1000);
-                
-                if (remaining >= 0) {
-                    span.innerText = '(' + remaining + 's)';
-                    span.style.display = 'inline';
-                } else {
-                    span.innerText = '';
-                    span.style.display = 'none';
-                }
-            }
-        `;
-        
-        // ... (styles same) ...
-        const buttonsHtml = showButtons ? `
-            <div class="actions">
-                <button class="btn danger" style="width: 130px;" onclick="rollback()">Rollback <span id="rollbackTimer" style="margin-left: 2px; display: none;"></span></button>
-                <button class="btn success" onclick="commit()">Commit</button>
-            </div>
-        ` : '';
-
-
-
-        const style = `
-            body { font-family: sans-serif; padding: 0; margin: 0; font-size: 13px; display: flex; flex-direction: column; height: 100vh; }
-            h3 { margin: 0; font-size: 1.1em; }
-            .subtitle { font-size: 0.85em; color: #888; margin-top: 2px; }
-            .query-snippet { font-size: 0.8em; color: #aaa; margin-top: 2px; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            .header-container { padding: 10px; border-bottom: 1px solid #ccc; flex-shrink: 0; min-height: 40px; display: flex; align-items: center; justify-content: space-between; }
-            .header-content { display: flex; flex-direction: column; }
-            .actions { display: flex; gap: 10px; align-items: center; }
-            .btn { border: none; padding: 5px 10px; color: white; cursor: pointer; border-radius: 3px; font-size: 12px; }
-            .btn.success { background-color: #28a745; }
-            .btn.success:hover { background-color: #218838; }
-            .btn.danger { background-color: #8b0000; }
-            .btn.danger:hover { background-color: #a50000; }
-            .content-area { flex-grow: 1; overflow: auto; padding: 0; }
-            table { border-collapse: collapse; width: 100%; font-size: 12px; }
-            th, td { padding: 2px 4px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
-            td { border: 1px solid #ccc; }
-            th { border: none; border-right: 1px solid #ccc; background-color: #e0e0e0; color: #222; font-weight: 600; top: 0; position: sticky; z-index: 1; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            .success-message { color: #0c5460; font-weight: bold; padding: 10px; background-color: #d1ecf1; border: 1px solid #bee5eb; border-radius: 3px; margin: 10px; }
-            .error-message { color: #d32f2f; font-weight: bold; padding: 10px; background-color: #ffebee; border: 1px solid #ffcdd2; border-radius: 3px; margin: 10px; }
-            .row-index { background-color: #e0e0e0; color: #555; text-align: right; width: 30px; user-select: none; border-right: 2px solid #ccc; border-bottom: 1px solid #ccc; }
-            
-            // VS Code theme colors support
-            body.vscode-light .header-container { background-color: #f3f3f3; border-bottom-color: #e0e0e0; }
-            body.vscode-light th { background-color: #e0e0e0; color: #222; }
-            body.vscode-light .row-index { background-color: #eaeaea; color: #666; }
-            
-            body.vscode-dark .header-container { background-color: #252526; border-bottom-color: #3e3e3e; }
-            body.vscode-dark th { background-color: #d6d6d6; color: #111; border-right-color: #888; }
-            body.vscode-dark .row-index { background-color: #2d2d2d; color: #888; border-right-color: #3e3e3e; }
-            body.vscode-dark td { border-color: #3e3e3e; color: #cccccc; }
-            body.vscode-dark tr:nth-child(even) { background-color: #2a2a2a; }
-            body.vscode-dark tr:hover { background-color: #2a2d2e; }
-            body.vscode-dark .error-message { background-color: #2c0b0e; border-color: #842029; color: #ea868f; }
-            body.vscode-dark .success-message { background-color: #08303e; border-color: #0c5460; color: #66b0ff; }
-            .null-value { color: #888; font-style: italic; }
-
-
-        `;
-
-        // Connection Color Logic
+        // --- 1. Top Bar Logic ---
         let connectionColor = '';
         if (this._currentConnection && this._currentConnection.color) {
             switch (this._currentConnection.color) {
@@ -586,193 +448,459 @@ export class ResultsPanel {
                 case 'purple': connectionColor = '#652d90'; break;
             }
         }
+        const contextTitle = context || 'Unknown Database';
+        const headerHtml = this._getHeaderHtml(contextTitle, connectionColor);
 
-        const headerStyle = connectionColor ? `border-top: 6px solid ${connectionColor};` : '';
-        // User requested removing the colored badge for database name.
-        // const contextStyle = ... (removed)
+        // --- 2. Info Bar Logic (Left 2/3 & Right 1/3) ---
+        let firstLineQuery = '';
+        if (this._currentQuery) {
+            const cleanQuery = this._currentQuery.replace(/\s+/g, ' ').trim();
+            firstLineQuery = cleanQuery.length > 80 ? cleanQuery.substring(0, 80) + '...' : cleanQuery;
+        } else if (message) {
+            firstLineQuery = message.substring(0, 80) + '...';
+        }
 
-        const header = `
-            <div class="header-container" style="${headerStyle}">
-                <div class="header-content">
-                    ${!isError && message ? `<h3>${message}</h3>` : ''}
-                    <div style="display: flex; align-items: baseline; gap: 10px;">
-                        ${!isError && subtitle ? `<div class="subtitle">${subtitle}</div>` : ''}
-                        ${contextText ? `<div style="font-size: 0.85em; font-weight: bold; color: ${connectionColor || '#888'};">${contextText}</div>` : ''}
-                    </div>
-                    ${querySnippet ? `<div class="query-snippet" title="${this._currentQuery}">${querySnippet}</div>` : ''}
+        const timeText = this._lastExecutionTime !== undefined ? `${this._lastExecutionTime.toFixed(3)}s` : '-';
+        
+        let rowsText = '';
+        const rowCount = results ? results.length : 0;
+        if (hasMore) {
+             rowsText = `First ${rowCount} rows fetched`;
+        } else {
+             rowsText = `${rowCount} rows fetched`;
+        }
+        if (affectedRows !== undefined && affectedRows >= 0) {
+             rowsText += `, ${affectedRows} affected`;
+        }
+
+        // Right 1/3: Buttons or Status
+        let rightSectionHtml = '<div id="transaction-area" style="width:100%; height:100%; display:flex;">';
+        
+        if (showButtons) {
+            // Active Transaction -> Bold Icon Buttons
+            rightSectionHtml += `
+                <div class="transaction-buttons">
+                    <button class="btn-block commit" onclick="commit()" title="COMMIT">
+                        <svg viewBox="0 0 16 16" width="28" height="28" fill="currentColor"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z" stroke="currentColor" stroke-width="2"/></svg>
+                    </button>
+                    <button class="btn-block rollback" onclick="rollback()" title="ROLLBACK" style="position: relative;">
+                        <svg viewBox="0 0 16 16" width="28" height="28" fill="currentColor"><path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z" stroke="currentColor" stroke-width="2"/></svg>
+                        <span id="rollbackTimer" style="font-size: 10px; position: absolute; bottom: 4px; left: 0; right: 0; text-align: center;"></span>
+                    </button>
                 </div>
-                ${buttonsHtml}
+            `;
+        } else if (transactionAction) {
+             // Finished Transaction -> Status
+             let statusColor = '#666'; 
+             let icon = '';
+             if (transactionAction.toLowerCase().includes('committed')) {
+                 statusColor = '#1e7e34'; // Green
+                 icon = '✓';
+             } else if (transactionAction.toLowerCase().includes('roll')) {
+                 statusColor = '#8b0000'; // Red
+                 icon = '✗';
+             }
+             
+             rightSectionHtml += `
+                <div class="transaction-status" style="background-color: ${statusColor};">
+                    <span style="font-size: 1.2em; margin-right: 8px;">${icon}</span>
+                    <span style="font-weight: 600;">${transactionAction}</span>
+                </div>
+             `;
+        } else {
+            // Empty right section if no transaction state
+            rightSectionHtml += '<div class="transaction-placeholder"></div>';
+        }
+        rightSectionHtml += '</div>';
+
+        const infoBarHtml = `
+            <div class="info-bar">
+                <div class="info-left">
+                    <div class="info-row query" title="${this._currentQuery || ''}">${firstLineQuery}</div>
+                    <div class="info-row stats">
+                        <span class="badged">Time: ${timeText}</span>
+                        <span class="badged" id="stats-rows">${rowsText}</span>
+                    </div>
+                </div>
+                <div class="info-right">
+                    ${rightSectionHtml}
+                </div>
             </div>
         `;
+
+        // --- 3. Content Area (Error or Results) ---
+        let contentHtml = '';
         
-        let errorMessageHtml = '';
         if (isError && message) {
-            errorMessageHtml = `
-                <div style="width: 100%; padding: 10px 15px; display: flex; align-items: center; box-sizing: border-box; margin-bottom: 0; background-color: #dc3545; color: #ffffff;">
-                    <span style="font-size: 1.5em; margin-right: 10px;">⚠</span>
-                    <div style="font-weight: 500; font-size: 1.1em;">Error: ${message}</div>
-                </div>
-            `;
-        }
-
-        // Generate transaction message separately from main message/error
-        let transactionMessageHtml = '';
-        const transactionMsg = transactionAction;
-        
-        // Connection color banner style for generic success
-        const bannerStyle = connectionColor ? 
-            `background-color: ${connectionColor}; color: #ffffff;` : 
-            'background-color: #666666; color: #ffffff;';
-
-        if (transactionMsg) {
-            let icon = '';
-            let msgStyle = '';
-            const msgLower = transactionMsg.toLowerCase();
-            
-            if (msgLower.includes('committed')) {
-                icon = '<span style="font-size: 1.5em; margin-right: 10px;">✓</span>';
-                msgStyle = 'background-color: #1e7e34; color: #ffffff;'; // Green
-            } else if (msgLower.includes('roll')) { 
-                icon = '<span style="font-size: 1.5em; margin-right: 10px;">✗</span>';
-                msgStyle = 'background-color: #8b0000; color: #ffffff;'; // Dark Red
-            } else {
-                 msgStyle = bannerStyle;
-            }
-
-            transactionMessageHtml = `
-                <div style="width: 100%; padding: 10px 15px; display: flex; align-items: center; box-sizing: border-box; margin-bottom: 0; ${msgStyle}">
-                    ${icon}
-                    <div style="font-weight: 500; font-size: 1.1em;">${transactionMsg}</div>
-                </div>
-            `;
-        }
-
-        // Handle generic message if it's NOT a transaction action (or if we want to show both?)
-        // If message is error, we show it (already handled in header or below).
-        // If message is same as transactionAction, we don't show it again.
-        
-        // Let's rely on 'message' being for Errors or Generic infos.
-        // 'transactionAction' is strictly for Commit/Rollback feedback.
-
-        // Affected rows strip (Full width, top)
-        let affectedRowsHtml = '';
-
-        if (affectedRows !== undefined && affectedRows >= 0) {
-             affectedRowsHtml = `
-                <div style="width: 100%; padding: 10px 20px; display: flex; align-items: center; box-sizing: border-box; margin-bottom: 0; ${bannerStyle}">
-                    <div style="font-size: 1.1em; font-weight: 400;"><strong style="font-weight: 700;">${affectedRows}</strong> rows affected</div>
-                </div>
-            `;
-        }
-
-        if (!results || results.length === 0) {
-            let content = '';
-            
-            if (affectedRowsHtml) {
-                // If we have affected rows, that's our content (plus transaction msg if any)
-                content = affectedRowsHtml;
-            } else if (!message) {
-                 // No results and no specific message (e.g. SELECT with 0 rows)
-                 content = `
-                    <div style="width: 100%; padding: 10px 20px; display: flex; align-items: center; box-sizing: border-box; margin-bottom: 0; ${bannerStyle}">
-                         <div style="font-size: 1.1em; font-weight: 500;">0 rows returned</div>
+             contentHtml = `
+                <div class="error-container">
+                    <div class="error-icon">⚠</div>
+                    <div class="error-content">
+                        <div class="error-title">Execution Error</div>
+                        <div class="error-message">${message}</div>
                     </div>
-                 `;
-            }
-
-            return `<!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <style>
-                    ${style}
-                    .content-area {
-                        display: flex !important;
-                        flex-direction: column;
-                        align-items: stretch;
-                        justify-content: flex-start;
-                    }
-                </style>
-                <script>${script}</script>
-            </head>
-            <body>
-                 ${header}
-                <div class="content-area">
-                    ${errorMessageHtml}
-                    ${affectedRowsHtml && !content.includes(affectedRowsHtml) ? affectedRowsHtml : ''} 
-                    ${content}
-                    ${transactionMessageHtml}
                 </div>
-            </body>
-            </html>`;
+             `;
+        } else {
+             // Results Table or Empty Message
+             if (!results || results.length === 0) {
+                 const bannerStyle = connectionColor ? `background-color: ${connectionColor}; color: #fff;` : `background-color: #666; color: #fff;`;
+                 if (affectedRows !== undefined && affectedRows >= 0) {
+                     contentHtml = `
+                        <div style="width: 100%; padding: 15px 20px; box-sizing: border-box; ${bannerStyle}">
+                            <div style="font-size: 1.1em; font-style: italic;">No rows returned.</div>
+                            ${affectedRows > 0 ? `<div style="margin-top: 5px; font-weight: bold;">${affectedRows} rows affected.</div>` : ''}
+                        </div>
+                     `;
+                 } else {
+                     contentHtml = `
+                        <div style="width: 100%; padding: 15px 20px; box-sizing: border-box; ${bannerStyle}">
+                            <div style="font-size: 1.1em; font-style: italic;">No rows returned.</div>
+                        </div>
+                     `;
+                 }
+             } else {
+                 // Table
+                const columns = Object.keys(results[0]);
+                const headerRow = '<th></th>' + columns.map(col => `<th>${col}</th>`).join('');
+                const config = vscode.workspace.getConfiguration('firebird');
+                const locale = this._currentConnection?.resultLocale || config.get<string>('resultLocale', 'en-US');
+
+                const rowsHtml = results.map((row, index) => {
+                    const cells = columns.map(col => {
+                        let val = row[col];
+                        if (val === null) val = '<span class="null-value">[NULL]</span>';
+                        else if (val instanceof Uint8Array) val = '[Blob]';
+                        else if (typeof val === 'number') {
+                             if (!Number.isInteger(val)) {
+                                 try { val = val.toLocaleString(locale); } catch (e) { val = val.toString(); }
+                             } else {
+                                 val = val.toString();
+                             }
+                        } else if (val instanceof Date) {
+                             try { val = val.toLocaleString(locale); } catch (e) { val = val.toString(); }
+                        } else if (typeof val === 'object') {
+                             val = JSON.stringify(val);
+                        }
+                        return `<td>${val}</td>`;
+                    }).join('');
+                    return `<tr><td class="row-index">${index + 1}</td>${cells}</tr>`;
+                }).join('');
+
+                contentHtml = `
+                    <div class="table-container">
+                        <table>
+                            <thead><tr>${headerRow}</tr></thead>
+                            <tbody>${rowsHtml}</tbody>
+                        </table>
+                        ${hasMore ? `<div class="load-more-container"><button id="loadMoreBtn" onclick="loadMore()">Load More Results</button></div>` : ''}
+                    </div>
+                `;
+             }
         }
 
 
+        // --- Scripts ---
+        const scripts = `
+            const vscode = acquireVsCodeApi();
+            function commit() { vscode.postMessage({ command: 'commit' }); }
+            function rollback() { vscode.postMessage({ command: 'rollback' }); }
+            function loadMore() { 
+                const btn = document.getElementById('loadMoreBtn');
+                if(btn) {
+                    btn.innerText = 'Loading...';
+                    btn.disabled = true;
+                }
+                vscode.postMessage({ command: 'loadMore' }); 
+            }
+            window.addEventListener('message', event => {
+                const message = event.data;
+                if (message.command === 'appendRows') {
+                    const tbody = document.querySelector('tbody');
+                    if(tbody) tbody.insertAdjacentHTML('beforeend', message.rowsHtml);
+                    
+                    const btn = document.getElementById('loadMoreBtn');
+                    if (btn) {
+                        btn.disabled = false;
+                        if (message.hasMore) btn.innerText = 'Load More Results';
+                        else btn.parentElement.remove();
+                    }
 
-        // Generate table headers
-        const columns = Object.keys(results[0]);
-        const headerRow = '<th></th>' + columns.map(col => `<th>${col}</th>`).join('');
+                    // Update stats in info bar
+                    const statsSpan = document.getElementById('stats-rows');
+                    if (statsSpan) {
+                         statsSpan.innerText = message.rowsText;
+                    }
 
-        // Generate rows
-        const config = vscode.workspace.getConfiguration('firebird');
-        // Use connection-specific locale if set, otherwise fallback to global setting or en-US
-        const locale = this._currentConnection?.resultLocale || config.get<string>('resultLocale', 'en-US');
+                    const contentArea = document.querySelector('.content-area');
+                    if (contentArea) {
+                        contentArea.scrollBy({ top: 50, behavior: 'smooth' });
+                    }
+                }
 
-        const rows = results.map((row, index) => {
-            const cells = columns.map(col => {
-                let val = row[col];
-                if (val === null) {
-                    val = '<span class="null-value">[NULL]</span>';
-                } else if (val instanceof Uint8Array) {
-                    val = '[Blob]'; // Simplified for now
-                } else if (typeof val === 'number') {
-                    // Start formatting change
-                    if (Number.isInteger(val)) {
-                        val = val.toString(); // Don't format integers (ids etc.)
-                    } else {
-                        try {
-                            val = val.toLocaleString(locale);
-                        } catch (e) {
-                             // Fallback if locale is invalid
-                             val = val.toString(); 
+                if (message.command === 'updateTransaction') {
+                    const area = document.getElementById('transaction-area');
+                    if (area) {
+                        if (message.hasTransaction) {
+                            area.innerHTML = \`
+                                <div class="transaction-buttons">
+                                    <button class="btn-block commit" onclick="commit()" title="COMMIT">
+                                        <svg viewBox="0 0 16 16" width="28" height="28" fill="currentColor"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z" stroke="currentColor" stroke-width="2"/></svg>
+                                    </button>
+                                    <button class="btn-block rollback" onclick="rollback()" title="ROLLBACK" style="position: relative;">
+                                        <svg viewBox="0 0 16 16" width="28" height="28" fill="currentColor"><path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z" stroke="currentColor" stroke-width="2"/></svg>
+                                        <span id="rollbackTimer" style="font-size: 10px; position: absolute; bottom: 4px; left: 0; right: 0; text-align: center;"></span>
+                                    </button>
+                                </div>
+                            \`;
+                            rollbackDeadline = message.autoRollbackAt || 0;
+                            updateTimer();
+                        } else if (message.lastAction) {
+                            const isCommit = message.lastAction.toLowerCase().includes('committed');
+                            const color = isCommit ? '#1e7e34' : '#8b0000';
+                            const icon = isCommit ? '✓' : '✗';
+                            area.innerHTML = \`
+                                <div class="transaction-status" style="background-color: \${color};">
+                                    <span style="font-size: 1.2em; margin-right: 8px;">\${icon}</span>
+                                    <span style="font-weight: 600;">\${message.lastAction}</span>
+                                </div>
+                            \`;
+                            rollbackDeadline = 0;
+                            updateTimer();
                         }
                     }
-                } else if (val instanceof Date) {
-                    try {
-                        val = val.toLocaleString(locale);
-                    } catch (e) {
-                        val = val.toString();
-                    }
-                } else if (typeof val === 'object' && val !== null) {
-                    val = JSON.stringify(val);
                 }
-                return `<td>${val}</td>`;
-            }).join('');
-            return `<tr><td class="row-index">${index + 1}</td>${cells}</tr>`;
-        }).join('');
+            });
+
+            let rollbackDeadline = ${this._currentAutoRollbackAt || 0};
+            function updateTimer() {
+                const span = document.getElementById('rollbackTimer');
+                if (!rollbackDeadline || !span) return;
+                const now = Date.now();
+                const remaining = Math.ceil((rollbackDeadline - now) / 1000);
+                if (remaining >= 0) {
+                    span.innerText = remaining + 's';
+                } else {
+                    span.innerText = '';
+                }
+            }
+            if (rollbackDeadline > 0) setInterval(updateTimer, 1000);
+            updateTimer(); 
+        `;
+
+        // --- Styles ---
+        const styles = `
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 0 !important; margin: 0 !important; font-size: 13px; display: flex; flex-direction: column; height: 100vh; background-color: transparent; overflow: hidden !important; }
+            
+            /* Top Bar */
+            .header-container {
+                width: 100%;
+                box-sizing: border-box;
+                padding: 0;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                flex-shrink: 0;
+            }
+            .db-icon { display: flex; align-items: center; margin: 0 8px 0 15px; }
+            
+            /* Info Bar */
+            .info-bar {
+                width: 100%;
+                box-sizing: border-box;
+                background-color: #333; /* Dark gray */
+                color: #ddd;
+                display: flex;
+                flex-shrink: 0;
+                border-bottom: 1px solid #222;
+                min-height: 60px;
+            }
+            .info-left {
+                width: 66.66%;
+                padding: 10px 15px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                gap: 5px;
+                border-right: 1px solid #444;
+            }
+            .info-right {
+                width: 33.33%;
+                padding: 0; /* No padding, buttons fill area */
+                display: flex;
+            }
+            
+            .info-row { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .info-row.query { font-family: Consolas, 'Courier New', monospace; font-size: 0.9em; color: #fff; opacity: 0.9; }
+            .info-row.stats { font-size: 0.85em; color: #aaa; display: flex; gap: 15px; }
+            
+            .transaction-buttons { display: flex; width: 100%; height: 100%; }
+            .btn-block {
+                flex: 1;
+                border: none;
+                color: white;
+                cursor: pointer;
+                transition: opacity 0.2s;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                border-radius: 0;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            .btn-block svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
+            .btn-block.commit { background-color: #28a745; }
+            .btn-block.commit:hover { background-color: #218838; }
+            .btn-block.rollback { background-color: #8b0000; }
+            .btn-block.rollback:hover { background-color: #a50000; }
+            
+            .transaction-status {
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+            }
+            .transaction-placeholder { background-color: #2e2e2e; width: 100%; height: 100%; }
+
+            /* Content Area */
+            .content-area {
+                flex-grow: 1;
+                overflow: hidden; /* Let child container handle scroll */
+                background-color: var(--vscode-editor-background);
+                color: var(--vscode-editor-foreground);
+                position: relative;
+                margin: 0;
+                padding: 0;
+            }
+            
+            /* Table */
+            .table-container { 
+                width: 100%; 
+                overflow: auto; 
+                height: 100%; 
+                margin: 0;
+                padding: 0;
+            }
+            table { 
+                border-collapse: separate; 
+                border-spacing: 0;
+                width: 100%; 
+                font-size: 12px; 
+                margin: 0;
+                padding: 0;
+            }
+            th, td { 
+                padding: 4px 8px; 
+                text-align: left; 
+                white-space: nowrap; 
+                overflow: hidden; 
+                text-overflow: ellipsis; 
+                max-width: 300px; 
+                border-right: 1px solid var(--vscode-panel-border);
+                border-bottom: 1px solid var(--vscode-panel-border);
+            }
+            /* Left border for first column */
+            th:first-child, td:first-child {
+                border-left: 1px solid var(--vscode-panel-border);
+            }
+            
+            th { 
+                position: sticky; 
+                top: 0; 
+                z-index: 20; 
+                background-color: #333; 
+                font-weight: 700; 
+                color: #fff; 
+                /* Override borders for header */
+                border-right: 1px solid #555;
+                border-bottom: 2px solid #555; 
+                border-top: 1px solid #555; /* Ensure top border exists */
+                margin-top: 0;
+            }
+             /* First header gets left border too */
+            th:first-child {
+                border-left: 1px solid #555;
+            }
+            
+            .row-index { background-color: #2a2a2a; color: #aaa; text-align: center; font-weight: bold; border-right: 2px solid #555; width: 1px; white-space: nowrap; padding: 4px 6px; }
+            
+            /* Hover effect */
+            tbody tr:hover { background-color: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.1)); }
+            tbody tr:hover .row-index { background-color: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.1)); }
+            
+            /* Error */
+            .error-container {
+                padding: 20px;
+                display: flex;
+                gap: 15px;
+                background-color: #3e1b1b;
+                color: #ff9999;
+                border-bottom: 1px solid #5c2b2b;
+            }
+            .error-icon { font-size: 2em; }
+            .error-title { font-weight: bold; font-size: 1.1em; margin-bottom: 5px; }
+            .error-message { font-family: monospace; white-space: pre-wrap; word-break: break-all; }
+            
+            /* Empty State */
+            .empty-state { padding: 40px; text-align: center; }
+            
+            /* Theme overrides */
+            body.vscode-light .info-bar { background-color: #e0e0e0; color: #333; border-bottom: 1px solid #ccc; }
+            body.vscode-light .info-left { border-right: 1px solid #ccc; }
+            body.vscode-light .info-row.query { color: #222; }
+            body.vscode-light .transaction-placeholder { background-color: #d6d6d6; }
+            body.vscode-light .error-container { background-color: #fff0f0; color: #d32f2f; border-bottom: 1px solid #ffcdd2; }
+            
+            .null-value { color: #888; font-style: italic; }
+            
+            /* Load More */
+            .load-more-container { padding: 0; margin: 0; text-align: center; border-top: 1px solid var(--vscode-panel-border); }
+            #loadMoreBtn {
+                display: block;
+                width: 100%;
+                min-height: 60px;
+                padding: 10px 15px;
+                ${
+                    connectionColor 
+                    ? `background-color: ${connectionColor};` 
+                    : `background-color: #444;`
+                }
+                color: white;
+                font-weight: bold;
+                border: none;
+                border-radius: 0;
+                cursor: pointer;
+                transition: background-color 0.2s;
+            }
+            #loadMoreBtn:hover { 
+                ${
+                    connectionColor 
+                    ? `filter: brightness(85%);` 
+                    : `background-color: #333;`
+                }
+            }
+            #loadMoreBtn:disabled {
+                opacity: 0.7;
+                cursor: not-allowed;
+            }
+        `;
 
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
-            <style>${style}</style>
-            <script>${script}</script>
+            <style>${styles}</style>
+            <script>${scripts}</script>
         </head>
-        <body>
-             ${header}
+        <body class="${showButtons ? 'has-transaction' : ''}">
+            ${headerHtml}
+            ${infoBarHtml}
             <div class="content-area">
-                ${errorMessageHtml}
-                ${affectedRowsHtml}
-                ${transactionMessageHtml}
-                <table>
-                    <thead>
-                        <tr>${headerRow}</tr>
-                    </thead>
-                    <tbody>
-                        ${rows}
-                    </tbody>
-                </table>
-                ${hasMore ? `<div style="text-align: center; margin-top: 10px;"><button id="loadMoreBtn" class="btn success" style="background-color: #007acc; width: 100%; padding: 10px;" onclick="loadMore()">Load More Results</button></div>` : ''}
+                ${contentHtml}
             </div>
         </body>
         </html>`;

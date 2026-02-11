@@ -1,10 +1,18 @@
 # Changelog
 
 ## [ ... ]
-### Features
-- Added affected rows count to the query results info bar.
+### UI / UX
+- **Results Panel Redesign**: Complete overhaul of the results panel with a modern block-based layout.
+  - Full-width sticky headers and "Executing..." status bar.
+  - Colored banners for "No rows returned" and "Affected rows", matching the active connection color.
+  - Improved layout for transaction buttons and status.
+  - Hover effect on table rows for better readability.
+- **Load More Results**:
+  - "Load More" button is now a full-width colored bar matching the connection.
+  - Added "Loading..." state to prevent duplicate requests.
 
 ### Fixes
+- Fixed an issue where `_affectedRows` or stale execution time would persist after a failed query.
 - Fixed an issue where "Unknown Database" was displayed in the results panel info bar when a query resulted in an SQL error.
 
 ## [0.10.0]

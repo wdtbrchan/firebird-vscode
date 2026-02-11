@@ -233,16 +233,28 @@ export class Database {
     public static async executeQuery(query: string, connection?: { host: string, port: number, database: string, user: string, password?: string, role?: string, charset?: string }, queryOptions?: QueryOptions): Promise<QueryResult> {
         const config = vscode.workspace.getConfiguration('firebird');
         
-        let finalQuery = query;
-        const queryLower = query.toLowerCase();
-        const hasExistingPagination = /\bfirst\b/.test(queryLower) || /\bskip\b/.test(queryLower);
+        const cleanQuery = query.trim().replace(/;$/, '');
+        let finalQuery = cleanQuery;
         
-        if (queryOptions && queryOptions.limit && query.trim().toLowerCase().startsWith('select') && !hasExistingPagination) {
+        // Regex to match SELECT and any leading comments/whitespace
+        // Capture group 1: leading comments/spaces
+        // Capture group 2: the "SELECT" word itself
+        // Capture group 3: what follows (to check for FIRST/SKIP)
+        const selectRegex = /^(\s*(?:\/\*[\s\S]*?\*\/|\-\-.*?\n|\s+)*)(select)(\s+first\s+\d+|\s+skip\s+\d+)?/i;
+        
+        const match = selectRegex.exec(cleanQuery);
+        const hasExistingPagination = match && match[3] ? true : false;
+        
+        if (queryOptions && queryOptions.limit && !hasExistingPagination && match) {
             const limit = queryOptions.limit;
             const skip = queryOptions.offset || 0;
-            const cleanQuery = query.trim().replace(/;$/, '');
-            // Use FIRST/SKIP syntax for Firebird 2.1+ compatibility
-            finalQuery = cleanQuery.replace(/^select/i, `SELECT FIRST ${limit} SKIP ${skip}`);
+            
+            // Reconstruct the query: [comments] SELECT FIRST [limit] SKIP [skip] [rest of query]
+            const leading = match[1];
+            const selectWord = match[2];
+            const restOfQuery = cleanQuery.substring(match[0].length);
+            
+            finalQuery = `${leading}${selectWord} FIRST ${limit} SKIP ${skip}${restOfQuery}`;
         }
         
         const encodingConf = connection?.charset || config.get<string>('charset', 'UTF8');
@@ -372,7 +384,7 @@ export class Database {
             if (this.transaction) {
                 this.transaction.commit((err) => {
                     this.transaction = undefined;
-                    this.notifyStateChange('Transaction Committed'); 
+                    this.notifyStateChange('Committed'); 
                     this.cleanupConnection();
                     if (err) reject(err);
                     else resolve();
@@ -383,7 +395,7 @@ export class Database {
         });
     }
 
-    public static async rollback(reason: string = 'Transaction Rolled Back'): Promise<void> {
+    public static async rollback(reason: string = 'Rolled back'): Promise<void> {
         return new Promise((resolve, reject) => {
             if (this.transaction) {
                 this.transaction.rollback((err) => {
@@ -437,8 +449,8 @@ export class Database {
         this.autoRollbackDeadline = Date.now() + (timeoutSeconds * 1000);
 
         this.autoRollbackTimer = setTimeout(() => {
-            vscode.window.showInformationMessage('Firebird transaction auto-rollback due to inactivity.');
-            this.rollback('Auto-rollback');
+            vscode.window.showInformationMessage('Firebird transaction auto-rolled back due to inactivity.');
+            this.rollback('Auto-rolled back');
         }, timeoutSeconds * 1000);
 
         if (this.transaction) {
