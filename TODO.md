@@ -25,7 +25,7 @@
 - [x] Fix alignment glitch in DB explorer
 - [x] Backup and restore connections in DB explorer
 - [x] Add button to the editor settings
-- [ ] Add setting to enable space as sql query separator
+- [x] Add setting to enable empty line as sql queries separator
 - [x] Add affected rows count to query result
 - [ ] Add db connection folder to codelens
 - [ ] Try to show codelens with active db connection above active sql query

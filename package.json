@@ -46,6 +46,11 @@
             "type": "string"
           },
           "description": "List of language IDs where query execution is allowed."
+        },
+        "firebird.useEmptyLineAsSeparator": {
+          "type": "boolean",
+          "default": false,
+          "description": "Treat empty lines (two or more newlines) as SQL statement separators."
         }
       }
     },
@@ -525,7 +530,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "package": "vsce package",
-    "test-unit": "tsc -p ./ && node out/test/unit/queryExtractor.test.js"
+    "test-unit": "tsc -p ./ && node out/test/unit/queryExtractor.test.js && node out/test/unit/scriptParser.test.js"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",

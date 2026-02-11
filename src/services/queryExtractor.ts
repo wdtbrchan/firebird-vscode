@@ -6,9 +6,9 @@ export class QueryExtractor {
     /**
      * Extracts a SQL query from the given document text at the specified offset.
      */
-    public static extract(text: string, offset: number, languageId: string): { text: string, startOffset: number } | null {
+    public static extract(text: string, offset: number, languageId: string, useEmptyLineAsSeparator: boolean = false): { text: string, startOffset: number } | null {
         if (languageId === 'sql') {
-            return this.extractSqlFile(text, offset);
+            return this.extractSqlFile(text, offset, useEmptyLineAsSeparator);
         }
 
         // 1. Find the outermost string literal covering the offset
@@ -33,24 +33,62 @@ export class QueryExtractor {
         return { text: content.trim(), startOffset: start + 1 }; // start + 1 to skip quote
     }
 
-    private static extractSqlFile(text: string, offset: number): { text: string, startOffset: number } | null {
-        // Find statement between semicolons
+    private static extractSqlFile(text: string, offset: number, useEmptyLineAsSeparator: boolean): { text: string, startOffset: number } | null {
+        // Find statement between semicolons or empty lines
         let start = 0;
         let end = text.length;
 
-        // Backward scan for ;
+        const isEmptyLine = (idx: number): boolean => {
+            if (!useEmptyLineAsSeparator) return false;
+            // Scan for \n\s*\n
+            // Simplified: check if at idx there is a newline and then only whitespace until another newline
+            if (text[idx] !== '\n' && text[idx] !== '\r') return false;
+            
+            // Check backward or forward?
+            // This helper should probably just check if the current position is part of an "empty line separator"
+            return false; // See below for better implementation
+        };
+
+        // Backward scan
         for (let i = offset - 1; i >= 0; i--) {
             if (text[i] === ';') {
                 start = i + 1;
                 break;
             }
+            if (useEmptyLineAsSeparator && (text[i] === '\n' || text[i] === '\r')) {
+                // Check if the previous line was empty (or only whitespace)
+                let j = i - 1;
+                while (j >= 0 && (text[j] === ' ' || text[j] === '\t' || text[j] === '\r')) {
+                    j--;
+                }
+                if (j >= 0 && text[j] === '\n') {
+                    start = i + 1;
+                    break;
+                }
+                if (j < 0) { // start of file
+                    start = 0;
+                }
+            }
         }
 
-        // Forward scan for ;
+        // Forward scan
         for (let i = offset; i < text.length; i++) {
              if (text[i] === ';') {
                  end = i;
                  break;
+             }
+             if (useEmptyLineAsSeparator && (text[i] === '\n' || text[i] === '\r')) {
+                 // Check if the next line is empty
+                 let j = i + 1;
+                 if (text[i] === '\r' && text[j] === '\n') j++;
+                 
+                 while (j < text.length && (text[j] === ' ' || text[j] === '\t' || text[j] === '\r')) {
+                     j++;
+                 }
+                 if (j < text.length && text[j] === '\n') {
+                     end = i;
+                     break;
+                 }
              }
         }
         

@@ -103,6 +103,36 @@ async function runTests() {
         assert.strictEqual(result?.text, "SELECT * FROM table WHERE x='val'");
     });
 
+    test('SQL: Extract query with semicolon', () => {
+        const text = `SELECT 1 FROM RDB$DATABASE; SELECT 2 FROM RDB$DATABASE;`;
+        const offset = 5; // inside first query
+        const result = QueryExtractor.extract(text, offset, 'sql');
+        assert.strictEqual(result?.text, 'SELECT 1 FROM RDB$DATABASE');
+    });
+
+    test('SQL: Extract query with empty line separator', () => {
+        const text = `SELECT 1 FROM RDB$DATABASE
+
+SELECT 2 FROM RDB$DATABASE`;
+        const offset = 5; // inside first query
+        const result = QueryExtractor.extract(text, offset, 'sql', true);
+        assert.strictEqual(result?.text, 'SELECT 1 FROM RDB$DATABASE');
+
+        const offset2 = text.indexOf('SELECT 2') + 2;
+        const result2 = QueryExtractor.extract(text, offset2, 'sql', true);
+        assert.strictEqual(result2?.text, 'SELECT 2 FROM RDB$DATABASE');
+    });
+
+    test('SQL: Empty line separator disabled', () => {
+        const text = `SELECT 1 FROM RDB$DATABASE
+
+SELECT 2 FROM RDB$DATABASE`;
+        const offset = 5; 
+        const result = QueryExtractor.extract(text, offset, 'sql', false);
+        // Should return whole text as there are no semicolons
+        assert.ok(result?.text.includes('SELECT 2'));
+    });
+
     // --- End Tests ---
 
     console.log(`\nResults: ${passed} passed, ${failed} failed.`);

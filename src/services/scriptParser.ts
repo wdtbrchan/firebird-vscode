@@ -3,56 +3,20 @@ export class ScriptParser {
     /**
      * Splits a SQL script into individual statements, respecting SET TERM directives.
      * @param script The full SQL script.
+     * @param useEmptyLineAsSeparator Whether to treat empty lines as separators.
      * @returns An array of SQL statements.
      */
-    public static split(script: string): string[] {
+    public static split(script: string, useEmptyLineAsSeparator: boolean = false): string[] {
         const statements: string[] = [];
         const lines = script.split(/\r?\n/);
         
-        let currentDelimiter = ';';
-        let currentStatement = '';
-        let inString = false;
-        let stringChar = '';
+        // ... (existing line-based logic omitted for brevity as it's not used)
 
-        // Simple line-based parser that handles SET TERM and multi-line statements.
-        // This is a heuristic parser. A full FSM would be better but this covers most cases.
-        // We iterate char by char effectively, but we can look at lines to detect SET TERM easily.
-
-        for (let i = 0; i < lines.length; i++) {
-            let line = lines[i].trim();
-            const originalLine = lines[i];
-
-            // Check for SET TERM at the start of the line (ignoring case)
-            if (line.toUpperCase().startsWith('SET TERM')) {
-                // Parse new terminator
-                // Format: SET TERM <new_term> <old_term/empty>
-                // Example: SET TERM ^ ; or SET TERM ^;
-                // Actually usually: SET TERM ^ ;  (changes to ^)
-                // or SET TERM ; ^ (changes back to ;)
-                
-                const parts = line.split(/\s+/);
-                if (parts.length >= 3) {
-                    currentDelimiter = parts[2]; // usually the 3rd part "SET" "TERM" "^"
-                    // If the delimiter is part of the command like "SET TERM ^;", we need to handle that.
-                    // But Firebird uses space usually.
-                } 
-                // Don't add SET TERM line to statements to be executed by the driver?
-                // The driver doesn't understand SET TERM most likely. 
-                // So we consume it here and don't push it.
-                continue;
-            }
-
-            // Append line with newline to preserve formatting (mostly)
-            // But we need to check for delimiter.
-            // Note: We need a more robust char-by-char loop if we want to handle comments/strings perfectly.
-            // Given the complexity of DDLs (triggers with strings inside), a char loop is safer.
-        }
-        
         // Let's restart with a char-loop approach on the whole text.
-        return this.parseCharByChar(script);
+        return this.parseCharByChar(script, useEmptyLineAsSeparator);
     }
 
-    private static parseCharByChar(script: string): string[] {
+    private static parseCharByChar(script: string, useEmptyLineAsSeparator: boolean): string[] {
         const statements: string[] = [];
         let buffer = '';
         let delimiter = ';';
@@ -159,10 +123,9 @@ export class ScriptParser {
                 }
             }
 
-            // Check for delimiter
-            // Delimiter can be multi-char? Firebird usually single char but potentially string.
-            // We assume delimiter matches the sequence at i.
+            // Check for delimiter or empty line separator
             if (!inString && !inLineComment && !inBlockComment) {
+                // Regular delimiter check
                 if (script.substr(i, delimiter.length) === delimiter) {
                      // Found statement end
                      if (buffer.trim().length > 0) {
@@ -171,6 +134,25 @@ export class ScriptParser {
                      buffer = '';
                      i += delimiter.length;
                      continue;
+                }
+
+                // Empty line separator check
+                if (useEmptyLineAsSeparator && (char === '\n' || char === '\r')) {
+                    // Check if the current line being finished is empty (only whitespace)
+                    // and if it was preceded by a newline.
+                    // Actually, we want to split when we see a newline followed by an empty line.
+                    
+                    // Let's check for \n\s*\n
+                    const rest = script.substring(i);
+                    const match = /^(\r?\n\s*){2,}/.exec(rest);
+                    if (match) {
+                        if (buffer.trim().length > 0) {
+                            statements.push(buffer.trim());
+                        }
+                        buffer = '';
+                        i += match[0].length;
+                        continue;
+                    }
                 }
             }
 

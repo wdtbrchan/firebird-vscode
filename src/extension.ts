@@ -157,7 +157,9 @@ export function activate(context: vscode.ExtensionContext) {
             // Delegate query execution to the panel
             if (ResultsPanel.currentPanel) {
                 // Parse script
-                const statements = ScriptParser.split(query);
+                const config = vscode.workspace.getConfiguration('firebird');
+                const useEmptyLineAsSeparator = config.get<boolean>('useEmptyLineAsSeparator', false);
+                const statements = ScriptParser.split(query, useEmptyLineAsSeparator);
                 if (statements.length === 0) {
                     vscode.window.showWarningMessage('No valid SQL statements found in script.');
                     return;
@@ -205,10 +207,12 @@ export function activate(context: vscode.ExtensionContext) {
         let queryStartLine = 0;
         let queryStartChar = 0;
 
+        const useEmptyLineAsSeparator = config.get<boolean>('useEmptyLineAsSeparator', false);
+
         // If selection is empty, use QueryExtractor to find the query at cursor
         if (selection.isEmpty) {
              const offset = editor.document.offsetAt(selection.active);
-             const result = QueryExtractor.extract(editor.document.getText(), offset, editor.document.languageId);
+             const result = QueryExtractor.extract(editor.document.getText(), offset, editor.document.languageId, useEmptyLineAsSeparator);
              
              if (result) {
                  query = result.text;

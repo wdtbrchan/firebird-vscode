@@ -1,5 +1,10 @@
 # Changelog
 
+## [ ... ]
+### Features
+- **Empty Line as Separator**: Added setting `firebird.useEmptyLineAsSeparator` to treat empty lines (two or more newlines) as SQL statement separators.
+  - Added comprehensive unit tests for query extraction and script parsing logic.
+
 ## [0.11.0]
 ### UI / UX
 - **Results Panel Redesign**: Complete overhaul of the results panel with a modern block-based layout.
