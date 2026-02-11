@@ -435,6 +435,10 @@ export function activate(context: vscode.ExtensionContext) {
         await databaseTreeDataProvider.restoreConnections();
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.openSettings', () => {
+        vscode.commands.executeCommand('workbench.action.openSettings', 'firebird.');
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('firebird.openObject', async (type: string, name: string, connection: DatabaseConnection) => {
         try {
             let ddl = '';

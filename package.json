@@ -73,6 +73,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "firebird.openSettings",
+        "title": "Firebird Settings",
+        "icon": "$(gear)"
+      },
+      {
         "command": "firebird.editDatabase",
         "title": "Edit Database",
         "icon": "$(edit)"
@@ -367,6 +372,11 @@
           "command": "firebird.createGroup",
           "when": "view == firebird.databases",
           "group": "navigation"
+        },
+        {
+          "command": "firebird.openSettings",
+          "when": "view == firebird.databases",
+          "group": "navigation@10"
         },
         {
           "command": "firebird.backupConnections",

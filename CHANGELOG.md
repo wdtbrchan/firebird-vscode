@@ -10,6 +10,7 @@
 - **Load More Results**:
   - "Load More" button is now a full-width colored bar matching the connection.
   - Added "Loading..." state to prevent duplicate requests.
+- **Settings Button**: Added a gear icon button to the DB Explorer title bar to quickly open Firebird-related settings.
 
 ### Fixes
 - Fixed an issue where `_affectedRows` or stale execution time would persist after a failed query.
