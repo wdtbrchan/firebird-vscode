@@ -2,16 +2,19 @@
 
 ## [ ... ]
 ### Features
-- **CodeLens Enhancements**: Added database connection folder (group) name to the CodeLens display in the editor.
-- **Empty Line as Separator**: Added setting `firebird.useEmptyLineAsSeparator` to treat empty lines (two or more newlines) as SQL statement separators.
+  - Added setting `firebird.useEmptyLineAsSeparator` to treat empty lines (two or more newlines) as SQL statement separators.
   - Added comprehensive unit tests for query extraction and script parsing logic.
 - **CodeLens Enhancements**:
+  - Added database connection folder (group) name to the CodeLens display in the editor.
   - CodeLens now dynamically positions above the active SQL query based on cursor location.
   - Added "End of query" CodeLens marker for better visual block identification.
   - Enabled CodeLens support for all configured `firebird.allowedLanguages`.
 - **Settings**:
   - Added `firebird.enableCodeLens` to toggle the Active Connection CodeLens.
 - **Transaction Safety**: Added automatic rollback when closing the query results panel to prevent stuck transactions.
+### UI / UX
+- **Results Panel**: Swapped positions of Commit and Rollback buttons for better ergonomics.
+
 
 ## [0.11.0]
 ### UI / UX

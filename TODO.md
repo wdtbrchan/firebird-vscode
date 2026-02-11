@@ -32,5 +32,5 @@
 - [ ] Refactor big source files
 - [x] Add rollback when closing query result
 - [ ] Fix cursor position after query execution
-- [ ] Switch Commit and rolback buttons positions
+- [x] Switch Commit and rolback buttons positions
 - [ ] DDL formating - fix extra empty lines
