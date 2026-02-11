@@ -30,6 +30,7 @@
 - [x] Add db connection folder to codelens
 - [x] Try to show codelens with active db connection above active sql query
 - [ ] Refactor big source files
-- [ ] Add rollback when closing query result
+- [x] Add rollback when closing query result
 - [ ] Fix cursor position after query execution
 - [ ] Switch Commit and rolback buttons positions
+- [ ] DDL formating - fix extra empty lines

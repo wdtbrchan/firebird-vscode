@@ -915,6 +915,11 @@ export class ResultsPanel {
     }
 
     public dispose() {
+        if (Database.hasActiveTransaction) {
+            Database.rollback('Rolled back due to panel close').then(() => {
+                vscode.window.showInformationMessage('Active transaction was rolled back because the results window was closed.');
+            });
+        }
         ResultsPanel.currentPanel = undefined;
         this._panel.dispose();
         while (this._disposables.length) {

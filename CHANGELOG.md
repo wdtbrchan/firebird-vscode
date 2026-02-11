@@ -11,6 +11,7 @@
   - Enabled CodeLens support for all configured `firebird.allowedLanguages`.
 - **Settings**:
   - Added `firebird.enableCodeLens` to toggle the Active Connection CodeLens.
+- **Transaction Safety**: Added automatic rollback when closing the query results panel to prevent stuck transactions.
 
 ## [0.11.0]
 ### UI / UX
