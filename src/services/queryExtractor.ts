@@ -165,4 +165,26 @@ export class QueryExtractor {
         }
         return -1;
     }
+
+    /**
+     * Checks if the given text contains common SQL keywords.
+     * This is used to filter out CodeLens in non-SQL files where the string might not be a query.
+     */
+    public static hasSqlKeywords(text: string): boolean {
+        // List of common SQL keywords. 
+        // We use word boundaries \b to ensure we match whole words.
+        // Case insensitive match is handled by the regex flag 'i'.
+        const keywords = [
+            'SELECT', 'INSERT', 'UPDATE', 'DELETE', 
+            'CREATE', 'ALTER', 'DROP', 'RECREATE',
+            'EXECUTE', 'EXEC', 'MERGE', 
+            'GRANT', 'REVOKE', 
+            'COMMIT', 'ROLLBACK', 
+            'SET', 'DECLARE', 'WITH'
+        ];
+        
+        // Construct regex: /\b(SELECT|INSERT|...)\b/i
+        const pattern = new RegExp(`\\b(${keywords.join('|')})\\b`, 'i');
+        return pattern.test(text);
+    }
 }

@@ -1,12 +1,15 @@
 # Changelog
 
+## [ upcoming ]
+### Features
+- **CodeLens**:
+  - Improved SQL detection in non-SQL files: CodeLens now only appears when SQL keywords are detected.
+  - Hidden default "Active Database" CodeLens in non-SQL files when no SQL is detected.
 
-## [Unreleased]
 ### UI / UX
 - **Results Panel**:
   - Updated transaction status colors (Green/Red) to be less saturated and more consistent with VS Code themes.
   - Adjusted "Executing..." bar to use a neutral dark gray background instead of green.
-  - Improved border colors in Light theme for better contrast.
   - Unified transaction icons.
 
 ## [0.12.0]

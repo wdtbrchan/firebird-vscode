@@ -59,6 +59,7 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
         if (activeConnection && activeConnDetails) {
             let startRange = new vscode.Range(0, 0, 0, 0);
             let endRange: vscode.Range | undefined;
+            let queryFound = false;
 
             // Try to find the query at the current cursor position to place the CodeLens above it
             const editor = vscode.window.activeTextEditor;
@@ -73,6 +74,11 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
                 const result = QueryExtractor.extract(document.getText(), offset, document.languageId, useEmptyLineAsSeparator);
                 
                 if (result && result.text.trim().length > 0) {
+                    // Filter out non-SQL files that don't look like SQL
+                    if (document.languageId !== 'sql' && !QueryExtractor.hasSqlKeywords(result.text)) {
+                         return [];
+                    }
+
                     const startPos = document.positionAt(result.startOffset);
                     startRange = new vscode.Range(startPos, startPos);
                     
@@ -80,7 +86,13 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
                     // Move to the next line for the end CodeLens so it appears below the query
                     const endLine = endPos.line + 1;
                     endRange = new vscode.Range(endLine, 0, endLine, 0);
+                    queryFound = true;
                 }
+            }
+
+            // If non-SQL file and no query found, don't show the default lens at top
+            if (document.languageId !== 'sql' && !queryFound) {
+                return [];
             }
 
             let icon = '⬜'; // Default gray/white
@@ -130,6 +142,12 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
 
         // Return a "No Active Connection" lens or nothing?
         // User might want to click to select.
+        
+        // In non-SQL files, don't show "No Active Connection" lens at top
+        if (document.languageId !== 'sql') {
+            return [];
+        }
+
         const range = new vscode.Range(0, 0, 0, 0);
         const command: vscode.Command = {
             title: '⬜ No Active Database (Click to Select)',

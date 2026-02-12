@@ -133,6 +133,46 @@ SELECT 2 FROM RDB$DATABASE`;
         assert.ok(result?.text.includes('SELECT 2'));
     });
 
+    // --- hasSqlKeywords Tests ---
+
+    test('Keywords: Detect SELECT', () => {
+        assert.strictEqual(QueryExtractor.hasSqlKeywords('SELECT * FROM table'), true);
+    });
+
+    test('Keywords: Detect lowercase select', () => {
+        assert.strictEqual(QueryExtractor.hasSqlKeywords('select * from table'), true);
+    });
+
+    test('Keywords: Detect INSERT', () => {
+        assert.strictEqual(QueryExtractor.hasSqlKeywords('INSERT INTO table VALUES (1)'), true);
+    });
+
+    test('Keywords: Detect UPDATE', () => {
+        assert.strictEqual(QueryExtractor.hasSqlKeywords('UPDATE table SET id=1'), true);
+    });
+
+    test('Keywords: Detect EXECUTE', () => {
+        assert.strictEqual(QueryExtractor.hasSqlKeywords('EXECUTE PROCEDURE proc'), true);
+    });
+
+    test('Keywords: No keywords in plain text', () => {
+        assert.strictEqual(QueryExtractor.hasSqlKeywords('Hello World this is a test'), false);
+    });
+
+    test('Keywords: No keywords in text with similar words (selection)', () => {
+        // "selection" contains "select" but should not match due to word boundaries
+        assert.strictEqual(QueryExtractor.hasSqlKeywords('The selection was made'), false);
+    });
+
+    test('Keywords: No keywords in code like text', () => {
+        assert.strictEqual(QueryExtractor.hasSqlKeywords('const x = "some string";'), false);
+    });
+
+    test('Keywords: Detect keyword inside code string', () => {
+        assert.strictEqual(QueryExtractor.hasSqlKeywords('const query = "SELECT * FROM table";'), true);
+    });
+
+
     // --- End Tests ---
 
     console.log(`\nResults: ${passed} passed, ${failed} failed.`);
