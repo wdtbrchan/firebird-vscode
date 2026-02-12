@@ -1,6 +1,6 @@
 # Changelog
 
-## [ upcoming ]
+## [0.13.0]
 ### Features
 - **CodeLens**:
   - Improved SQL detection in non-SQL files: CodeLens now only appears when SQL keywords are detected.
