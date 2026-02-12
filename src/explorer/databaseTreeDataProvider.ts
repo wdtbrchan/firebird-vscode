@@ -471,7 +471,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         filter: string
     ): Promise<(ObjectItem | FilterItem)[]> {
         const items = await fetchFn(connection);
-        const filteredItems = this.applyFilter(items, filter);
+        const sortedItems = [...items].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        const filteredItems = this.applyFilter(sortedItems, filter);
         const result: (ObjectItem | FilterItem)[] = [
             new FilterItem(connection, type === 'table' ? 'tables' : type === 'view' ? 'views' : type === 'procedure' ? 'procedures' : 'generators', filter)
         ];
@@ -502,6 +503,9 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
               
               if (!groups[groupName]) groups[groupName] = [];
               groups[groupName].push(t);
+            }
+            for (const key in groups) {
+                groups[key].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
             }
             
             return Object.keys(groups).sort().map(g => {
