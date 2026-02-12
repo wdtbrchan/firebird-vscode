@@ -1,5 +1,9 @@
 # Changelog
 
+## [ upcoming ]
+### Features
+- **Explorer**: Added "DDL Script" option to Triggers context menu.
+
 ## [0.13.0]
 ### Features
 - **CodeLens**:

@@ -29,6 +29,11 @@
 - [x] Add rollback when closing query result
 - [x] Fix cursor position after query execution
 - [x] Switch Commit and rolback buttons positions
+- [x] Support DDL script for triggers in DB explorer
+- [ ] Add DDL to triggers
+- [ ] Add Drop procedure to Procedures
+- [ ] Sort DB objects alphabetically in DB explorer
+- [ ] Add toggle between triggers subtree and triggers list
 - [ ] Refactor big source files
 - [ ] Copy results values to clipboard as list / table
 - [ ] Export results to CSV

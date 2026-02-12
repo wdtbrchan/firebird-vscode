@@ -369,7 +369,10 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                      return new TriggerItem(element.connection, t.name, t.sequence, t.inactive, isFav);
                 });
             } else if (element instanceof TriggerItem) {
-                 const ops: TriggerOperationItem[] = [];
+                 const ops: (TriggerOperationItem | OperationItem)[] = [];
+                 // Add DDL Script like for procedures
+                 ops.push(new OperationItem('DDL Script', 'alter', new ObjectItem(element.triggerName, 'trigger', element.connection)));
+
                  ops.push(new TriggerOperationItem('Drop trigger', 'drop', element.connection, element.triggerName));
                  if (element.inactive) {
                      ops.push(new TriggerOperationItem('Activate trigger', 'activate', element.connection, element.triggerName));
