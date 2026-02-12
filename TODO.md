@@ -30,9 +30,9 @@
 - [x] Fix cursor position after query execution
 - [x] Switch Commit and rolback buttons positions
 - [x] Support DDL script for triggers in DB explorer
-- [ ] Add DDL to triggers
-- [ ] Add Drop procedure to Procedures
+- [x] Add Drop to Procedures, Tables, Views and Generators
 - [ ] Sort DB objects alphabetically in DB explorer
+- [ ] Fix affected rows count
 - [ ] Add toggle between triggers subtree and triggers list
 - [ ] Refactor big source files
 - [ ] Copy results values to clipboard as list / table

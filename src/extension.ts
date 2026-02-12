@@ -555,6 +555,12 @@ SET TERM ; ^`;
         }
     }));
 
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.deleteObject', async (objectItem: ObjectItem) => {
+        if (objectItem) {
+             vscode.commands.executeCommand('firebird.generateScript', 'drop', objectItem);
+        }
+    }));
+
     context.subscriptions.push(vscode.commands.registerCommand('firebird.generateScript', async (mode: 'create' | 'alter' | 'drop' | 'recreate', objectItem: ObjectItem) => {
         try {
             const { type, objectName: name, connection } = objectItem;

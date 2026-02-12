@@ -388,6 +388,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                 if (element.type === 'table') {
                     ops.push(new OperationItem('Create Script', 'create', element));
                     ops.push(new OperationItem('Alter Script', 'alter', element));
+                    ops.push(new OperationItem('Drop table', 'drop', element));
                     // Let's create a specialized TableTriggersItem.
                     ops.push(new TableIndexesItem(element.connection, element.objectName));
                     ops.push(new TableTriggersItem(element.connection, element.objectName));
@@ -397,6 +398,9 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                     
                     if (element.type === 'view') {
                          ops.push(new OperationItem('Recreate Script', 'recreate', element));
+                         ops.push(new OperationItem('Drop view', 'drop', element));
+                    } else if (element.type === 'procedure') {
+                         ops.push(new OperationItem('Drop procedure', 'drop', element));
                     }
                 } else {
                     // Generators, etc.
@@ -405,6 +409,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                 }
 
                 if (element.type === 'generator') {
+                     ops.push(new OperationItem('Drop generator', 'drop', element));
                      try {
                          const val = await MetadataService.getGeneratorValue(element.connection, element.label);
                          ops.push(new OperationItem(`Value: ${val}`, 'info', element));

@@ -190,6 +190,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "firebird.deleteObject",
+        "title": "Drop",
+        "icon": "$(trash)"
+      },
+      {
         "command": "firebird.connectSlot1",
         "title": "Connect to Slot 1",
         "category": "Firebird"

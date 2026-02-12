@@ -3,6 +3,7 @@
 ## [ upcoming ]
 ### Features
 - **Explorer**: Added "DDL Script" option to Triggers context menu.
+- **Explorer**: Added "Drop" option for Procedures, Tables, Views, and Generators.
 
 ## [0.13.0]
 ### Features
