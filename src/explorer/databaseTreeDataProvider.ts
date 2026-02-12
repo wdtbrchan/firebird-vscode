@@ -105,6 +105,17 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         return this.connections.find(c => c.id === id);
     }
 
+    public getConnectionsInGroup(groupId: string | undefined): DatabaseConnection[] {
+        if (groupId) {
+            return this.connections.filter(c => c.groupId === groupId);
+        }
+        return this.connections.filter(c => !c.groupId || !this.groups.find(g => g.id === c.groupId));
+    }
+
+    public getGroups(): ConnectionGroup[] {
+        return this.groups;
+    }
+
     getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | PaddingItem | vscode.TreeItem): vscode.TreeItem {
         if (element instanceof vscode.TreeItem) {
             return element;
@@ -800,12 +811,52 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         );
     }
 
-    moveConnection(conn: DatabaseConnection, targetGroupId: string | undefined) {
+    moveConnection(conn: DatabaseConnection, targetGroupId: string | undefined, targetIndex?: number) {
         const index = this.connections.findIndex(c => c.id === conn.id);
-        if (index !== -1) {
-            this.connections[index].groupId = targetGroupId;
-            this.saveConnections();
+        if (index === -1) return;
+
+        // Remove from current position
+        const [removed] = this.connections.splice(index, 1);
+        removed.groupId = targetGroupId;
+
+        if (targetIndex !== undefined) {
+            // Get connections in the target group to compute absolute insert position
+            const groupConns = this.connections.filter(c => 
+                targetGroupId ? c.groupId === targetGroupId : (!c.groupId || !this.groups.find(g => g.id === c.groupId))
+            );
+            
+            const clampedIndex = Math.min(targetIndex, groupConns.length);
+            if (clampedIndex < groupConns.length) {
+                // Insert before the connection at targetIndex in group
+                const refConn = groupConns[clampedIndex];
+                const absIndex = this.connections.indexOf(refConn);
+                this.connections.splice(absIndex, 0, removed);
+            } else {
+                // Append after last connection in group
+                if (groupConns.length > 0) {
+                    const lastConn = groupConns[groupConns.length - 1];
+                    const absIndex = this.connections.indexOf(lastConn);
+                    this.connections.splice(absIndex + 1, 0, removed);
+                } else {
+                    this.connections.push(removed);
+                }
+            }
+        } else {
+            // No target index, just append
+            this.connections.push(removed);
         }
+
+        this.saveConnections();
+    }
+
+    moveGroup(groupId: string, targetIndex: number) {
+        const index = this.groups.findIndex(g => g.id === groupId);
+        if (index === -1) return;
+
+        const [removed] = this.groups.splice(index, 1);
+        const clampedIndex = Math.min(targetIndex, this.groups.length);
+        this.groups.splice(clampedIndex, 0, removed);
+        this.saveConnections();
     }
 
     refreshDatabase(conn: DatabaseConnection) {

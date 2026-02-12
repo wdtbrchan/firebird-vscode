@@ -2,9 +2,14 @@
 
 ## [ upcoming ]
 ### Features
+- **Explorer**: Refined Drag and Drop behavior for Connections, Groups, Scripts, and Favorites. 
 - **Explorer**: Added "DDL Script" option to Triggers context menu.
 - **Explorer**: Added "Drop" option for Procedures, Tables, Views, and Generators.
-- **Explorer**: Database objects (tables, views, procedures, etc.) are now sorted alphabetically. Databases and groups maintain their original order.
+- **Explorer**: Database objects (tables, views, procedures, etc.) are now sorted alphabetically.
+
+### Fixes
+- **Explorer**: Fixed Drag and Drop initialization where empty data transfer items were preventing the operation from starting.
+- **Explorer**: Improved type detection (duck typing) for tree items during Drag and Drop to handle cases where `instanceof` checks fail.
 
 ## [0.13.0]
 ### Features

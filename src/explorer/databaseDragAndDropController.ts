@@ -13,12 +13,39 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
 
     constructor(private provider: DatabaseTreeDataProvider) {}
 
+    private isConnectionItem(item: any): boolean {
+        const res = item && 'host' in item;
+        // console.log('isConnectionItem', item, res);
+        return res;
+    }
+
+    private isGroupItem(item: any): boolean {
+        const res = item && !this.isConnectionItem(item) && !(item instanceof vscode.TreeItem) && 'id' in item && 'name' in item;
+        // console.log('isGroupItem', item, res);
+        return res;
+    }
+
+    private isScriptItem(item: any): boolean {
+        return item instanceof ScriptItem || (item && (item.contextValue === 'script-file' || item.contextValue === 'script-file-favorite'));
+    }
+
+    private isScriptFolderItem(item: any): boolean {
+        return item instanceof ScriptFolderItem || (item && item.contextValue === 'script-folder');
+    }
+
     handleDrag(source: any[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): void | Thenable<void> {
+        console.log('handleDrag called', source);
         const item = source[0];
-        // Only allow dragging connections
-        if ('host' in item || (item.contextValue === 'group')) {
+        if (!item) return;
+
+        console.log('Dragging item:', item);
+        
+        // Connections and Groups
+        if (this.isConnectionItem(item) || this.isGroupItem(item)) {
+             console.log('Adding drag data for Connection/Group');
              dataTransfer.set('application/vnd.code.tree.firebird-databases', new vscode.DataTransferItem(item));
-        } else if (item instanceof ScriptItem || item instanceof ScriptFolderItem) {
+        } else if (this.isScriptItem(item) || this.isScriptFolderItem(item)) {
+             console.log('Adding drag data for Script');
              dataTransfer.set('application/vnd.code.tree.firebird-scripts', new vscode.DataTransferItem(item));
         } else if (item instanceof ObjectItem && item.isFavorite) {
              let favItem: FavoriteItem | undefined;
@@ -52,9 +79,20 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
     }
 
     handleDrop(target: any | undefined, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): void | Thenable<void> {
+        console.log('handleDrop called. Target:', target);
+        
+        // Log all MIME types present
+        const mimeTypes: string[] = [];
+        dataTransfer.forEach((item, mimeType) => {
+            mimeTypes.push(mimeType);
+            console.log(`MIME: ${mimeType}, Value:`, item.value);
+        });
+        console.log('Available MIME types:', mimeTypes);
+
           // Handle Favorite Drop FIRST (before scripts, as VS Code may add script MIME types automatically)
           const favTransfer = dataTransfer.get('application/vnd.code.tree.firebird-favorites');
-          if (favTransfer) {
+          if (favTransfer && favTransfer.value) {
+                console.log('Processing Favorite Drop');
                 const droppedItem = favTransfer.value;
                 if (!target) return;
 
@@ -93,8 +131,6 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
                     if (target instanceof ObjectItem) {
                         targetConnId = target.connection.id;
                         if (target.favoriteId) {
-                            // We need the FavoriteItem object to get its ID properly (though stored in favoriteId)
-                            // But for consistency we fetch the object reference from our tree data
                              const find = (arr: FavoriteItem[]): FavoriteItem | undefined => {
                                  for (const i of arr) {
                                      if (i.id === target.favoriteId) return i;
@@ -161,12 +197,13 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
                              const sameParent = (parentItem && movedParent && (parentItem as FavoriteItem).id === (movedParent as FavoriteItem).id) || (!parentItem && !movedParent);
                              
                              if (sameParent && movedIndex !== -1 && movedIndex < targetIndex) {
-                                 finalIndex = targetIndex - 1;
+                                 // finalIndex = targetIndex - 1; 
+                                 // User request: dragging down should place item BELOW target.
+                                 // Since item is removed first, the target shifts down.
+                                 // Inserting at original targetIndex places it AFTER the target.
+                                 // So we do NOT decrement.
                              }
                             
-                            // To allow dropping "after" vs "before", VS Code doesn't give precise info.
-                            // But usually drop-on means prepend or replace.
-                            // We will insert BEFORE the target item, effectively reordering.
                              this.provider.moveFavorite(droppedData, parentItem, finalIndex);
                          }
                     }
@@ -176,21 +213,63 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
 
           // Handle Script Drop
           const scriptTransfer = dataTransfer.get('application/vnd.code.tree.firebird-scripts');
-          if (scriptTransfer) {
+          if (scriptTransfer && scriptTransfer.value) {
               const droppedItem = scriptTransfer.value;
-              if (!target) return;
-              
               const service = ScriptService.getInstance();
 
-              if (target instanceof FolderItem && (target.type === 'local-scripts' || target.type === 'global-scripts')) {
+              if (!target) {
+                  // Drop on root (undefined target)
+                  console.log('Dropping on root (undefined target)');
+                  const isShared = droppedItem.isShared || (droppedItem.data && droppedItem.data.isShared);
+                  if (isShared) {
+                      service.moveItem(droppedItem.id, undefined, undefined, true);
+                  }
+                  return;
+              }
+              
+              const isRootFolder = (target instanceof FolderItem || (target && target.contextValue && (target.contextValue.includes('local-scripts') || target.contextValue.includes('global-scripts'))));
+              const isScriptFolder = this.isScriptFolderItem(target);
+              const isScript = this.isScriptItem(target);
+
+              if (isRootFolder && (target.type === 'local-scripts' || target.type === 'global-scripts')) {
+                  // Drop on root scripts folder → append as last
+                  console.log('Dropping on Root Scripts Folder');
                   const isGlobal = target.type === 'global-scripts';
                   service.moveItem(droppedItem.id, undefined, isGlobal ? undefined : target.connection.id, isGlobal);
-              } else if (target instanceof ScriptFolderItem) {
-                  const targetParentId = target.data.id;
+              } else if (isScriptFolder) {
+                  // Drop on script folder → append as last child (Nesting)
+                  console.log('Dropping on Script Folder');
+                  const targetData = target.data || target;
+                  const targetParentId = targetData.id;
                   const targetConnId = target.connectionId;
+                  
+                  // Verify we are not dropping a folder into itself
+                  if (droppedItem.type === 'folder' && droppedItem.id === targetParentId) return;
+
+                   // Check for recursive drop
+                   const isDescendant = (parent: ScriptItemData, potentialChild: ScriptItemData): boolean => {
+                       if (!parent.children) return false;
+                       for (const child of parent.children) {
+                           if (child.id === potentialChild.id) return true;
+                           if (isDescendant(child, potentialChild)) return true;
+                       }
+                       return false;
+                   };
+                   
+                   const freshDropped = service.getScriptById(droppedItem.id);
+                   const freshTarget = service.getScriptById(targetParentId);
+
+                   if (freshDropped && freshTarget && freshDropped.type === 'folder' && isDescendant(freshDropped, freshTarget)) {
+                        vscode.window.showWarningMessage('Cannot move a folder into its own child.');
+                        return;
+                   }
+
                   service.moveItem(droppedItem.id, targetParentId, targetConnId, targetConnId === undefined);
-              } else if (target instanceof ScriptItem) {
-                  const targetId = target.data.id;
+              } else if (isScript) {
+                  // Drop on script item → insert before it (Reordering)
+                  console.log('Dropping on Script Item');
+                  const targetData = target.data || target;
+                  const targetId = targetData.id;
                   const targetConnId = target.connectionId;
                   const isGlobal = targetConnId === undefined;
                   const collection = service.getScripts(targetConnId);
@@ -212,8 +291,12 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
 
                   const targetList = findListContaining(collection);
                   if (targetList) {
-                       const targetIndex = targetList.findIndex(i => i.id === targetId);
+                       let targetIndex = targetList.findIndex(i => i.id === targetId);
                        if (targetIndex !== -1) {
+                           const droppedIndex = targetList.findIndex(i => i.id === droppedItem.id);
+                           if (droppedIndex !== -1 && droppedIndex < targetIndex) {
+                               // targetIndex--;
+                           }
                            service.moveItem(droppedItem.id, parentId, targetConnId, isGlobal, targetIndex);
                        }
                   }
@@ -221,26 +304,68 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
               return;
           }
 
-         const transferItem = dataTransfer.get('application/vnd.code.tree.firebird-databases');
-         if (!transferItem) return;
+          // Handle Connection / Group Drop
+          const transferItem = dataTransfer.get('application/vnd.code.tree.firebird-databases');
+          if (transferItem && transferItem.value) {
 
-         const droppedConnection = transferItem.value as DatabaseConnection;
-         
-         let targetGroupId: string | undefined = undefined;
+         const droppedItem = transferItem.value;
 
-         if (target) {
-             if ('host' in target) {
-                 // Dropped on another connection -> move to that connection's group
-                 targetGroupId = target.groupId;
-             } else {
-                 // Dropped on a group -> move to that group
-                 targetGroupId = target.id;
+         if (this.isConnectionItem(droppedItem)) {
+             const droppedConnection = droppedItem as DatabaseConnection;
+
+             if (!target) {
+                 // Dropped on root (empty space) -> move to ungrouped, append at end
+                 this.provider.moveConnection(droppedConnection, undefined);
+                 return;
              }
-         } else {
-             // Dropped on root (undefined target) -> move to root (ungroup)
-             targetGroupId = undefined;
-         }
 
-         this.provider.moveConnection(droppedConnection, targetGroupId);
+             if (this.isConnectionItem(target)) {
+                 // Dropped on another connection → insert before the target connection
+                 const targetConn = target as DatabaseConnection;
+                 const targetGroupId = targetConn.groupId;
+
+                 // Find the target's index within its group
+                 const groupConns = this.provider.getConnectionsInGroup(targetGroupId);
+                 let targetIndex = groupConns.findIndex((c: DatabaseConnection) => c.id === targetConn.id);
+                 
+                 // Adjust for same-group moves (off-by-one after removal)
+                 if (targetIndex >= 0) {
+                     const droppedIndex = groupConns.findIndex((c: DatabaseConnection) => c.id === droppedConnection.id);
+                     if (droppedIndex >= 0 && droppedIndex < targetIndex) {
+                         // targetIndex--;
+                     }
+                 }
+                 
+                 this.provider.moveConnection(droppedConnection, targetGroupId, targetIndex >= 0 ? targetIndex : undefined);
+             } else if (this.isGroupItem(target)) {
+                 // Dropped on a group → append as last child in that group (Nesting)
+                 this.provider.moveConnection(droppedConnection, target.id);
+             }
+         } else if (this.isGroupItem(droppedItem)) {
+             // Dropped group
+             if (!target) {
+                // Dropped on root -> Move to end of groups list
+                const allGroups = this.provider.getGroups();
+                this.provider.moveGroup(droppedItem.id, allGroups.length);
+                return;
+             }
+
+             if (this.isGroupItem(target)) {
+                 // Dropped on another group → reorder: insert before the target group
+                 if (droppedItem.id === target.id) return;
+                 
+                 const allGroups = this.provider.getGroups();
+                 let targetIndex = allGroups.findIndex(g => g.id === target.id);
+                 if (targetIndex >= 0) {
+                     // Adjust for same-list off-by-one
+                     const droppedIndex = allGroups.findIndex(g => g.id === droppedItem.id);
+                     if (droppedIndex >= 0 && droppedIndex < targetIndex) {
+                         // targetIndex--;
+                     }
+                     this.provider.moveGroup(droppedItem.id, targetIndex);
+                 }
+             }
+         }
+    }
     }
 }
