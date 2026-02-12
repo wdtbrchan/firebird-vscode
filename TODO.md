@@ -9,7 +9,6 @@
 - [x] Prominently display currently selected database in SQL file tab
 - [x] Color settings for folders/databases to distinguish production and dev connections
 - [x] Icons for database objects in DB explorer for better readability
-- [ ] Edit records in results (with automatic primary key detection or manual selection)
 - [x] Keyboard shortcut to close Query result
 - [x] Keyboard shortcuts to Commit / Rollback
 - [x] Keyboard shortcut to connect DB
@@ -19,8 +18,6 @@
 - [x] Better SQL detection in non-SQL files
 - [x] Check functionality in Cursor editor (statusbar, icons in editor)
 - [x] Different formats for dates, numbers, null values
-- [ ] Export results to CSV
-- [ ] Support multiple simultaneous active database connections
 - [x] Bug: Query ending with a comment throws an error regarding unterminated query
 - [x] Fix alignment glitch in DB explorer
 - [x] Backup and restore connections in DB explorer
@@ -29,9 +26,13 @@
 - [x] Add affected rows count to query result
 - [x] Add db connection folder to codelens
 - [x] Try to show codelens with active db connection above active sql query
-- [ ] Refactor big source files
 - [x] Add rollback when closing query result
 - [x] Fix cursor position after query execution
 - [x] Switch Commit and rolback buttons positions
+- [ ] Refactor big source files
+- [ ] Copy results values to clipboard as list / table
+- [ ] Export results to CSV
+- [ ] Edit records in results (with automatic primary key detection or manual selection)
 - [ ] DDL formating - fix extra empty lines
+- [ ] Support multiple simultaneous active database connections
 - [ ] diff between SQL in the editor and actual DDL in database

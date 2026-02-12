@@ -142,13 +142,12 @@ export class ResultsPanel {
                 .executing-bar {
                     width: 100%;
                     box-sizing: border-box;
-                    background-color: #1e7e34;
+                    background-color: #333; /* Dark gray */
                     color: #fff;
                     padding: 0;
                     display: flex;
                     align-items: center;
-                    justify-content: space-between;
-                    font-weight: bold;
+                    justify-content: space-between;                   
                     flex-shrink: 0;
                     min-height: 60px;
                 }
@@ -164,6 +163,10 @@ export class ResultsPanel {
                     margin-right: 10px;
                 }
                 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                
+                /* Theme overrides */
+                body.vscode-light .executing-bar { background-color: #e0e0e0; color: #333; }
+                body.vscode-light .spinner { border: 2px solid rgba(0, 0, 0, 0.1); border-top: 2px solid #333; }
             </style>
         </head>
         <body>
@@ -451,6 +454,11 @@ export class ResultsPanel {
         const contextTitle = context || 'Unknown Database';
         const headerHtml = this._getHeaderHtml(contextTitle, connectionColor);
 
+        // Icons
+        const iconCommit = `<svg viewBox="0 0 16 16" width="28" height="28" fill="currentColor"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z" stroke="currentColor" stroke-width="2"/></svg>`;
+        const iconRollback = `<svg viewBox="0 0 16 16" width="28" height="28" fill="currentColor"><path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z" stroke="currentColor" stroke-width="2"/></svg>`;
+
+
         // --- 2. Info Bar Logic (Left 2/3 & Right 1/3) ---
         let firstLineQuery = '';
         if (this._currentQuery) {
@@ -481,28 +489,29 @@ export class ResultsPanel {
             rightSectionHtml += `
                 <div class="transaction-buttons">
                     <button class="btn-block rollback" onclick="rollback()" title="ROLLBACK" style="position: relative;">
-                        <svg viewBox="0 0 16 16" width="28" height="28" fill="currentColor"><path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z" stroke="currentColor" stroke-width="2"/></svg>
+                        ${iconRollback}
                         <span id="rollbackTimer" style="font-size: 10px; position: absolute; bottom: 4px; left: 0; right: 0; text-align: center;"></span>
                     </button>
                     <button class="btn-block commit" onclick="commit()" title="COMMIT">
-                        <svg viewBox="0 0 16 16" width="28" height="28" fill="currentColor"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z" stroke="currentColor" stroke-width="2"/></svg>
+                        ${iconCommit}
                     </button>
                 </div>
             `;
         } else if (transactionAction) {
              // Finished Transaction -> Status
-             let statusColor = '#666'; 
+             let statusClass = ''; 
              let icon = '';
-             if (transactionAction.toLowerCase().includes('committed')) {
-                 statusColor = '#1e7e34'; // Green
-                 icon = '✓';
-             } else if (transactionAction.toLowerCase().includes('roll')) {
-                 statusColor = '#8b0000'; // Red
-                 icon = '✗';
+             const actionLower = transactionAction.toLowerCase();
+             if (actionLower.includes('committed')) {
+                 statusClass = 'committed';
+                 icon = iconCommit;
+             } else if (actionLower.includes('roll')) {
+                 statusClass = 'rollbacked';
+                 icon = iconRollback;
              }
              
              rightSectionHtml += `
-                <div class="transaction-status" style="background-color: ${statusColor};">
+                <div class="transaction-status ${statusClass}">
                     <span style="font-size: 1.2em; margin-right: 8px;">${icon}</span>
                     <span style="font-weight: 600;">${transactionAction}</span>
                 </div>
@@ -544,17 +553,16 @@ export class ResultsPanel {
         } else {
              // Results Table or Empty Message
              if (!results || results.length === 0) {
-                 const bannerStyle = connectionColor ? `background-color: ${connectionColor}; color: #fff;` : `background-color: #666; color: #fff;`;
                  if (affectedRows !== undefined && affectedRows >= 0) {
                      contentHtml = `
-                        <div style="width: 100%; padding: 15px 20px; box-sizing: border-box; ${bannerStyle}">
+                        <div class="no-results-bar">
                             <div style="font-size: 1.1em; font-style: italic;">No rows returned.</div>
                             ${affectedRows > 0 ? `<div style="margin-top: 5px; font-weight: bold;">${affectedRows} rows affected.</div>` : ''}
                         </div>
                      `;
                  } else {
                      contentHtml = `
-                        <div style="width: 100%; padding: 15px 20px; box-sizing: border-box; ${bannerStyle}">
+                        <div class="no-results-bar">
                             <div style="font-size: 1.1em; font-style: italic;">No rows returned.</div>
                         </div>
                      `;
@@ -657,11 +665,13 @@ export class ResultsPanel {
                             updateTimer();
                         } else if (message.lastAction) {
                             const isCommit = message.lastAction.toLowerCase().includes('committed');
-                            const color = isCommit ? '#1e7e34' : '#8b0000';
-                            const icon = isCommit ? '✓' : '✗';
+                            const statusClass = isCommit ? 'committed' : 'rollbacked';
+                            const icon = isCommit 
+                                ? \`<svg viewBox="0 0 16 16" width="28" height="28" fill="currentColor"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z" stroke="currentColor" stroke-width="2"/></svg>\`
+                                : \`<svg viewBox="0 0 16 16" width="28" height="28" fill="currentColor"><path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z" stroke="currentColor" stroke-width="2"/></svg>\`;
                             area.innerHTML = \`
-                                <div class="transaction-status" style="background-color: \${color};">
-                                    <span style="font-size: 1.2em; margin-right: 8px;">\${icon}</span>
+                                <div class="transaction-status \${statusClass}">
+                                    <span style="font-size: 1.2em; margin-right: 8px; display: flex;">\${icon}</span>
                                     <span style="font-weight: 600;">\${message.lastAction}</span>
                                 </div>
                             \`;
@@ -691,6 +701,17 @@ export class ResultsPanel {
         // --- Styles ---
         const styles = `
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 0 !important; margin: 0 !important; font-size: 13px; display: flex; flex-direction: column; height: 100vh; background-color: transparent; overflow: hidden !important; }
+            
+            :root {
+                --trans-green: #3e5c3e; /* Dark grayish green */
+                --trans-red: #4d2626;   /* Dark grayish red */
+                --trans-txt: #ccc;
+            }
+            body.vscode-light {
+                --trans-green: #52ff52; /* Light grayish green */
+                --trans-red: #f76c6c;   /* Light grayish red */
+                --trans-txt: #444;
+            }
             
             /* Top Bar */
             .header-container {
@@ -734,11 +755,12 @@ export class ResultsPanel {
             .info-row.query { font-family: Consolas, 'Courier New', monospace; font-size: 0.9em; color: #fff; opacity: 0.9; }
             .info-row.stats { font-size: 0.85em; color: #aaa; display: flex; gap: 15px; }
             
-            .transaction-buttons { display: flex; width: 100%; height: 100%; }
+            .transaction-buttons { display: flex; width: 100%; height: 100%; background-color: transparent; gap: 0; }
             .btn-block {
                 flex: 1;
-                border: none;
-                color: white;
+                border: 0 !important;
+                outline: none !important;
+                color: var(--trans-txt);
                 cursor: pointer;
                 transition: opacity 0.2s;
                 display: flex;
@@ -751,10 +773,10 @@ export class ResultsPanel {
                 padding: 0;
             }
             .btn-block svg { filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
-            .btn-block.commit { background-color: #28a745; }
-            .btn-block.commit:hover { background-color: #218838; }
-            .btn-block.rollback { background-color: #8b0000; }
-            .btn-block.rollback:hover { background-color: #a50000; }
+            .btn-block.commit { background-color: var(--trans-green); }
+            .btn-block.commit:hover { filter: brightness(115%); }
+            .btn-block.rollback { background-color: var(--trans-red); }
+            .btn-block.rollback:hover { filter: brightness(115%); }
             
             .transaction-status {
                 width: 100%;
@@ -762,8 +784,10 @@ export class ResultsPanel {
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                color: white;
+                color: var(--trans-txt);
             }
+            .transaction-status.committed { background-color: var(--trans-green); }
+            .transaction-status.rollbacked { background-color: var(--trans-red); }
             .transaction-placeholder { background-color: #2e2e2e; width: 100%; height: 100%; }
 
             /* Content Area */
@@ -832,12 +856,14 @@ export class ResultsPanel {
             tbody tr:hover { background-color: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.1)); }
             tbody tr:hover .row-index { background-color: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.1)); }
             
+            .no-results-bar { width: 100%; padding: 15px 20px; box-sizing: border-box; background-color: #333; color: #fff; }
+            
             /* Error */
             .error-container {
                 padding: 20px;
                 display: flex;
                 gap: 15px;
-                background-color: #3e1b1b;
+                background-color: #333; /* Dark gray */
                 color: #ff9999;
                 border-bottom: 1px solid #5c2b2b;
             }
@@ -849,11 +875,14 @@ export class ResultsPanel {
             .empty-state { padding: 40px; text-align: center; }
             
             /* Theme overrides */
-            body.vscode-light .info-bar { background-color: #e0e0e0; color: #333; border-bottom: 1px solid #ccc; }
-            body.vscode-light .info-left { border-right: 1px solid #ccc; }
+            body.vscode-light .info-bar { background-color: #e0e0e0; color: #333; border-bottom: 1px solid #e5e5e5; }
+            body.vscode-light .info-left { border-right: 1px solid #e5e5e5; }
             body.vscode-light .info-row.query { color: #222; }
             body.vscode-light .transaction-placeholder { background-color: #d6d6d6; }
             body.vscode-light .error-container { background-color: #fff0f0; color: #d32f2f; border-bottom: 1px solid #ffcdd2; }
+            body.vscode-light th { background-color: #e0e0e0; color: #333; border-right: 1px solid #ccc; border-bottom: 2px solid #ccc; border-top: 1px solid #ccc; }
+            body.vscode-light .row-index { background-color: #f0f0f0; color: #666; border-right: 2px solid #ccc; }
+            body.vscode-light .no-results-bar { background-color: #e0e0e0; color: #333; }
             
             .null-value { color: #888; font-style: italic; }
             
