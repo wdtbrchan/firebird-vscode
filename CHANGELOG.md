@@ -1,6 +1,6 @@
 # Changelog
 
-## [ upcoming ]
+## [0.14.1]
 ### Fixes
 - **Query Results**: Fixed incorrect affected rows count for `UPDATE` statements using subqueries.
 
