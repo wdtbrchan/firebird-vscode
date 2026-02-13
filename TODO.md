@@ -33,8 +33,8 @@
 - [x] Add Drop to Procedures, Tables, Views and Generators
 - [x] Sort DB objects alphabetically in DB explorer
 - [x] Ability to reorder DB connections, scripts and folders
+- [x] Add settings to disable codelens in non SQL files (default: disabled)
 - [ ] Fix affected rows count
-- [ ] Add settings to disable codelens in non SQL files (default: disabled)
 - [ ] Add toggle between triggers subtree and triggers list
 - [ ] Refactor big source files
 - [ ] Copy results values to clipboard as list / table

@@ -6,6 +6,7 @@
 - **Explorer**: Added "DDL Script" option to Triggers context menu.
 - **Explorer**: Added "Drop" option for Procedures, Tables, Views, and Generators.
 - **Explorer**: Database objects (tables, views, procedures, etc.) are now sorted alphabetically.
+- **CodeLens**: Added `firebird.enableCodeLensInNonSqlFiles` setting to control CodeLens visibility in non-SQL files (disabled by default).
 
 ### Fixes
 - **Explorer**: Fixed Drag and Drop initialization where empty data transfer items were preventing the operation from starting.

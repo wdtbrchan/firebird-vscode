@@ -16,7 +16,9 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
 
         // Listen for configuration changes to refresh CodeLens
         this.disposables.push(vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration('firebird.enableCodeLens') || e.affectsConfiguration('firebird.allowedLanguages')) {
+            if (e.affectsConfiguration('firebird.enableCodeLens') || 
+                e.affectsConfiguration('firebird.enableCodeLensInNonSqlFiles') || 
+                e.affectsConfiguration('firebird.allowedLanguages')) {
                 this.refresh();
             }
         }));
@@ -50,6 +52,11 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
     public provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
         const config = vscode.workspace.getConfiguration('firebird');
         if (!config.get<boolean>('enableCodeLens', true)) {
+            return [];
+        }
+
+        const isSqlFile = document.languageId === 'sql';
+        if (!isSqlFile && !config.get<boolean>('enableCodeLensInNonSqlFiles', false)) {
             return [];
         }
 
@@ -144,7 +151,7 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
         // User might want to click to select.
         
         // In non-SQL files, don't show "No Active Connection" lens at top
-        if (document.languageId !== 'sql') {
+        if (!isSqlFile) {
             return [];
         }
 

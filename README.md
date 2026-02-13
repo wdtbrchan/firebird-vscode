@@ -60,4 +60,5 @@ $sql = "
 ";
 ```
 **Configuration:**
-Add the language identifier (e.g., "php") to `firebird.allowedLanguages` in VS Code settings to enable this feature for those files.
+- Add the language identifier (e.g., "php") to `firebird.allowedLanguages` in VS Code settings to enable this feature for those files.
+- Use `firebird.enableCodeLensInNonSqlFiles` (default: `false`) to control whether CodeLens should be displayed in these files.
