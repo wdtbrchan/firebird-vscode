@@ -1,5 +1,9 @@
 # Changelog
 
+## [ upcoming ]
+### Internal / Refactoring
+- **Results Panel**: Refactored monolithic `resultsPanel.ts` (962 lines) into a modular folder structure with separate template files for HTML, CSS, JS, icons, and page assembly.
+
 ## [0.14.0]
 ### Features
 - **Explorer**: Refined Drag and Drop behavior for Connections, Groups, Scripts, and Favorites. 

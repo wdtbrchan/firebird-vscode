@@ -36,7 +36,7 @@
 - [x] Add settings to disable codelens in non SQL files (default: disabled)
 - [ ] Fix affected rows count
 - [ ] Add toggle between triggers subtree and triggers list
-- [ ] Refactor big source files
+- [/] Refactor big source files
 - [ ] Copy results values to clipboard as list / table
 - [ ] Export results to CSV
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
