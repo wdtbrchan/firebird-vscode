@@ -1,6 +1,6 @@
 # Changelog
 
-## [ upcoming ]
+## [0.14.0]
 ### Features
 - **Explorer**: Refined Drag and Drop behavior for Connections, Groups, Scripts, and Favorites. 
 - **Explorer**: Added "DDL Script" option to Triggers context menu.
