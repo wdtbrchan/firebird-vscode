@@ -36,6 +36,7 @@
 - [x] Add settings to disable codelens in non SQL files (default: disabled)
 - [x] Refactor big source files
 - [x] Fix affected rows count
+- [x] Fix SQL pagination when using ROWS clause
 - [ ] Codelens for scripts with SET TERM command
 - [ ] Show indexes with dynamic columns
 - [ ] Show indexes columns in DB explorer tree

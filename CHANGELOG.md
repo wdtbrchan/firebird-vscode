@@ -1,5 +1,9 @@
 # Changelog
 
+## [ upcoming ]
+### Fixes
+- **Query Execution**: Fixed an issue where queries with `ROWS` clause would fail due to conflicting automatic pagination (`FIRST`/`SKIP`).
+
 ## [0.14.1]
 ### Fixes
 - **Query Results**: Fixed incorrect affected rows count for `UPDATE` statements using subqueries.

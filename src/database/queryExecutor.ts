@@ -3,6 +3,7 @@ import * as Firebird from 'node-firebird';
 import { TransactionManager } from './transactionManager';
 import { processResultRows, prepareQueryBuffer } from './encodingUtils';
 import { QueryOptions, QueryResult } from './types';
+import { applyPagination } from './paginationUtils';
 
 /**
  * Handles query execution, affected row counting, and metadata queries.
@@ -184,25 +185,9 @@ export class QueryExecutor {
         const config = vscode.workspace.getConfiguration('firebird');
         
         const cleanQuery = query.trim().replace(/;$/, '');
-        let finalQuery = cleanQuery;
         
-        // Regex to match SELECT and any leading comments/whitespace
-        const selectRegex = /^(\s*(?:\/\*[\s\S]*?\*\/|\-\-.*?\n|\s+)*)(select)(\s+first\s+\d+|\s+skip\s+\d+)?/i;
-        
-        const match = selectRegex.exec(cleanQuery);
-        const hasExistingPagination = match && match[3] ? true : false;
-        
-        if (queryOptions && queryOptions.limit && !hasExistingPagination && match) {
-            const limit = queryOptions.limit;
-            const skip = queryOptions.offset || 0;
-            
-            // Reconstruct the query: [comments] SELECT FIRST [limit] SKIP [skip] [rest of query]
-            const leading = match[1];
-            const selectWord = match[2];
-            const restOfQuery = cleanQuery.substring(match[0].length);
-            
-            finalQuery = `${leading}${selectWord} FIRST ${limit} SKIP ${skip}${restOfQuery}`;
-        }
+        // Use the helper method for pagination
+        const finalQuery = applyPagination(cleanQuery, queryOptions);
         
         const encodingConf = connection?.charset || config.get<string>('charset', 'UTF8');
         const options: Firebird.Options = {

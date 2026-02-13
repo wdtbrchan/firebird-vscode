@@ -545,7 +545,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "package": "vsce package",
-    "test-unit": "tsc -p ./ && node out/test/unit/queryExtractor.test.js && node out/test/unit/scriptParser.test.js"
+    "test-unit": "tsc -p ./ && node out/test/unit/queryExtractor.test.js && node out/test/unit/scriptParser.test.js && node out/test/unit/paginationUtils.test.js"
   },
   "devDependencies": {
     "@types/node": "^18.0.0",
