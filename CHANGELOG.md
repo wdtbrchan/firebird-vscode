@@ -1,6 +1,6 @@
 # Changelog
 
-## [ upcoming ]
+## [0.14.2]
 ### Fixes
 - **Query Execution**: Fixed an issue where queries with `ROWS` clause would fail due to conflicting automatic pagination (`FIRST`/`SKIP`).
 
