@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Database } from '../db';
+import { Database } from '../database';
 import { DatabaseTreeDataProvider } from '../explorer/databaseTreeDataProvider';
 import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
 

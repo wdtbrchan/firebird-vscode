@@ -1,5 +1,5 @@
 
-import { Database } from '../db';
+import { Database } from '../database';
 import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
 
 export class MetadataService {

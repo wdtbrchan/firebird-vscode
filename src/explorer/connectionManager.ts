@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { ConnectionEditor } from '../editors/connectionEditor';
-import { Database } from '../db';
+import { Database } from '../database';
 import { DatabaseConnection, ConnectionGroup } from './treeItems/databaseItems';
 
 /**

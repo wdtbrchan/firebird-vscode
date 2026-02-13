@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Database } from './db';
+import { Database } from './database';
 import { ResultsPanel } from './resultsPanel';
 import { DatabaseTreeDataProvider } from './explorer/databaseTreeDataProvider';
 import { DatabaseDragAndDropController } from './explorer/databaseDragAndDropController';

@@ -1,99 +1,17 @@
 import * as vscode from 'vscode';
 import * as Firebird from 'node-firebird';
-import * as iconv from 'iconv-lite';
-import { DatabaseConnection } from './explorer/databaseTreeDataProvider';
+import { TransactionManager } from './transactionManager';
+import { processResultRows, prepareQueryBuffer } from './encodingUtils';
+import { QueryOptions, QueryResult } from './types';
 
-export interface QueryOptions {
-    limit?: number;
-    offset?: number;
-}
+/**
+ * Handles query execution, affected row counting, and metadata queries.
+ */
+export class QueryExecutor {
 
-export interface QueryResult {
-    rows: any[];
-    affectedRows?: number;
-}
-
-export class Database {
-    private static db: Firebird.Database | undefined;
-    private static transaction: Firebird.Transaction | undefined;
-    private static autoRollbackTimer: NodeJS.Timeout | undefined;
-    private static autoRollbackDeadline: number | undefined;
-    private static currentOptions: Firebird.Options | undefined;
-
-    private static onStateChangeHandlers: ((hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) => void)[] = [];
-
-    public static onTransactionChange(handler: (hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) => void) {
-        this.onStateChangeHandlers.push(handler);
-    }
-
-    private static notifyStateChange(lastAction?: string) {
-        const isActive = this.hasActiveTransaction;
-        this.onStateChangeHandlers.forEach(h => h(isActive, this.autoRollbackDeadline, lastAction));
-    }
-
-    private static async processResultRows(result: any[], encodingConf: string, columnNames?: string[]): Promise<any[]> {
-        if (!Array.isArray(result)) return [];
-        
-        return Promise.all(result.map(async row => {
-            const newRow: any = {};
-            const isArray = Array.isArray(row);
-            // Check if row is array-like (has '0' key) to support node-firebird's object return format
-            const isNumeric = isArray || (row && typeof row === 'object' && '0' in row);
-            const keys = (columnNames && columnNames.length > 0) ? columnNames : Object.keys(row);
-
-            for (let i = 0; i < keys.length; i++) {
-                const key = keys[i];
-                let val = isNumeric ? row[i] : row[key];
-
-                if (val instanceof Buffer) {
-                    if (iconv.encodingExists(encodingConf)) {
-                        val = iconv.decode(val, encodingConf);
-                    } else {
-                        val = val.toString(); 
-                    }
-                } else if (typeof val === 'function') {
-                    // It's a BLOB (function)
-                    // Usage: val(function(err, name, eventEmitter) { ... })
-                    // We must read it inside the transaction context
-                    val = await new Promise((resolve, reject) => {
-                         val((err: any, name: any, emitter: any) => {
-                             if (err) return reject(err);
-                             let chunks: Buffer[] = [];
-                             emitter.on('data', (chunk: Buffer) => chunks.push(chunk));
-                             emitter.on('end', () => {
-                                 const buf = Buffer.concat(chunks);
-                                 if (iconv.encodingExists(encodingConf)) {
-                                     resolve(iconv.decode(buf, encodingConf));
-                                 } else {
-                                     resolve(buf.toString());
-                                 }
-                             });
-                             emitter.on('error', reject);
-                         });
-                    });
-                } else if (typeof val === 'string') {
-                    if (iconv.encodingExists(encodingConf)) {
-                        const buf = Buffer.from(val, 'binary');
-                        val = iconv.decode(buf, encodingConf);
-                    }
-                }
-                newRow[key] = val;
-            }
-            return newRow;
-        }));
-    }
-
-    private static prepareQueryBuffer(query: string, encodingConf: string): string {
-        let queryBuffer: Buffer;
-        if (iconv.encodingExists(encodingConf)) {
-            queryBuffer = iconv.encode(query, encodingConf);
-        } else {
-             queryBuffer = Buffer.from(query, 'utf8');
-        }
-        return queryBuffer.toString('binary');
-    }
-
-    // Using 'any' for connection to avoid circular dependency
+    /**
+     * Runs a simple metadata query using a one-shot connection (no transaction reuse).
+     */
     public static async runMetaQuery(connection: any, query: string): Promise<any[]> {
         const config = vscode.workspace.getConfiguration('firebird');
         const encodingConf = connection.charset || config.get<string>('charset', 'UTF8');
@@ -113,7 +31,7 @@ export class Database {
             Firebird.attach(options, (err, db) => {
                 if (err) return reject(err);
 
-                const finalQuery = this.prepareQueryBuffer(query, encodingConf);
+                const finalQuery = prepareQueryBuffer(query, encodingConf);
 
                 db.query(finalQuery, [], async (err, result) => {
                     if (err) {
@@ -122,7 +40,7 @@ export class Database {
                     }
                     
                     try {
-                        const rows = await this.processResultRows(result, encodingConf);
+                        const rows = await processResultRows(result, encodingConf);
                         try { db.detach(); } catch(e) {}
                         resolve(rows);
                     } catch(readErr) {
@@ -134,7 +52,10 @@ export class Database {
         });
     }
 
-    private static async getAffectedRows(statement: any, transaction: any): Promise<number | undefined> {
+    /**
+     * Fetches affected row count from a statement using internal Firebird protocol.
+     */
+    public static async getAffectedRows(statement: any, transaction: any): Promise<number | undefined> {
         return new Promise((resolve) => {
             if (!transaction || !transaction.connection || !transaction.connection._msg || !statement || !statement.handle) {
                 resolve(undefined);
@@ -230,6 +151,10 @@ export class Database {
         });
     }
 
+    /**
+     * Executes a query against the Firebird database.
+     * Handles SELECT pagination, DML affected rows, transaction reuse, and encoding.
+     */
     public static async executeQuery(query: string, connection?: { host: string, port: number, database: string, user: string, password?: string, role?: string, charset?: string }, queryOptions?: QueryOptions): Promise<QueryResult> {
         const config = vscode.workspace.getConfiguration('firebird');
         
@@ -237,9 +162,6 @@ export class Database {
         let finalQuery = cleanQuery;
         
         // Regex to match SELECT and any leading comments/whitespace
-        // Capture group 1: leading comments/spaces
-        // Capture group 2: the "SELECT" word itself
-        // Capture group 3: what follows (to check for FIRST/SKIP)
         const selectRegex = /^(\s*(?:\/\*[\s\S]*?\*\/|\-\-.*?\n|\s+)*)(select)(\s+first\s+\d+|\s+skip\s+\d+)?/i;
         
         const match = selectRegex.exec(cleanQuery);
@@ -273,34 +195,32 @@ export class Database {
             throw new Error('Database path is not configured. Please select a database in the explorer or set "firebird.database" in settings.');
         }
 
-        if (this.db && this.currentOptions) {
-            if (this.currentOptions.host !== options.host ||
-                this.currentOptions.database !== options.database) {
-                 await this.rollback(); 
+        if (TransactionManager.db && TransactionManager.currentOptions) {
+            if (TransactionManager.currentOptions.host !== options.host ||
+                TransactionManager.currentOptions.database !== options.database) {
+                 await TransactionManager.rollback(); 
             }
         }
 
-        this.currentOptions = options;
-        this.currentOptions = options;
+        TransactionManager.currentOptions = options;
         
         // Stop auto-rollback while executing
-        if (this.autoRollbackTimer) clearTimeout(this.autoRollbackTimer);
-        this.autoRollbackDeadline = undefined;
-        // this.notifyStateChange('Executing...'); // This overrides the loading screen in results panel
+        if (TransactionManager.autoRollbackTimer) clearTimeout(TransactionManager.autoRollbackTimer);
+        TransactionManager.autoRollbackDeadline = undefined;
 
         return new Promise((resolve, reject) => {
             const wrapResolve = (res: QueryResult) => {
-                this.resetAutoRollback();
+                TransactionManager.resetAutoRollback();
                 resolve(res);
             };
             const wrapReject = (err: any) => {
-                this.resetAutoRollback();
+                TransactionManager.resetAutoRollback();
                 reject(err);
             };
 
             const runQuery = (tr: Firebird.Transaction) => {
                 const trAny = tr as any; // Access internal methods
-                const queryString = this.prepareQueryBuffer(finalQuery, encodingConf);
+                const queryString = prepareQueryBuffer(finalQuery, encodingConf);
 
                 trAny.newStatement(queryString, (err: any, statement: any) => {
                     if (err) return wrapReject(err);
@@ -325,8 +245,7 @@ export class Database {
                                 statement.close();
                                 
                                 try {
-                                    // Row objects now have column names as keys thanks to { asObject: true }
-                                    const processed = await this.processResultRows(rows, encodingConf);
+                                    const processed = await processResultRows(rows, encodingConf);
                                     wrapResolve({ rows: processed });
                                 } catch (readErr) {
                                     wrapReject(readErr);
@@ -334,7 +253,6 @@ export class Database {
                             });
                         } else {
                             // DML (Insert/Update/Delete) or DDL
-                            // Try to fetch affected rows
                             let affectedRows: number | undefined;
                             try {
                                 affectedRows = await this.getAffectedRows(statement, tr);
@@ -343,25 +261,22 @@ export class Database {
                             }
 
                             statement.close(); 
-                            
-                            // For DML, result/output might be relevant but usually empty or just metadata
-                            // Use empty rows for DML
                             wrapResolve({ rows: [], affectedRows });
                         }
-                    }, { asObject: true }); // Pass { asObject: true } to get rows as objects
+                    }, { asObject: true });
                 });
             };
 
-            if (this.transaction) {
-                runQuery(this.transaction);
+            if (TransactionManager.transaction) {
+                runQuery(TransactionManager.transaction);
             } else {
                 const doAttach = (cb: (db: Firebird.Database) => void) => {
-                    if (this.db) {
-                        cb(this.db);
+                    if (TransactionManager.db) {
+                        cb(TransactionManager.db);
                     } else {
                         Firebird.attach(options, (err, db) => {
                             if (err) return wrapReject(err);
-                            this.db = db;
+                            TransactionManager.db = db;
                             cb(db);
                         });
                     }
@@ -370,8 +285,8 @@ export class Database {
                 doAttach((db) => {
                     db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err, tr) => {
                         if (err) return wrapReject(err);
-                        this.transaction = tr;
-                        this.notifyStateChange(); 
+                        TransactionManager.transaction = tr;
+                        TransactionManager.notifyStateChange(); 
                         runQuery(tr);
                     });
                 });
@@ -379,95 +294,10 @@ export class Database {
         });
     }
 
-    public static async commit(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            if (this.transaction) {
-                this.transaction.commit((err) => {
-                    this.transaction = undefined;
-                    this.notifyStateChange('Committed'); 
-                    this.cleanupConnection();
-                    if (err) reject(err);
-                    else resolve();
-                });
-            } else {
-                resolve();
-            }
-        });
-    }
-
-    public static async rollback(reason: string = 'Rolled back'): Promise<void> {
-        return new Promise((resolve, reject) => {
-            if (this.transaction) {
-                this.transaction.rollback((err) => {
-                    this.transaction = undefined;
-                    this.notifyStateChange(reason); 
-                    this.cleanupConnection();
-                    if (err) reject(err);
-                    else resolve();
-                });
-            } else {
-                 this.cleanupConnection(); 
-                resolve();
-            }
-        });
-    }
-
-    private static cleanupConnection() {
-        if (this.autoRollbackTimer) {
-            clearTimeout(this.autoRollbackTimer);
-            this.autoRollbackTimer = undefined;
-        }
-        if (this.db) {
-            try {
-                this.db.detach();
-            } catch (e) {}
-            this.db = undefined;
-            this.currentOptions = undefined;
-        }
-        this.autoRollbackDeadline = undefined;
-    }
-
-    private static resetAutoRollback() {
-        if (this.autoRollbackTimer) {
-            clearTimeout(this.autoRollbackTimer);
-        }
-        
-        const config = vscode.workspace.getConfiguration('firebird');
-        let timeoutSeconds = config.get<number>('autoRollbackTimeout', 60);
-        if (!timeoutSeconds || typeof timeoutSeconds !== 'number' || isNaN(timeoutSeconds)) {
-             timeoutSeconds = 60;
-        }
-
-        if (timeoutSeconds <= 0) {
-            this.autoRollbackDeadline = undefined;
-            if (this.transaction) {
-                 this.notifyStateChange();
-            }
-            return;
-        }
-
-        this.autoRollbackDeadline = Date.now() + (timeoutSeconds * 1000);
-
-        this.autoRollbackTimer = setTimeout(() => {
-            vscode.window.showInformationMessage('Firebird transaction auto-rolled back due to inactivity.');
-            this.rollback('Auto-rolled back');
-        }, timeoutSeconds * 1000);
-
-        if (this.transaction) {
-            this.notifyStateChange();
-        }
-    }
-
-    public static detach() {
-        this.rollback();
-    }
-
-    public static get hasActiveTransaction(): boolean {
-        return !!this.transaction;
-    }
-
-    public static async checkConnection(connection: DatabaseConnection): Promise<void> {
-        const config = vscode.workspace.getConfiguration('firebird');
+    /**
+     * Tests that a connection can be established.
+     */
+    public static async checkConnection(connection: any): Promise<void> {
         const options: Firebird.Options = {
             host: connection.host,
             port: connection.port,

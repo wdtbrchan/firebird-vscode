@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { Database } from '../db';
+import { Database } from '../database';
 import { resolveConnectionColor, getHeaderHtml } from './templates/headerTemplate';
 import { getLoadingHtml } from './templates/loadingTemplate';
 import { getResultsPageHtml } from './templates/resultsTemplate';
