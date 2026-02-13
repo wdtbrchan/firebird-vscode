@@ -1,6 +1,9 @@
 # Changelog
 
 ## [ upcoming ]
+### Fixes
+- **Query Results**: Fixed incorrect affected rows count for `UPDATE` statements using subqueries.
+
 ### Internal / Refactoring
 - **Results Panel**: Refactored monolithic `resultsPanel.ts` into a modular folder structure with separate template files for HTML, CSS, JS, icons, and page assembly.
 - **Explorer**: Refactored monolithic `databaseTreeDataProvider.ts` into modular sub-managers (`connectionManager`, `groupManager`, `favoritesManager`, `backupRestoreManager`).

@@ -35,9 +35,10 @@
 - [x] Ability to reorder DB connections, scripts and folders
 - [x] Add settings to disable codelens in non SQL files (default: disabled)
 - [x] Refactor big source files
+- [x] Fix affected rows count
+- [ ] Codelens for scripts with SET TERM command
 - [ ] Show indexes with dynamic columns
 - [ ] Show indexes columns in DB explorer tree
-- [ ] Fix affected rows count
 - [ ] Add toggle between triggers subtree and triggers list
 - [ ] Copy results values to clipboard as list / table
 - [ ] Export results to CSV

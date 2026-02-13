@@ -53,9 +53,22 @@ export class QueryExecutor {
     }
 
     /**
-     * Fetches affected row count from a statement using internal Firebird protocol.
+     * Detects the DML type from a SQL query string.
      */
-    public static async getAffectedRows(statement: any, transaction: any): Promise<number | undefined> {
+    private static detectDmlType(query: string): 'insert' | 'update' | 'delete' | undefined {
+        const trimmed = query.replace(/^\/\*[\s\S]*?\*\//g, '').replace(/^\s*--.*$/gm, '').trim();
+        const firstWord = trimmed.split(/\s+/)[0]?.toUpperCase();
+        if (firstWord === 'INSERT' || firstWord === 'MERGE') return 'insert';
+        if (firstWord === 'UPDATE') return 'update';
+        if (firstWord === 'DELETE') return 'delete';
+        return undefined;
+    }
+
+    /**
+     * Fetches affected row count from a statement using internal Firebird protocol.
+     * When dmlType is specified, returns only the count for that specific operation type.
+     */
+    public static async getAffectedRows(statement: any, transaction: any, dmlType?: 'insert' | 'update' | 'delete'): Promise<number | undefined> {
         return new Promise((resolve) => {
             if (!transaction || !transaction.connection || !transaction.connection._msg || !statement || !statement.handle) {
                 resolve(undefined);
@@ -67,8 +80,9 @@ export class QueryExecutor {
             // Constants
             const OP_INFO_SQL = 70; // Correct opcode (was incorrectly 19)
             const ISC_INFO_SQL_RECORDS = 23;
-            const ISC_INFO_REQ_INSERT_COUNT = 13;
-            const ISC_INFO_REQ_UPDATE_COUNT = 14;
+            const ISC_INFO_REQ_SELECT_COUNT = 13;
+            const ISC_INFO_REQ_INSERT_COUNT = 14;
+            const ISC_INFO_REQ_UPDATE_COUNT = 15;
             const ISC_INFO_REQ_DELETE_COUNT = 16;
             const ISC_INFO_END = 1;
 
@@ -92,7 +106,7 @@ export class QueryExecutor {
                 // Set up timeout to prevent hanging
                 timeoutId = setTimeout(() => {
                     resolve(undefined);
-                }, 1000); // 1s timeout
+                }, 5000); // 5s timeout
 
                 connection._queueEvent((err: any, response: any) => {
                     clearTimeout(timeoutId);
@@ -127,11 +141,22 @@ export class QueryExecutor {
                                     const count = buf.readUInt32LE(subPos);
                                     subPos += reqLen; // Should be 4
 
-                                    if (reqType === ISC_INFO_REQ_INSERT_COUNT || 
-                                        reqType === ISC_INFO_REQ_UPDATE_COUNT || 
-                                        reqType === ISC_INFO_REQ_DELETE_COUNT) {
-                                        totalAffected += count;
-                                        found = true;
+                                    if (dmlType) {
+                                        // Return only the count for the specific DML type
+                                        if ((dmlType === 'insert' && reqType === ISC_INFO_REQ_INSERT_COUNT) ||
+                                            (dmlType === 'update' && reqType === ISC_INFO_REQ_UPDATE_COUNT) ||
+                                            (dmlType === 'delete' && reqType === ISC_INFO_REQ_DELETE_COUNT)) {
+                                            totalAffected += count;
+                                            found = true;
+                                        }
+                                    } else {
+                                        // Fallback: sum all DML counts
+                                        if (reqType === ISC_INFO_REQ_INSERT_COUNT || 
+                                            reqType === ISC_INFO_REQ_UPDATE_COUNT || 
+                                            reqType === ISC_INFO_REQ_DELETE_COUNT) {
+                                            totalAffected += count;
+                                            found = true;
+                                        }
                                     }
                                 }
                             }
@@ -253,9 +278,10 @@ export class QueryExecutor {
                             });
                         } else {
                             // DML (Insert/Update/Delete) or DDL
+                            const dmlType = this.detectDmlType(cleanQuery);
                             let affectedRows: number | undefined;
                             try {
-                                affectedRows = await this.getAffectedRows(statement, tr);
+                                affectedRows = await this.getAffectedRows(statement, tr, dmlType);
                             } catch (e) {
                                 // Ignore error fetching affected rows
                             }

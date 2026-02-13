@@ -145,7 +145,7 @@ export function registerQueryCommands(
             ResultsPanel.createOrShow(context.extensionUri);
 
             cleanQuery = ParameterInjector.inject(cleanQuery);
-            
+
             if (ResultsPanel.currentPanel) {
                 await ResultsPanel.currentPanel.runNewQuery(cleanQuery, activeConn, contextTitle);
             }
