@@ -3,6 +3,7 @@
 ## [ upcoming ]
 ### Internal / Refactoring
 - **Results Panel**: Refactored monolithic `resultsPanel.ts` (962 lines) into a modular folder structure with separate template files for HTML, CSS, JS, icons, and page assembly.
+- **Explorer**: Refactored monolithic `databaseTreeDataProvider.ts` (1283 lines) into modular sub-managers (`connectionManager`, `groupManager`, `favoritesManager`, `backupRestoreManager`).
 
 ## [0.14.0]
 ### Features

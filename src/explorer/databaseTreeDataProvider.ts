@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { v4 as uuidv4 } from 'uuid';
 
 import { ConnectionEditor } from '../editors/connectionEditor';
 import { Database } from '../db';
@@ -41,32 +40,44 @@ import {
 import { DatabaseDragAndDropController } from './databaseDragAndDropController';
 export { DatabaseDragAndDropController };
 
+// Sub-modules
+import { FavoritesManager } from './favoritesManager';
+import { ConnectionManager } from './connectionManager';
+import { GroupManager } from './groupManager';
+import { backupConnections, restoreConnections } from './backupRestoreManager';
+
 export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem> {
     private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void>();
     readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
+    // Sub-managers
+    private favoritesManager: FavoritesManager;
+    private connectionManager: ConnectionManager;
+    private groupManager: GroupManager;
 
-    private connections: DatabaseConnection[] = [];
-    private groups: ConnectionGroup[] = [];
-    private activeConnectionId: string | undefined;
-    private failedConnectionIds: Map<string, string> = new Map(); // id -> error message
-    private connectingConnectionIds = new Set<string>();
     private _loading: boolean = true;
     private filters: Map<string, string> = new Map(); // key: connId|type -> filterValue
-    public favorites: Map<string, FavoriteItem[]> = new Map(); // key: connId -> items
     private treeView: vscode.TreeView<any> | undefined;
 
+    // Public access to favorites for DragAndDropController
+    public get favorites(): Map<string, FavoriteItem[]> {
+        return this.favoritesManager.favorites;
+    }
+
     constructor(private context: vscode.ExtensionContext) {
+        // Initialize sub-managers
+        this.favoritesManager = new FavoritesManager(context, () => this._onDidChangeTreeData.fire(undefined));
+        this.connectionManager = new ConnectionManager(context, () => this._onDidChangeTreeData.fire(undefined));
+        this.groupManager = new GroupManager(context, () => this.saveConnections());
+
         ScriptService.initialize(context);
         ScriptService.getInstance().onDidChangeScripts(() => this._onDidChangeTreeData.fire(undefined));
+        
         this.loadConnections();
+        
         // Load filters
         const savedFilters = this.context.globalState.get<any[]>('firebird.filters', []);
         savedFilters.forEach(f => this.filters.set(f.key, f.value));
-
-        // Load favorites
-        const savedFavorites = this.context.globalState.get<any[]>('firebird.favoritesList', []);
-        savedFavorites.forEach(f => this.favorites.set(f.key, f.value));
 
         // Simulate a short loading delay to ensure the UI renders the loading state
         // and doesn't flash "No data" if dependent on async activation
@@ -82,18 +93,13 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     }
 
     private loadConnections() {
-        const storedConns = this.context.globalState.get<DatabaseConnection[]>('firebird.connections');
+        this.connectionManager.loadConnections();
         const storedGroups = this.context.globalState.get<ConnectionGroup[]>('firebird.groups');
-        this.connections = storedConns || [];
-        this.groups = storedGroups || [];
-        this.activeConnectionId = undefined;
+        this.groupManager.load(storedGroups || []);
     }
 
     private saveConnections() {
-        this.context.globalState.update('firebird.connections', this.connections);
-        this.context.globalState.update('firebird.groups', this.groups);
-        this.context.globalState.update('firebird.activeConnectionId', this.activeConnectionId);
-        this._onDidChangeTreeData.fire(undefined);
+        this.connectionManager.saveConnections(this.groupManager.getGroups());
     }
 
     refresh(): void {
@@ -101,20 +107,21 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this._onDidChangeTreeData.fire(undefined);
     }
 
+    // --- Connection delegations ---
+
     public getConnectionById(id: string): DatabaseConnection | undefined {
-        return this.connections.find(c => c.id === id);
+        return this.connectionManager.getConnectionById(id);
     }
 
     public getConnectionsInGroup(groupId: string | undefined): DatabaseConnection[] {
-        if (groupId) {
-            return this.connections.filter(c => c.groupId === groupId);
-        }
-        return this.connections.filter(c => !c.groupId || !this.groups.find(g => g.id === c.groupId));
+        return this.connectionManager.getConnectionsInGroup(groupId, this.groupManager.getGroups());
     }
 
     public getGroups(): ConnectionGroup[] {
-        return this.groups;
+        return this.groupManager.getGroups();
     }
+
+    // --- TreeDataProvider implementation ---
 
     getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | PaddingItem | vscode.TreeItem): vscode.TreeItem {
         if (element instanceof vscode.TreeItem) {
@@ -126,27 +133,21 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             const isLocal = element.host === '127.0.0.1' || element.host === 'localhost';
             const label = element.name || path.basename(element.database);
             
-            const isActive = element.id === this.activeConnectionId;
-            // Only collapsed (expandable) if active. Otherwise None (leaf).
-            // Request: Expand by default if active
+            const isActive = element.id === this.connectionManager.getActiveConnectionId();
             const state = isActive ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.None;
 
             const treeItem = new vscode.TreeItem(label, state);
             
             treeItem.description = `${element.host}:${element.port}`;
             
-            
-            // Assign Resource URI to enable FileDecorationProvider
-            // Add timestamp to force cache busting for decorations
             treeItem.resourceUri = vscode.Uri.parse(`firebird-connection:/${element.id}`);
 
             treeItem.tooltip = `${element.user}@${element.host}:${element.port}/${element.database}`;
             treeItem.id = element.id;
-            treeItem.contextValue = 'database'; // Default context
+            treeItem.contextValue = 'database';
 
             let iconColor: vscode.ThemeColor | undefined;
             if (element.color) {
-                // Map custom color to ThemeColor
                 switch (element.color) {
                     case 'red': iconColor = new vscode.ThemeColor('charts.red'); break;
                     case 'orange': iconColor = new vscode.ThemeColor('charts.orange'); break;
@@ -158,7 +159,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             }
 
             if (isActive) {
-                // Use a generated SVG icon to ensure color persists even when focused/selected
                 const colorMap: {[key: string]: string} = {
                     'red': '#F14C4C',
                     'orange': '#d18616',
@@ -168,7 +168,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                     'purple': '#652d90'
                 };
                 
-                const hexColor = colorMap[element.color || ''] || '#37946e'; // Default to green
+                const hexColor = colorMap[element.color || ''] || '#37946e';
                 treeItem.iconPath = this.getIconUri(hexColor);
                 treeItem.label = label;
                 treeItem.contextValue = 'database-active';
@@ -179,9 +179,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                      treeItem.iconPath = new vscode.ThemeIcon('database');
                  }
                  
-                 // Also add command to select it on click if it's inactive?
-                 // Or we rely on context menu "Select Database".
-                 // Actually, standard behavior allows clicking to select if we bind a command.
                  treeItem.command = {
                      command: 'firebird.selectDatabase',
                      title: 'Select Database',
@@ -190,23 +187,22 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             }
 
             // Check for connecting state
-            if (this.connectingConnectionIds.has(element.id)) {
+            if (this.connectionManager.connectingConnectionIds.has(element.id)) {
                 treeItem.iconPath = new vscode.ThemeIcon('loading~spin');
                 treeItem.description = (treeItem.description || '') + ' (Connecting...)';
                 treeItem.contextValue = 'database-connecting';
             }
             // Check for failure state override (only if not connecting)
-            else if (this.failedConnectionIds.has(element.id)) {
+            else if (this.connectionManager.failedConnectionIds.has(element.id)) {
                 treeItem.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.red'));
                 treeItem.description = (treeItem.description || '') + ' (Disconnected)';
-                treeItem.tooltip = `Error: ${this.failedConnectionIds.get(element.id)}`;
+                treeItem.tooltip = `Error: ${this.connectionManager.failedConnectionIds.get(element.id)}`;
                 treeItem.contextValue = 'database-error';
             }
 
             return treeItem;
         } else {
             // It's a group
-            // Request: Expand groups by default
             const treeItem = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.Expanded);
             treeItem.id = element.id;
             treeItem.contextValue = 'group';
@@ -216,16 +212,14 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     }
 
     getParent(element: any): vscode.ProviderResult<any> {
-        // Handle DatabaseConnection
         if (element.host && element.database) { 
              const conn = element as DatabaseConnection;
              if (conn.groupId) {
-                 return this.groups.find(g => g.id === conn.groupId);
+                 return this.groupManager.getGroups().find(g => g.id === conn.groupId);
              }
              return undefined;
         }
         
-        // Handle FolderItem
         if (element instanceof FolderItem) {
             return element.connection;
         }
@@ -235,10 +229,10 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
 
 
     private getIconUri(color: string): vscode.Uri {
-        // Create a 16x16 square icon with the specified color
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" fill="${color}"/></svg>`;
         return vscode.Uri.parse(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
     }
+
     async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | PaddingItem | vscode.TreeItem)[]> {
         if (this._loading && !element) {
             return [];
@@ -247,19 +241,16 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         if (element) {
             if (element instanceof FavoritesRootItem) {
                 const favorites = this.favorites.get(element.connection.id) || [];
-                // Return top-level items
                 return favorites.map(f => {
                     if (f.type === 'folder') {
                         return new FavoriteFolderItem(f, element.connection);
                     } else if (f.type === 'script') {
                         return new FavoriteScriptItem(f, element.connection);
                     } else if (f.objectType === 'index') {
-                        // For index favorites, create a simplified item
                         return new FavoriteIndexItem(f, element.connection);
                     } else if (f.objectType === 'trigger') {
                         return new TriggerItem(element.connection, f.label, 0, false, true, f.id);
                     } else {
-                        // Use ObjectItem for favorite objects so they behave like normal objects (expandable etc.)
                         return new ObjectItem(f.label, f.objectType as 'table' | 'view' | 'trigger' | 'procedure' | 'generator' | 'function', element.connection, undefined, true, f.id);
                     }
                 });
@@ -281,14 +272,12 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                 }
                 return [];
             } else if (element instanceof FolderItem) {
-                // Return objects inside folder
                 try {
                     if (element.type === 'local-scripts') {
                          const service = ScriptService.getInstance();
                          const scripts = service.getScripts(element.connection.id);
                          const items: vscode.TreeItem[] = [];
                          
-                         // Scripts
                          for (const script of scripts) {
                              if (script.type === 'folder') {
                                  items.push(new ScriptFolderItem(script, element.connection.id));
@@ -301,11 +290,10 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
 
                     if (element.type === 'global-scripts') {
                          const service = ScriptService.getInstance();
-                         const scripts = service.getScripts(undefined); // Shared
+                         const scripts = service.getScripts(undefined);
                          const items: vscode.TreeItem[] = [];
                          
                          for (const script of scripts) {
-                             // Use undefined for connectionId to indicate global scope for children
                              if (script.type === 'folder') {
                                  items.push(new ScriptFolderItem(script, undefined));
                              } else {
@@ -318,7 +306,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                     const filter = this.getFilter(element.connection.id, element.type);
                     const resultItems: (ObjectItem | TriggerGroupItem | FilterItem)[] = [];
                     
-                    // Add FilterItem
                     // @ts-ignore - Validated type above
                     resultItems.push(new FilterItem(element.connection, element.type, filter));
 
@@ -331,7 +318,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                         case 'views':
                             return this.loadObjectList(element.connection, 'view', MetadataService.getViews.bind(MetadataService), filter);
                         case 'triggers':
-                            // Main triggers folder -> Collapsed groups (default), Expanded if filtering
                             const groups = await this.getGroupedTriggers(element.connection, undefined, filter, !!filter);
                             resultItems.push(...groups);
                             break;
@@ -346,7 +332,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                     return [];
                 }
             } else if (element instanceof TableTriggersItem) {
-                 // Table triggers -> Expanded groups
                  return this.getGroupedTriggers(element.connection, element.tableName, undefined, true);
             } else if (element instanceof TableIndexesItem) {
                  const indexes = await MetadataService.getIndexes(element.connection, element.tableName);
@@ -368,7 +353,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                  ops.push(new IndexOperationItem('Recompute statistics for index', 'recompute', element.connection, element.indexName));
                  return ops;
             } else if (element instanceof TriggerGroupItem) {
-                // Return triggers in this group, sorted by position
                 const sorted = element.triggers.sort((a, b) => {
                     const pa = a.sequence || 0;
                     const pb = b.sequence || 0;
@@ -381,7 +365,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                 });
             } else if (element instanceof TriggerItem) {
                  const ops: (TriggerOperationItem | OperationItem)[] = [];
-                 // Add DDL Script like for procedures
                  ops.push(new OperationItem('DDL Script', 'alter', new ObjectItem(element.triggerName, 'trigger', element.connection)));
 
                  ops.push(new TriggerOperationItem('Drop trigger', 'drop', element.connection, element.triggerName));
@@ -390,21 +373,17 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                  } else {
                      ops.push(new TriggerOperationItem('Deactivate trigger', 'deactivate', element.connection, element.triggerName));
                  }
-                 // Triggers in FB don't have "recompute statistics" like indexes
                  return ops;
             } else if (element instanceof ObjectItem) {
-                // Return operations (Create, Alter, Value)
                 const ops: (OperationItem | TableTriggersItem)[] = [];
                 
                 if (element.type === 'table') {
                     ops.push(new OperationItem('Create Script', 'create', element));
                     ops.push(new OperationItem('Alter Script', 'alter', element));
                     ops.push(new OperationItem('Drop table', 'drop', element));
-                    // Let's create a specialized TableTriggersItem.
                     ops.push(new TableIndexesItem(element.connection, element.objectName));
                     ops.push(new TableTriggersItem(element.connection, element.objectName));
                 } else if (['view', 'trigger', 'procedure'].includes(element.type)) {
-                    // For Views, Triggers, Procedures: Only "DDL Script" (which runs alter logic -> CREATE OR ALTER)
                     ops.push(new OperationItem('DDL Script', 'alter', element));
                     
                     if (element.type === 'view') {
@@ -414,7 +393,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                          ops.push(new OperationItem('Drop procedure', 'drop', element));
                     }
                 } else {
-                    // Generators, etc.
                     ops.push(new OperationItem('Create Script', 'create', element));
                     ops.push(new OperationItem('Alter Script', 'alter', element));
                 }
@@ -448,7 +426,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             }
             
             if ('host' in element) {
-                // It's a connection
                 return [
                     new FavoritesRootItem(element),
                     new FolderItem('Tables', 'tables', element),
@@ -460,20 +437,20 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
                     new FolderItem('Global Scripts', 'global-scripts', element)
                 ];
             } else {
-                // It's a group
-                const groupConns = this.connections.filter(c => c.groupId === element.id);
-                // Workaround: Add a padding item to fix alignment of the last real item
+                const groupConns = this.connectionManager.getConnections().filter(c => c.groupId === element.id);
                 return [...groupConns, new PaddingItem()];
             }
         }
         
         // Root
-        const rootGroups = this.groups;
-        const ungroupedConns = this.connections.filter(c => !c.groupId || !this.groups.find(g => g.id === c.groupId));
+        const rootGroups = this.groupManager.getGroups();
+        const connections = this.connectionManager.getConnections();
+        const ungroupedConns = connections.filter(c => !c.groupId || !rootGroups.find(g => g.id === c.groupId));
         
-        // Workaround: Add a padding item to fix alignment of the last real item
         return [...rootGroups, ...ungroupedConns, new PaddingItem()];
     }
+
+    // --- Tree helper methods ---
 
     private async loadObjectList(
         connection: DatabaseConnection, 
@@ -533,6 +510,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         }
     }
 
+    // --- Filter methods ---
+
     private getFilter(connectionId: string, type: string): string {
         return this.filters.get(`${connectionId}|${type}`) || '';
     }
@@ -546,737 +525,157 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         return items.filter(i => i.toLowerCase().includes(filter.toLowerCase()));
     }
 
+    // --- Delegations to GroupManager ---
+
     async createGroup() {
-        const name = await vscode.window.showInputBox({ prompt: 'Group Name' });
-        if (!name) return;
-        
-        const newGroup: ConnectionGroup = {
-            id: Date.now().toString(),
-            name
-        };
-        this.groups.push(newGroup);
-        this.saveConnections();
+        return this.groupManager.createGroup();
     }
 
     async renameGroup(group?: ConnectionGroup) {
-        if (!group) {
-            const items = this.groups.map(g => ({ label: g.name, description: g.id }));
-            const selected = await vscode.window.showQuickPick(items, { placeHolder: 'Select group to rename' });
-            if (!selected) return;
-            group = this.groups.find(g => g.id === selected.description);
-            if (!group) return;
-        }
-
-        const name = await vscode.window.showInputBox({ 
-            prompt: 'New Group Name',
-            value: group.name 
-        });
-        if (!name || name === group.name) return;
-        
-        const targetGroup = this.groups.find(g => g.id === group!.id);
-        if (targetGroup) {
-            targetGroup.name = name;
-            this.saveConnections();
-        }
+        return this.groupManager.renameGroup(group);
     }
 
     async deleteGroup(group: ConnectionGroup) {
-         // Move children to root? Or delete them? 
-         // Safest: Move to root (ungroup)
-         this.connections.forEach(c => {
-             if (c.groupId === group.id) {
-                 c.groupId = undefined;
-             }
-         });
-         
-         this.groups = this.groups.filter(g => g.id !== group.id);
-         this.saveConnections();
-    }
-
-    async backupConnections() {
-        const result = await vscode.window.showSaveDialog({
-            filters: { 'JSON': ['json'] },
-            defaultUri: vscode.Uri.file('firebird-connections.json'),
-            saveLabel: 'Backup'
-        });
-
-        if (!result) return;
-
-        // Convert favorites Map to object
-        const favoritesObj: { [key: string]: FavoriteItem[] } = {};
-        this.favorites.forEach((value, key) => {
-            favoritesObj[key] = value;
-        });
-
-        const scriptState = ScriptService.getInstance().getFullState();
-
-        const data = {
-            connections: this.connections,
-            groups: this.groups,
-            favorites: favoritesObj,
-            scripts: {
-                shared: scriptState.shared,
-                connections: scriptState.connections
-            }
-        };
-
-        try {
-            await vscode.workspace.fs.writeFile(result, Buffer.from(JSON.stringify(data, null, 2), 'utf8'));
-            vscode.window.showInformationMessage('Configuration backed up successfully.');
-        } catch (err: any) {
-            vscode.window.showErrorMessage(`Backup failed: ${err.message}`);
-        }
-    }
-
-    async restoreConnections() {
-        const result = await vscode.window.showOpenDialog({
-            canSelectMany: false,
-            filters: { 'JSON': ['json'] },
-            openLabel: 'Restore'
-        });
-
-        if (!result || result.length === 0) return;
-
-        try {
-            const content = await vscode.workspace.fs.readFile(result[0]);
-            const jsonStr = Buffer.from(content).toString('utf8');
-            const data = JSON.parse(jsonStr);
-
-            if (!Array.isArray(data.connections) && !Array.isArray(data.groups)) {
-                 vscode.window.showErrorMessage('Invalid backup file format: Missing connections or groups array.');
-                 return;
-            }
-
-            const choice = await vscode.window.showWarningMessage(
-                'Do you want to clear existing configuration before restoring?',
-                { modal: true },
-                'Yes, Clear and Restore',
-                'No, Merge'
-            );
-
-            if (!choice) return;
-
-            if (choice === 'Yes, Clear and Restore') {
-                this.connections = data.connections || [];
-                this.groups = data.groups || [];
-                
-                // Restore Favorites
-                this.favorites.clear();
-                if (data.favorites) {
-                    for (const key in data.favorites) {
-                        this.favorites.set(key, data.favorites[key]);
-                    }
-                }
-                
-                // Restore Scripts
-                if (data.scripts) {
-                    const state = {
-                        shared: data.scripts.shared || [],
-                        connections: data.scripts.connections || data.scripts.local || {}
-                    };
-                    ScriptService.getInstance().setFullState(state);
-                }
-
-                // Clear active connection if it was removed
-                if (this.activeConnectionId && !this.connections.find(c => c.id === this.activeConnectionId)) {
-                    this.activeConnectionId = undefined;
-                }
-            } else {
-                // Merge logic for Connections & Groups
-                const newConns = (data.connections || []) as DatabaseConnection[];
-                const newGroups = (data.groups || []) as ConnectionGroup[];
-
-                const existingConnIds = new Set(this.connections.map(c => c.id));
-                const existingGroupIds = new Set(this.groups.map(g => g.id));
-
-                let addedC = 0;
-                let addedG = 0;
-
-                for (const g of newGroups) {
-                    if (!existingGroupIds.has(g.id)) {
-                        this.groups.push(g);
-                        existingGroupIds.add(g.id);
-                        addedG++;
-                    }
-                }
-
-                for (const c of newConns) {
-                     if (!existingConnIds.has(c.id)) {
-                         this.connections.push(c);
-                         existingConnIds.add(c.id);
-                         addedC++;
-                     }
-                }
-
-                // Merge Favorites
-                if (data.favorites) {
-                    for (const connId in data.favorites) {
-                        const newFavs = data.favorites[connId] as FavoriteItem[];
-                        const existingFavs = this.favorites.get(connId) || [];
-                        this.mergeTrees(existingFavs, newFavs);
-                        this.favorites.set(connId, existingFavs);
-                    }
-                }
-
-                // Merge Scripts
-                if (data.scripts) {
-                    const scriptService = ScriptService.getInstance();
-                    const currentState = scriptService.getFullState();
-                    
-                    // Merge Shared
-                    if (data.scripts.shared) {
-                        this.mergeTrees(currentState.shared, data.scripts.shared);
-                    }
-
-                    // Merge Connections (local)
-                    const connectionScripts = data.scripts.connections || data.scripts.local;
-                    
-                    if (connectionScripts) {
-                        if (!currentState.connections) currentState.connections = {};
-                        for (const connId in connectionScripts) {
-                             if (!currentState.connections[connId]) currentState.connections[connId] = [];
-                             this.mergeTrees(currentState.connections[connId], connectionScripts[connId]);
-                        }
-                    }
-                    scriptService.setFullState(currentState);
-                }
-
-                 vscode.window.showInformationMessage(`Restored: ${addedC} new connections, ${addedG} new groups.`);
-            }
-
-            this.saveConnections();
-            this.saveFavorites();
-            
-            // Force full refresh
-            this.activeConnectionId = undefined; 
-            this.refresh();
-
-        } catch (err: any) {
-             vscode.window.showErrorMessage(`Restore failed: ${err.message}`);
-        }
-    }
-
-    // Helper for merging recursive tree structures (Favorites, Scripts) based on ID
-    private mergeTrees(existing: any[], incoming: any[]) {
-        for (const newItem of incoming) {
-            const existingItem = existing.find(e => e.id === newItem.id);
-            if (existingItem) {
-                // Item exists, merge children if they exist
-                 if (newItem.children && newItem.children.length > 0) {
-                     if (!existingItem.children) existingItem.children = [];
-                     this.mergeTrees(existingItem.children, newItem.children);
-                 }
-            } else {
-                // Item does not exist, add it
-                existing.push(newItem);
-            }
-        }
-    }
-
-    async addDatabase() {
-        ConnectionEditor.createOrShow(
-            this.context.extensionUri,
-            () => ({ groups: this.groups, connection: undefined }),
-            async (conn) => {
-                this.connections.push(conn);
-                if (this.connections.length === 1) {
-                    this.activeConnectionId = conn.id;
-                }
-                this.saveConnections();
-            }
-        );
-    }
-
-    async editDatabase(conn: DatabaseConnection) {
-        ConnectionEditor.createOrShow(
-            this.context.extensionUri,
-            () => ({ groups: this.groups, connection: conn }),
-            async (updatedConn) => {
-                // Find index using the ORIGINAL connection ID, in case ID changed or object ref implies identity
-                const index = this.connections.findIndex(c => c.id === conn.id);
-                if (index !== -1) {
-                    // Update connection and normalize data
-                    if (updatedConn.color) updatedConn.color = updatedConn.color.toLowerCase();
-                    
-                    this.connections[index] = updatedConn;
-                    this.saveConnections();
-                    
-                    // Force full refresh to properly reload tree and decorations
-                    this.refresh();
-                }
-            },
-            async (connToDelete) => {
-                this.removeDatabase(connToDelete);
-            }
-        );
-    }
-
-    moveConnection(conn: DatabaseConnection, targetGroupId: string | undefined, targetIndex?: number) {
-        const index = this.connections.findIndex(c => c.id === conn.id);
-        if (index === -1) return;
-
-        // Remove from current position
-        const [removed] = this.connections.splice(index, 1);
-        removed.groupId = targetGroupId;
-
-        if (targetIndex !== undefined) {
-            // Get connections in the target group to compute absolute insert position
-            const groupConns = this.connections.filter(c => 
-                targetGroupId ? c.groupId === targetGroupId : (!c.groupId || !this.groups.find(g => g.id === c.groupId))
-            );
-            
-            const clampedIndex = Math.min(targetIndex, groupConns.length);
-            if (clampedIndex < groupConns.length) {
-                // Insert before the connection at targetIndex in group
-                const refConn = groupConns[clampedIndex];
-                const absIndex = this.connections.indexOf(refConn);
-                this.connections.splice(absIndex, 0, removed);
-            } else {
-                // Append after last connection in group
-                if (groupConns.length > 0) {
-                    const lastConn = groupConns[groupConns.length - 1];
-                    const absIndex = this.connections.indexOf(lastConn);
-                    this.connections.splice(absIndex + 1, 0, removed);
-                } else {
-                    this.connections.push(removed);
-                }
-            }
-        } else {
-            // No target index, just append
-            this.connections.push(removed);
-        }
-
-        this.saveConnections();
+        return this.groupManager.deleteGroup(group, this.connectionManager.getConnections());
     }
 
     moveGroup(groupId: string, targetIndex: number) {
-        const index = this.groups.findIndex(g => g.id === groupId);
-        if (index === -1) return;
+        return this.groupManager.moveGroup(groupId, targetIndex);
+    }
 
-        const [removed] = this.groups.splice(index, 1);
-        const clampedIndex = Math.min(targetIndex, this.groups.length);
-        this.groups.splice(clampedIndex, 0, removed);
+    // --- Delegations to ConnectionManager ---
+
+    async addDatabase() {
+        return this.connectionManager.addDatabase(this.context.extensionUri, this.groupManager.getGroups(), () => this.saveConnections());
+    }
+
+    async editDatabase(conn: DatabaseConnection) {
+        return this.connectionManager.editDatabase(conn, this.context.extensionUri, this.groupManager.getGroups(), () => this.saveConnections(), () => this.refresh());
+    }
+
+    moveConnection(conn: DatabaseConnection, targetGroupId: string | undefined, targetIndex?: number) {
+        this.connectionManager.moveConnection(conn, targetGroupId, this.groupManager.getGroups(), targetIndex);
         this.saveConnections();
     }
 
     refreshDatabase(conn: DatabaseConnection) {
-        // Find the tree item corresponding to this connection to pass as element?
-        // Actually, onDidChangeTreeData accepts the element to refresh.
-        // We can reconstruct the element or pass the connection object if getTreeItem handles it.
-        // getTreeItem handles DatabaseConnection.
-        
-        // If we want to refresh children (tables etc), we fire with the connection.
         this._onDidChangeTreeData.fire(conn);
     }
 
     removeDatabase(conn: DatabaseConnection) {
-        this.connections = this.connections.filter(c => c.id !== conn.id);
-        if (this.activeConnectionId === conn.id) {
-            this.activeConnectionId = undefined;
-        }
-        this.saveConnections();
+        this.connectionManager.removeDatabase(conn, () => this.saveConnections());
     }
 
     disconnect(conn: DatabaseConnection) {
-        if (this.activeConnectionId === conn.id) {
-            this.activeConnectionId = undefined;
-            this.saveConnections();
-        }
+        this.connectionManager.disconnect(conn, () => this.saveConnections());
     }
 
     async setActive(conn: DatabaseConnection) {
-        // Try to connect first
-        this.connectingConnectionIds.add(conn.id);
-        this.saveConnections(); // Fire update to show spinner
-
-        try {
-            await Database.checkConnection(conn);
-            this.failedConnectionIds.delete(conn.id);
-        } catch (err: any) {
-            this.failedConnectionIds.set(conn.id, err.message);
-            vscode.window.showErrorMessage(`Failed to connect to ${conn.name || conn.database}: ${err.message}`);
-            // Remove from connecting list
-            this.connectingConnectionIds.delete(conn.id);
-            this.saveConnections(); 
-            return; 
-        }
-
-        // Connection success
-        this.connectingConnectionIds.delete(conn.id);
-        this.activeConnectionId = conn.id;
-        this.saveConnections();
-        
-        // Force expand the active connection
-        if (this.treeView) {
-            // We need to reveal the connection item.
-            // Since getTreeItem maps Connection -> TreeItem, and getChildren returns Connections,
-            // we should be able to reveal the Connection object itself as it is the element of the tree.
-            try {
-                // expand: true, select: true, focus: true
-                await this.treeView.reveal(conn, { expand: true, select: true, focus: true });
-            } catch (err) {
-                console.error('Failed to reveal connection:', err);
-            }
-        }
+        return this.connectionManager.setActive(conn, () => this.saveConnections(), this.treeView);
     }
 
     public getConnectionBySlot(slot: number): DatabaseConnection | undefined {
-        return this.connections.find(c => c.shortcutSlot === slot);
+        return this.connectionManager.getConnectionBySlot(slot);
     }
 
     getActiveConnectionDetails(): { name: string, group: string } | undefined {
-        const conn = this.getActiveConnection();
-        if (!conn) return undefined;
-        
-        const group = conn.groupId ? this.groups.find(g => g.id === conn.groupId)?.name : undefined;
-        return {
-            name: conn.name || path.basename(conn.database),
-            group: group || 'Root'
-        };
+        return this.connectionManager.getActiveConnectionDetails(this.groupManager.getGroups());
     }
 
     getActiveConnection(): DatabaseConnection | undefined {
-        return this.connections.find(c => c.id === this.activeConnectionId);
+        return this.connectionManager.getActiveConnection();
     }
 
-    // --- Script Favorites Helpers ---
+    // --- Delegations to BackupRestoreManager ---
+
+    async backupConnections() {
+        return backupConnections(
+            this.connectionManager.getConnections(),
+            this.groupManager.getGroups(),
+            this.favoritesManager.favorites
+        );
+    }
+
+    async restoreConnections() {
+        const result = await restoreConnections(
+            this.connectionManager.getConnections(),
+            this.groupManager.getGroups(),
+            this.favoritesManager.favorites
+        );
+
+        if (result) {
+            this.connectionManager.setConnections(result.connections);
+            this.groupManager.setGroups(result.groups);
+            
+            // Clear active connection if it was removed
+            if (this.connectionManager.getActiveConnectionId() && !result.connections.find(c => c.id === this.connectionManager.getActiveConnectionId())) {
+                this.connectionManager.setActiveConnectionId(undefined);
+            }
+
+            this.saveConnections();
+            this.favoritesManager.saveFavorites();
+            
+            // Force full refresh
+            this.connectionManager.setActiveConnectionId(undefined);
+            this.refresh();
+        }
+    }
+
+    // --- Delegations to FavoritesManager ---
 
     public isScriptFavorite(connectionId: string | undefined, scriptId: string): boolean {
-        // Search all connections for favorites with this scriptId
-        let found = false;
-        this.favorites.forEach((items) => {
-            const search = (list: FavoriteItem[]): boolean => {
-                for (const item of list) {
-                    if (item.type === 'script' && item.scriptId === scriptId) return true;
-                    if (item.children && search(item.children)) return true;
-                }
-                return false;
-            };
-            if (search(items)) found = true;
-        });
-        return found;
+        return this.favoritesManager.isScriptFavorite(connectionId, scriptId);
     }
 
     public async removeScriptFavorite(scriptId: string) {
-        // Search all connections for favorites with this scriptId and remove them
-        let changed = false;
-        this.favorites.forEach((items, connId) => {
-            const removeRecursive = (list: FavoriteItem[]): boolean => {
-                const idx = list.findIndex(i => i.type === 'script' && i.scriptId === scriptId);
-                if (idx !== -1) {
-                    list.splice(idx, 1);
-                    return true;
-                }
-                for (const child of list) {
-                    if (child.children && removeRecursive(child.children)) return true;
-                }
-                return false;
-            };
-            if (removeRecursive(items)) {
-                changed = true;
-            }
-        });
-        if (changed) {
-            this.saveFavorites();
-            this._onDidChangeTreeData.fire(undefined);
-        }
+        return this.favoritesManager.removeScriptFavorite(scriptId);
     }
 
-    // --- Favorites Management ---
-
     public async addFavoriteScript(connectionId: string, scriptId: string, scriptName: string) {
-        const items = this.favorites.get(connectionId) || [];
-        
-        // Check for duplicates?
-        if (this.getFavorite(connectionId, scriptId, 'script')) return;
-
-        const newItem: FavoriteItem = {
-            id: uuidv4(),
-            type: 'script',
-            label: scriptName,
-            scriptId: scriptId,
-            connectionId: connectionId
-        };
-
-        items.push(newItem);
-        this.favorites.set(connectionId, items);
-        this.saveFavorites();
+        return this.favoritesManager.addFavoriteScript(connectionId, scriptId, scriptName);
     }
 
     public async addFavorite(connection: DatabaseConnection, objectName: string, objectType: 'table' | 'view' | 'trigger' | 'procedure' | 'generator' | 'function' | 'index') {
-        const items = this.favorites.get(connection.id) || [];
-        
-        // Check if already exists at root level (or we could just add it)
-        // For simplicity, we add to root by default. 
-        // We might want to check if it's already in root to avoid duplicates?
-        // Let's allow duplicates in different folders, but maybe warn if in root?
-        
-        const newItem: FavoriteItem = {
-            id: uuidv4(),
-            type: 'object',
-            label: objectName,
-            objectType: objectType,
-            connectionId: connection.id
-        };
-
-        items.push(newItem);
-        this.favorites.set(connection.id, items);
-        this.saveFavorites();
+        return this.favoritesManager.addFavorite(connection, objectName, objectType);
     }
 
     public async removeFavorite(item: FavoriteItem) {
-        if (!item.connectionId) return;
-        
-        const items = this.favorites.get(item.connectionId) || [];
-        
-        const removeItemRecursive = (list: FavoriteItem[]): boolean => {
-            const index = list.findIndex(i => i.id === item.id);
-            if (index !== -1) {
-                list.splice(index, 1);
-                return true;
-            }
-            
-            for (const child of list) {
-                if (child.children) {
-                     if (removeItemRecursive(child.children)) return true;
-                }
-            }
-            return false;
-        };
-
-        if (removeItemRecursive(items)) {
-            this.favorites.set(item.connectionId, items);
-            this.saveFavorites();
-        }
+        return this.favoritesManager.removeFavorite(item);
     }
 
     public async clearFavorites(connectionId: string) {
-        if (this.favorites.has(connectionId)) {
-            this.favorites.set(connectionId, []);
-            this.saveFavorites();
-        }
+        return this.favoritesManager.clearFavorites(connectionId);
     }
 
     public async createFavoriteFolder(connection: DatabaseConnection, parent?: FavoriteItem) {
-        const name = await vscode.window.showInputBox({ prompt: 'Folder Name' });
-        if (!name) return;
-
-        const newFolder: FavoriteItem = {
-            id: uuidv4(),
-            type: 'folder',
-            label: name,
-            children: [],
-            connectionId: connection.id,
-            isExpanded: true
-        };
-
-        if (parent) {
-            // Find parent and add to its children
-            const rootItems = this.favorites.get(connection.id) || [];
-            const findAndAdd = (list: FavoriteItem[]): boolean => {
-                const p = list.find(i => i.id === parent.id);
-                if (p) {
-                    if (!p.children) p.children = [];
-                    p.children.push(newFolder);
-                    return true;
-                }
-                for (const item of list) {
-                    if (item.children) {
-                        if (findAndAdd(item.children)) return true;
-                    }
-                }
-                return false;
-            };
-            findAndAdd(rootItems);
-            this.favorites.set(connection.id, rootItems);
-        } else {
-             // Add to root
-             const items = this.favorites.get(connection.id) || [];
-             items.push(newFolder);
-             this.favorites.set(connection.id, items);
-        }
-        this.saveFavorites();
+        return this.favoritesManager.createFavoriteFolder(connection, parent);
     }
-    
+
     public async deleteFavoriteFolder(item: FavoriteItem) {
-         // Same as removeFavorite
-         this.removeFavorite(item);
+        return this.favoritesManager.deleteFavoriteFolder(item);
     }
 
     public async renameFavoriteFolder(item: FavoriteItem) {
-        if (!item.connectionId) return;
-        
-        const name = await vscode.window.showInputBox({ prompt: 'New Folder Name', value: item.label });
-        if (!name) return;
-
-        const items = this.favorites.get(item.connectionId) || [];
-        
-        const findAndRename = (list: FavoriteItem[]): boolean => {
-            const target = list.find(i => i.id === item.id);
-            if (target) {
-                target.label = name;
-                return true;
-            }
-             for (const child of list) {
-                if (child.children) {
-                     if (findAndRename(child.children)) return true;
-                }
-            }
-            return false;
-        };
-
-        if (findAndRename(items)) {
-             this.favorites.set(item.connectionId, items);
-             this.saveFavorites();
-        }
+        return this.favoritesManager.renameFavoriteFolder(item);
     }
 
     public async moveFavorite(movedItem: FavoriteItem, targetParent: FavoriteItem | undefined, targetIndex?: number) {
-        if (!movedItem.connectionId) return;
-        
-        const items = this.favorites.get(movedItem.connectionId) || [];
-        
-        // 1. Remove from old location
-        let removed: FavoriteItem | undefined;
-        
-        const removeRecursive = (list: FavoriteItem[]): boolean => {
-            const idx = list.findIndex(i => i.id === movedItem.id);
-            if (idx !== -1) {
-                removed = list[idx];
-                list.splice(idx, 1);
-                return true;
-            }
-            for (const child of list) {
-                if (child.children) {
-                    if (removeRecursive(child.children)) return true;
-                }
-            }
-            return false;
-        };
-
-        if (!removeRecursive(items)) return; // Not found?
-
-        // 2. Add to new location
-        if (targetParent) {
-            // Find parent
-            const addToParent = (list: FavoriteItem[]): boolean => {
-                const p = list.find(i => i.id === targetParent.id);
-                if (p) {
-                    if (!p.children) p.children = [];
-                    if (targetIndex !== undefined && targetIndex >= 0 && targetIndex <= p.children.length) {
-                        p.children.splice(targetIndex, 0, removed!);
-                    } else {
-                        p.children.push(removed!);
-                    }
-                    return true;
-                }
-                for (const child of list) {
-                   if (child.children) {
-                       if (addToParent(child.children)) return true;
-                   }
-                }
-                return false;
-            };
-            addToParent(items);
-        } else {
-            // Add to root
-            if (targetIndex !== undefined && targetIndex >= 0 && targetIndex <= items.length) {
-                items.splice(targetIndex, 0, removed!);
-            } else {
-                items.push(removed!);
-            }
-        }
-        
-        this.favorites.set(movedItem.connectionId, items);
-        this.saveFavorites();
+        return this.favoritesManager.moveFavorite(movedItem, targetParent, targetIndex);
     }
 
     public getFavorite(connectionId: string, objectName: string, objectType: string): FavoriteItem | undefined {
-        const items = this.favorites.get(connectionId) || [];
-        const find = (list: FavoriteItem[]): FavoriteItem | undefined => {
-            for (const item of list) {
-                if (item.type === 'object' && item.label === objectName && item.objectType === objectType) {
-                    return item;
-                }
-                if (item.type === 'script' && item.scriptId === objectName) { // reuse objectName param for scriptId or add new param?
-                    // overloading objectName as identifier for now if type is script
-                    return item;
-                }
-                if (item.children) {
-                    const found = find(item.children);
-                    if (found) return found;
-                }
-            }
-            return undefined;
-        };
-        return find(items);
+        return this.favoritesManager.getFavorite(connectionId, objectName, objectType);
     }
 
     public async removeFavoriteObject(connection: DatabaseConnection, objectName: string, objectType: string) {
-        const items = this.favorites.get(connection.id) || [];
-        
-        const findAndRemove = (list: FavoriteItem[]): boolean => {
-            const idx = list.findIndex(i => i.type === 'object' && i.label.toUpperCase() === objectName.toUpperCase() && i.objectType === objectType);
-            if (idx !== -1) {
-                list.splice(idx, 1);
-                return true;
-            }
-            for (const child of list) {
-                if (child.children) {
-                    if (findAndRemove(child.children)) return true;
-                }
-            }
-            return false;
-        };
+        return this.favoritesManager.removeFavoriteObject(connection, objectName, objectType);
+    }
 
-        if (findAndRemove(items)) {
-            this.favorites.set(connection.id, items);
-            this.saveFavorites();
-        }
+    public async removeFavoriteItem(item: FavoriteItem) {
+        return this.favoritesManager.removeFavoriteItem(item);
     }
 
     private saveFavorites() {
-        // Map to array of { key, value } for storage
-        const exportData: any[] = [];
-        this.favorites.forEach((value, key) => {
-            exportData.push({ key, value });
-        });
-        this.context.globalState.update('firebird.favoritesList', exportData);
-        this._onDidChangeTreeData.fire(undefined);
-    }
-    public async removeFavoriteItem(item: FavoriteItem) {
-        let changed = false;
-
-        const removeRecursive = (list: FavoriteItem[]): boolean => {
-             const idx = list.findIndex(i => i.id === item.id);
-             if (idx !== -1) {
-                 list.splice(idx, 1);
-                 return true;
-             }
-             for (const child of list) {
-                 if (child.children) {
-                     if (removeRecursive(child.children)) return true;
-                 }
-             }
-             return false;
-        };
-
-        if (item.connectionId && this.favorites.has(item.connectionId)) {
-            const items = this.favorites.get(item.connectionId)!;
-            if (removeRecursive(items)) {
-                changed = true;
-            }
-        } else {
-            // Fallback: search all connections if connectionId is missing (stuck items fix)
-            this.favorites.forEach((items, connId) => {
-                if (removeRecursive(items)) {
-                    changed = true;
-                }
-            });
-        }
-
-        if (changed) {
-            this.saveFavorites();
-        }
+        this.favoritesManager.saveFavorites();
     }
 }
