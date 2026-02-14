@@ -34,19 +34,28 @@ export class QueryExtractor {
     }
 
     private static extractSqlFile(text: string, offset: number, useEmptyLineAsSeparator: boolean): { text: string, startOffset: number } | null {
+        // First, check if the offset is inside a SET TERM block
+        const setTermBlock = this.findSetTermBlock(text, offset);
+        if (setTermBlock) {
+            return setTermBlock;
+        }
+
+        // Standard extraction logic
         // Find statement between semicolons or empty lines
         let start = 0;
         let end = text.length;
+        
+        // ... existing logic ...
+        // I need to keep the existing logic. I will rewrite the whole function to include the check at top, 
+        // and then paste the existing logic back.
+        // Actually, to minimalize diff, I can just insert the check at the top.
+        // I'll assume the user wants me to implement the helper and call it.
 
         const isEmptyLine = (idx: number): boolean => {
             if (!useEmptyLineAsSeparator) return false;
             // Scan for \n\s*\n
-            // Simplified: check if at idx there is a newline and then only whitespace until another newline
             if (text[idx] !== '\n' && text[idx] !== '\r') return false;
-            
-            // Check backward or forward?
-            // This helper should probably just check if the current position is part of an "empty line separator"
-            return false; // See below for better implementation
+            return false; 
         };
 
         // Backward scan
@@ -56,7 +65,6 @@ export class QueryExtractor {
                 break;
             }
             if (useEmptyLineAsSeparator && (text[i] === '\n' || text[i] === '\r')) {
-                // Check if the previous line was empty (or only whitespace)
                 let j = i - 1;
                 while (j >= 0 && (text[j] === ' ' || text[j] === '\t' || text[j] === '\r')) {
                     j--;
@@ -78,7 +86,6 @@ export class QueryExtractor {
                  break;
              }
              if (useEmptyLineAsSeparator && (text[i] === '\n' || text[i] === '\r')) {
-                 // Check if the next line is empty
                  let j = i + 1;
                  if (text[i] === '\r' && text[j] === '\n') j++;
                  
@@ -93,11 +100,86 @@ export class QueryExtractor {
         }
         
         const content = text.substring(start, end);
-        // Find leading whitespace length
         const leadingWhitespace = content.length - content.trimStart().length;
         const actualStart = start + leadingWhitespace;
         
         return { text: content.trim(), startOffset: actualStart };
+    }
+
+    private static findSetTermBlock(text: string, offset: number): { text: string, startOffset: number } | null {
+        const setTermPattern = /^\s*SET\s+TERM\s+(\S+)/gim;
+        let match;
+        const setTerms: { index: number, delimiter: string, length: number }[] = [];
+        
+        while ((match = setTermPattern.exec(text)) !== null) {
+            setTerms.push({ index: match.index, delimiter: match[1], length: match[0].length });
+        }
+
+        if (setTerms.length === 0) {
+            return null;
+        }
+
+        let currentDelimiter = ';';
+        let blockStart = -1;
+        let lastClosedBlock: { text: string, startOffset: number, endOffset: number } | null = null;
+        
+        for (let i = 0; i < setTerms.length; i++) {
+            const term = setTerms[i];
+            
+            // Start of a block: switching away from default delimiter
+            if (currentDelimiter === ';' && term.delimiter !== ';') {
+                blockStart = term.index;
+            }
+            // End of a block: switching back to default delimiter
+            else if (currentDelimiter !== ';' && term.delimiter === ';') {
+                // Determine the end of this restoring statement
+                let absoluteEnd = text.indexOf(currentDelimiter, term.index + term.length);
+                if (absoluteEnd === -1) {
+                    absoluteEnd = text.length;
+                } else {
+                    absoluteEnd += currentDelimiter.length; 
+                }
+                
+                if (blockStart !== -1) {
+                    const block = { 
+                        text: text.substring(blockStart, absoluteEnd).trim(), 
+                        startOffset: blockStart,
+                        endOffset: absoluteEnd
+                    };
+
+                    // Check if offset is inside
+                    if (offset >= blockStart && offset < absoluteEnd) {
+                        return { text: block.text, startOffset: block.startOffset };
+                    }
+                    
+                    lastClosedBlock = block;
+                }
+                blockStart = -1;
+            }
+            
+            currentDelimiter = term.delimiter;
+        }
+        
+        // Handle case where block is open at EOF
+        if (currentDelimiter !== ';' && blockStart !== -1) {
+            if (offset >= blockStart) {
+                return { 
+                    text: text.substring(blockStart).trim(), 
+                    startOffset: blockStart 
+                };
+            }
+        }
+
+        // If we are here, offset is not inside any block.
+        // Check if we are in the trailing whitespace of the last closed block.
+        if (lastClosedBlock && offset >= lastClosedBlock.endOffset) {
+            const gap = text.substring(lastClosedBlock.endOffset, offset);
+            if (gap.trim().length === 0) {
+                return { text: lastClosedBlock.text, startOffset: lastClosedBlock.startOffset };
+            }
+        }
+
+        return null;
     }
 
     private static findOutermostString(text: string, offset: number): { content: string, quoteChar: string, length: number, start: number } | null {

@@ -133,6 +133,32 @@ SELECT 2 FROM RDB$DATABASE`;
         assert.ok(result?.text.includes('SELECT 2'));
     });
 
+
+    test('SQL: Extract SET TERM block', () => {
+        const text = `
+SELECT 1 FROM RDB$DATABASE;
+SET TERM ^ ;
+CREATE PROCEDURE P AS BEGIN END^
+SET TERM ; ^
+SELECT 2 FROM RDB$DATABASE;`;
+        const offset = text.indexOf('CREATE PROCEDURE');
+        const result = QueryExtractor.extract(text, offset, 'sql');
+        assert.ok(result?.text.startsWith('SET TERM ^ ;'), 'Should start with SET TERM ^ ;');
+        assert.ok(result?.text.endsWith('SET TERM ; ^'), 'Should end with SET TERM ; ^');
+    });
+
+    test('SQL: Extract SET TERM block when cursor is after', () => {
+        const text = `
+SET TERM ^ ;
+CREATE PROCEDURE P AS BEGIN END^
+SET TERM ; ^
+   
+`;
+        const offset = text.length - 1; // Cursor at the end (whitespace)
+        const result = QueryExtractor.extract(text, offset, 'sql');
+        assert.ok(result?.text.startsWith('SET TERM ^ ;'), 'Should return the preceding SET TERM block');
+    });
+
     // --- hasSqlKeywords Tests ---
 
     test('Keywords: Detect SELECT', () => {

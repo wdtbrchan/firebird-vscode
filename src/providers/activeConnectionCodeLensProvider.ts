@@ -124,7 +124,7 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
             // We should only show special wrapping if we found a query.
             
             if (endRange) {
-                title = '- Start of query ' + title + ' - ';
+                title = `↓ ` + title;
             }
             
             const command: vscode.Command = {
@@ -137,7 +137,7 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
             
             if (endRange) {
                 const endCommand: vscode.Command = {
-                    title: `- End of query -`,
+                    title: `↑`,
                     command: 'firebird.selectDatabase',
                     arguments: [activeConnection]
                 };

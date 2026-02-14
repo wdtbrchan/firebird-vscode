@@ -1,5 +1,9 @@
 # Changelog
 
+## [ upcoming ]
+### Fixes
+- **CodeLens**: Fixed CodeLens detection for SQL scripts using `SET TERM` blocks (CodeLens now covers the entire script block instead of internal statements).
+
 ## [0.14.2]
 ### Fixes
 - **Query Execution**: Fixed an issue where queries with `ROWS` clause would fail due to conflicting automatic pagination (`FIRST`/`SKIP`).
