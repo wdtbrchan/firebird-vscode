@@ -1,6 +1,6 @@
 # Changelog
 
-## [ upcoming ]
+## [0.14.3]
 ### Fixes
 - **Explorer**: Added support for dynamic (expression-based) indexes in generated DDL.
 - **CodeLens**: Fixed CodeLens detection for SQL scripts using `SET TERM` blocks (CodeLens now covers the entire script block instead of internal statements).
