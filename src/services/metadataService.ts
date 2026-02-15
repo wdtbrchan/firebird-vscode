@@ -169,18 +169,14 @@ export class MetadataService {
             header += ' AS';
 
             // Formatting enhancements
-            // 1. DECLARE VARIABLE on new lines
-            source = source.replace(/DECLARE\s+VARIABLE/gi, '\nDECLARE VARIABLE');
-            // 2. BEGIN/END on new lines (simple heuristic)
-            // Be careful not to break strings/comments.
-            // A safe approach is hard without a full parser. 
-            // But usually BEGIN is followed by newline or starts a line.
-            // Let's just ensure there is a space or newline before BEGIN if previous char is not whitespace?
-            // User asked for "prehledny format".
+            // 1. DECLARE VARIABLE on new lines, removing extra empty lines before it
+            source = source.replace(/\s*DECLARE\s+VARIABLE/gi, '\nDECLARE VARIABLE');
             
-            // Basic indentation fix:
-            // Ensure BEGIN is on its own line?
-            // source = source.replace(/\s+BEGIN\s+/gi, '\nBEGIN\n'); 
+            // 2. Ensure BEGIN is on its own line, removing extra empty lines before it
+            // Only target the first BEGIN (case insensitive) to avoid messing up nested blocks
+            source = source.replace(/\s*BEGIN/i, '\nBEGIN');
+            
+            source = source.trim(); 
             
             return `${header}\n${source}`;
         } catch (err) {

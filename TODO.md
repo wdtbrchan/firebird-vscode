@@ -38,7 +38,7 @@
 - [x] Fix affected rows count
 - [x] Fix SQL pagination when using ROWS clause
 - [x] Codelens for scripts with SET TERM command
-- [ ] DDL formating - fix extra empty lines
+- [x] DDL formating - fix extra empty lines
 - [ ] Show indexes with dynamic columns
 - [ ] Show indexes columns in DB explorer tree
 - [ ] Show indexes, triggers, procedures, views in table info
