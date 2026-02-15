@@ -305,7 +305,7 @@ export class MetadataService {
 
     public static async getIndexDDL(connection: DatabaseConnection, indexName: string): Promise<string> {
         const queryIdx = `
-            SELECT RDB$RELATION_NAME, RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, RDB$INDEX_TYPE, RDB$STATISTICS
+            SELECT RDB$RELATION_NAME, RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, RDB$INDEX_TYPE, RDB$STATISTICS, RDB$EXPRESSION_SOURCE
             FROM RDB$INDICES 
             WHERE RDB$INDEX_NAME = '${indexName}'
         `;
@@ -328,11 +328,18 @@ export class MetadataService {
             // RDB$INDEX_TYPE: 1 = DESCENDING, 0 = ASCENDING
             const desc = idx.RDB$INDEX_TYPE === 1 ? 'DESCENDING' : 'ASCENDING'; 
             const statistics = idx.RDB$STATISTICS;
+            const expression = idx.RDB$EXPRESSION_SOURCE;
 
-            const segRows = await Database.runMetaQuery(connection, querySeg);
-            const columns = segRows.map(r => r.RDB$FIELD_NAME.trim()).join(', ');
+            let definition = '';
+            if (expression) {
+                definition = `COMPUTED BY (${expression.trim()})`;
+            } else {
+                const segRows = await Database.runMetaQuery(connection, querySeg);
+                const columns = segRows.map(r => r.RDB$FIELD_NAME.trim()).join(', ');
+                definition = `(${columns})`;
+            }
 
-            return `CREATE ${unique}${desc !== 'ASCENDING' ? desc + ' ' : ''}INDEX ${indexName} ON ${relation} (${columns});\n\n-- Status: ${inactive}\n-- Statistics: ${statistics}`;
+            return `CREATE ${unique}${desc !== 'ASCENDING' ? desc + ' ' : ''}INDEX ${indexName} ON ${relation} ${definition};\n\n-- Status: ${inactive}\n-- Statistics: ${statistics}`;
         } catch (err) {
              return `-- Error generating DDL for index ${indexName}: ${err}`;
         }

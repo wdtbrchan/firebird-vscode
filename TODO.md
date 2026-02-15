@@ -39,7 +39,7 @@
 - [x] Fix SQL pagination when using ROWS clause
 - [x] Codelens for scripts with SET TERM command
 - [x] DDL formating - fix extra empty lines
-- [ ] Show indexes with dynamic columns
+- [x] Show indexes with dynamic columns
 - [ ] Show indexes columns in DB explorer tree
 - [ ] Show indexes, triggers, procedures, views in table info
 - [ ] Show indexes in columns in table info

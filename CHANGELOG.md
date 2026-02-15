@@ -2,6 +2,7 @@
 
 ## [ upcoming ]
 ### Fixes
+- **Explorer**: Added support for dynamic (expression-based) indexes in generated DDL.
 - **CodeLens**: Fixed CodeLens detection for SQL scripts using `SET TERM` blocks (CodeLens now covers the entire script block instead of internal statements).
 - **Explorer**: Fixed extra empty lines in generated DDL for procedures around `DECLARE VARIABLE` and `BEGIN`.
 
