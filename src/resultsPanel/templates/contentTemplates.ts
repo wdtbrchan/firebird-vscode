@@ -46,14 +46,14 @@ export function getNoResultsHtml(affectedRows: number | undefined): string {
     if (affectedRows !== undefined && affectedRows >= 0) {
         return `
             <div class="no-results-bar">
-                <div style="font-size: 1.1em; font-style: italic;">No rows returned.</div>
+                <div style="font-size: 1.1em; font-style: italic;">Query executed successfully. No rows returned.</div>
                 ${affectedRows > 0 ? `<div style="margin-top: 5px; font-weight: bold;">${affectedRows} rows affected.</div>` : ''}
             </div>
         `;
     }
     return `
         <div class="no-results-bar">
-            <div style="font-size: 1.1em; font-style: italic;">No rows returned.</div>
+            <div style="font-size: 1.1em; font-style: italic;">Query executed successfully. No rows returned.</div>
         </div>
     `;
 }

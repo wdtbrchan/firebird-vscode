@@ -1,5 +1,9 @@
 # Changelog
 
+## [upcoming]
+### Fixes
+- **Query Results**: Added "Query executed successfully" message to the "No rows returned" state.
+
 ## [0.14.3]
 ### Fixes
 - **Explorer**: Added support for dynamic (expression-based) indexes in generated DDL.
