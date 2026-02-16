@@ -48,11 +48,12 @@ export class TriggerItem extends vscode.TreeItem {
             inactive ? 'INACTIVE' : ''
         ].filter(x => x).join(' ');
 
-        this.command = {
-             command: 'firebird.openObject',
-             title: 'Show Trigger Info',
-             arguments: ['trigger', triggerName, connection]
-        };
+        // Removed default command to open on click. Now it only expands/selects.
+        // this.command = {
+        //      command: 'firebird.openObject',
+        //      title: 'Show Trigger Info',
+        //      arguments: ['trigger', triggerName, connection]
+        // };
     }
 }
 

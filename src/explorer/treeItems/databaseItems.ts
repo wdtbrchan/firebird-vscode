@@ -75,12 +75,15 @@ export class ObjectItem extends vscode.TreeItem {
         }
         this.iconPath = new vscode.ThemeIcon(iconId);
 
-        // Keep command to open viewing panel on click
-        this.command = {
-            command: 'firebird.openObject',
-            title: 'Open Object',
-            arguments: [type, this.objectName, connection]
-        };
+        // Keep command to open viewing panel on click, EXCEPT for tables, triggers, procedures, generators, and views which use the info/source button
+        // (or rather, tables expand on click, and others will too)
+        if (type !== 'table' && type !== 'trigger' && type !== 'procedure' && type !== 'generator' && type !== 'view') {
+            this.command = {
+                command: 'firebird.openObject',
+                title: 'Open Object',
+                arguments: [type, this.objectName, connection]
+            };
+        }
     }
 }
 

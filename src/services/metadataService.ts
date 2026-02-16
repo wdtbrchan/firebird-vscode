@@ -2,6 +2,38 @@
 import { Database } from '../database';
 import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
 
+export interface TableColumn {
+    name: string;
+    type: string;
+    length: number;
+    precision?: number;
+    scale?: number;
+    notNull: boolean;
+    defaultValue?: string;
+    computedSource?: string;
+    pk?: boolean; // Primary Key
+    fk?: string;  // Foreign Key target table
+}
+
+export interface TableIndex {
+    name: string;
+    unique: boolean;
+    inactive: boolean;
+    columns: string;
+}
+
+export interface TableDependency {
+    name: string;
+    type: string; // 'View', 'Trigger', etc.
+}
+
+export interface TablePermission {
+    user: string;
+    privilege: string;
+    grantor: string;
+    grantOption: boolean;
+}
+
 export class MetadataService {
 
     public static async getTables(connection: DatabaseConnection): Promise<string[]> {
@@ -280,30 +312,157 @@ export class MetadataService {
         }
     }
 
-    public static async getIndexes(connection: DatabaseConnection, tableName: string): Promise<any[]> {
+    public static async getIndexes(connection: DatabaseConnection, tableName: string): Promise<TableIndex[]> {
         const query = `
-            SELECT RDB$INDEX_NAME, RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, RDB$STATISTICS
-            FROM RDB$INDICES
-            WHERE RDB$RELATION_NAME = '${tableName}'
-              AND (RDB$SYSTEM_FLAG IS NULL OR RDB$SYSTEM_FLAG = 0)
-            ORDER BY RDB$INDEX_NAME
+            SELECT i.RDB$INDEX_NAME, i.RDB$UNIQUE_FLAG, i.RDB$INDEX_INACTIVE, s.RDB$FIELD_NAME
+            FROM RDB$INDICES i
+            LEFT JOIN RDB$INDEX_SEGMENTS s ON i.RDB$INDEX_NAME = s.RDB$INDEX_NAME
+            WHERE i.RDB$RELATION_NAME = '${tableName}'
+              AND (i.RDB$SYSTEM_FLAG IS NULL OR i.RDB$SYSTEM_FLAG = 0)
+            ORDER BY i.RDB$INDEX_NAME, s.RDB$FIELD_POSITION
         `;
         
         try {
             const rows = await Database.runMetaQuery(connection, query);
-            return rows.map(row => ({
-                name: row.RDB$INDEX_NAME.trim(),
-                unique: row.RDB$UNIQUE_FLAG === 1,
-                inactive: row.RDB$INDEX_INACTIVE === 1,
-                statistics: row.RDB$STATISTICS
-            }));
+            const indexes = new Map<string, TableIndex>();
+
+            for (const row of rows) {
+                const name = row.RDB$INDEX_NAME.trim();
+                const col = row.RDB$FIELD_NAME ? row.RDB$FIELD_NAME.trim() : '';
+
+                if (!indexes.has(name)) {
+                    indexes.set(name, {
+                        name: name,
+                        unique: row.RDB$UNIQUE_FLAG === 1,
+                        inactive: row.RDB$INDEX_INACTIVE === 1,
+                        columns: col
+                    });
+                } else {
+                    const idx = indexes.get(name)!;
+                    if (col) idx.columns += `, ${col}`;
+                }
+            }
+            return Array.from(indexes.values());
         } catch (err) {
             console.error('Error getting indexes:', err);
             return [];
         }
     }
 
+    public static async getTableColumns(connection: DatabaseConnection, tableName: string): Promise<TableColumn[]> {
+        const query = `
+            SELECT 
+                rf.RDB$FIELD_NAME, 
+                f.RDB$FIELD_TYPE, 
+                f.RDB$FIELD_SUB_TYPE,
+                f.RDB$FIELD_LENGTH, 
+                f.RDB$FIELD_PRECISION, 
+                f.RDB$FIELD_SCALE, 
+                rf.RDB$NULL_FLAG,
+                rf.RDB$DEFAULT_SOURCE,
+                f.RDB$COMPUTED_SOURCE
+            FROM RDB$RELATION_FIELDS rf
+            JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
+            WHERE rf.RDB$RELATION_NAME = '${tableName}'
+            ORDER BY rf.RDB$FIELD_POSITION
+        `;
+
+        try {
+            const rows = await Database.runMetaQuery(connection, query);
+            return rows.map(row => ({
+                name: row.RDB$FIELD_NAME.trim(),
+                type: this.decodeType(row),
+                length: row.RDB$FIELD_LENGTH,
+                precision: row.RDB$FIELD_PRECISION,
+                scale: row.RDB$FIELD_SCALE,
+                notNull: row.RDB$NULL_FLAG === 1,
+                defaultValue: row.RDB$DEFAULT_SOURCE ? row.RDB$DEFAULT_SOURCE.trim() : undefined,
+                computedSource: row.RDB$COMPUTED_SOURCE ? row.RDB$COMPUTED_SOURCE.trim() : undefined
+            }));
+        } catch (err) {
+            console.error('Error getting table columns:', err);
+            return [];
+        }
+    }
+
+    public static async getTableDependencies(connection: DatabaseConnection, tableName: string): Promise<TableDependency[]> {
+         const query = `
+            SELECT DISTINCT d.RDB$DEPENDENT_NAME, d.RDB$DEPENDENT_TYPE
+            FROM RDB$DEPENDENCIES d
+            WHERE d.RDB$DEPENDED_ON_NAME = '${tableName}'
+              AND d.RDB$DEPENDED_ON_TYPE = 0 
+              AND d.RDB$DEPENDENT_TYPE = 1 
+            ORDER BY d.RDB$DEPENDENT_NAME
+        `;
+        try {
+            const rows = await Database.runMetaQuery(connection, query);
+            return rows.map(row => ({
+                name: row.RDB$DEPENDENT_NAME.trim(),
+                type: 'View' // We filtered for dependent_type = 1
+            }));
+        } catch (err) {
+            console.error('Error getting dependencies:', err);
+            return [];
+        }
+    }
+
+    public static async getTablePermissions(connection: DatabaseConnection, tableName: string): Promise<TablePermission[]> {
+        const query = `
+            SELECT RDB$USER, RDB$PRIVILEGE, RDB$GRANTOR, RDB$GRANT_OPTION
+            FROM RDB$USER_PRIVILEGES
+            WHERE RDB$RELATION_NAME = '${tableName}'
+              AND RDB$OBJECT_TYPE = 0
+            ORDER BY RDB$USER, RDB$PRIVILEGE
+        `;
+        try {
+            const rows = await Database.runMetaQuery(connection, query);
+            return rows.map(row => ({
+                user: row.RDB$USER.trim(),
+                privilege: this.decodePrivilege(row.RDB$PRIVILEGE.trim()),
+                grantor: row.RDB$GRANTOR.trim(),
+                grantOption: row.RDB$GRANT_OPTION === 1
+            }));
+        } catch (err) {
+            console.error('Error getting permissions:', err);
+            return [];
+        }
+    }
+
+    private static decodePrivilege(code: string): string {
+        switch (code) {
+            case 'S': return 'SELECT';
+            case 'D': return 'DELETE';
+            case 'I': return 'INSERT';
+            case 'U': return 'UPDATE';
+            case 'R': return 'REFERENCES';
+            case 'X': return 'EXECUTE';
+            default: return code;
+        }
+    }
+
     public static async getIndexDDL(connection: DatabaseConnection, indexName: string): Promise<string> {
+        try {
+            const details = await this.getIndexDetails(connection, indexName);
+            const unique = details.unique ? 'UNIQUE ' : '';
+            const desc = details.descending ? 'DESCENDING ' : 'ASCENDING ';
+            // definition already includes parens if computed, or column list if not? 
+            // In getIndexDetails:
+            // if expression -> COMPUTED BY (expr)
+            // else -> columns
+            
+            // Reconstruct logic slightly or just use details.
+            let definition = details.definition;
+            if (!definition.startsWith('COMPUTED BY')) {
+                definition = `(${definition})`;
+            }
+
+            return `CREATE ${unique}${desc !== 'ASCENDING ' ? desc : ''}INDEX ${indexName} ON ${details.relation} ${definition};\n\n-- Status: ${details.status}\n-- Statistics: ${details.statistics}`;
+        } catch (err) {
+            return `-- Error generating DDL for index ${indexName}: ${err}`;
+        }
+    }
+
+    public static async getIndexDetails(connection: DatabaseConnection, indexName: string): Promise<any> {
         const queryIdx = `
             SELECT RDB$RELATION_NAME, RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, RDB$INDEX_TYPE, RDB$STATISTICS, RDB$EXPRESSION_SOURCE
             FROM RDB$INDICES 
@@ -319,14 +478,13 @@ export class MetadataService {
 
         try {
             const idxRows = await Database.runMetaQuery(connection, queryIdx);
-            if (idxRows.length === 0) return `-- Index ${indexName} not found`;
+            if (idxRows.length === 0) throw new Error(`Index ${indexName} not found`);
 
             const idx = idxRows[0];
             const relation = idx.RDB$RELATION_NAME.trim();
-            const unique = idx.RDB$UNIQUE_FLAG === 1 ? 'UNIQUE ' : '';
-            const inactive = idx.RDB$INDEX_INACTIVE === 1 ? 'INACTIVE' : 'ACTIVE';
-            // RDB$INDEX_TYPE: 1 = DESCENDING, 0 = ASCENDING
-            const desc = idx.RDB$INDEX_TYPE === 1 ? 'DESCENDING' : 'ASCENDING'; 
+            const unique = idx.RDB$UNIQUE_FLAG === 1;
+            const inactive = idx.RDB$INDEX_INACTIVE === 1;
+            const descending = idx.RDB$INDEX_TYPE === 1;
             const statistics = idx.RDB$STATISTICS;
             const expression = idx.RDB$EXPRESSION_SOURCE;
 
@@ -336,12 +494,19 @@ export class MetadataService {
             } else {
                 const segRows = await Database.runMetaQuery(connection, querySeg);
                 const columns = segRows.map(r => r.RDB$FIELD_NAME.trim()).join(', ');
-                definition = `(${columns})`;
+                definition = columns;
             }
 
-            return `CREATE ${unique}${desc !== 'ASCENDING' ? desc + ' ' : ''}INDEX ${indexName} ON ${relation} ${definition};\n\n-- Status: ${inactive}\n-- Statistics: ${statistics}`;
+            return {
+                relation,
+                unique,
+                status: inactive ? 'INACTIVE' : 'ACTIVE',
+                descending,
+                statistics,
+                definition
+            };
         } catch (err) {
-             return `-- Error generating DDL for index ${indexName}: ${err}`;
+             throw err;
         }
     }
 }

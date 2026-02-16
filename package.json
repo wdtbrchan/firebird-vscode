@@ -200,6 +200,26 @@
         "icon": "$(trash)"
       },
       {
+        "command": "firebird.openTableInfo",
+        "title": "Table Info",
+        "icon": "$(info)"
+      },
+      {
+        "command": "firebird.openSourceInfo",
+        "title": "View Source",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "firebird.openIndexInfo",
+        "title": "Index Info",
+        "icon": "$(info)"
+      },
+      {
+        "command": "firebird.openGeneratorInfo",
+        "title": "Generator Info",
+        "icon": "$(info)"
+      },
+      {
         "command": "firebird.connectSlot1",
         "title": "Connect to Slot 1",
         "category": "Firebird"
@@ -510,6 +530,26 @@
         {
           "command": "firebird.addToFavorites",
           "when": "view == firebird.databases && (viewItem == table || viewItem == view || viewItem == trigger || viewItem == procedure || viewItem == generator || viewItem == function || viewItem == index-item || viewItem == script-file)",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.openTableInfo",
+          "when": "view == firebird.databases && (viewItem == table || viewItem == table-favorite || viewItem == table-triggers || viewItem == table-indexes)",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.openSourceInfo",
+          "when": "view == firebird.databases && (viewItem == trigger || viewItem == procedure || viewItem == view || viewItem == function)",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.openGeneratorInfo",
+          "when": "view == firebird.databases && viewItem == generator",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.openIndexInfo",
+          "when": "view == firebird.databases && viewItem == index-item",
           "group": "inline"
         },
         {

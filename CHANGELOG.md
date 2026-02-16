@@ -1,6 +1,14 @@
 # Changelog
 
 ## [upcoming]
+### Features
+- **Explorer**: Refined interaction for Database Objects (Tables, Views, Triggers, Procedures, Generators). Clicking an item now only selects/expands it to prevent accidental opening of large files.
+- **Explorer**: Added **Info button** for Tables, Indexes, and Generators to view detailed information (Structure, Statistics, Values) in a dedicated panel.
+- **Explorer**: Added **View Source button** for Triggers, Procedures, Views, and Functions to view the SQL definition in a window.
+- **Table Info**: Implemented a rich **Table Info View** displaying Columns, Indexes, Triggers, Dependencies, and Permissions.
+- **Index Info**: Implemented a rich **Index Info View** displaying detailed index properties and statistics.
+- **Generator Info**: Implemented a **Generator Info View** displaying the generator name and current value.
+
 ### Fixes
 - **Query Results**: Added "Query executed successfully" message to the "No rows returned" state.
 

@@ -45,11 +45,12 @@ export class IndexItem extends vscode.TreeItem {
             inactive ? 'INACTIVE' : ''
         ].filter(x => x).join(' ');
 
-        this.command = {
-             command: 'firebird.openObject',
-             title: 'Show Index Info',
-             arguments: ['index', indexName, connection]
-        };
+        // Removed default command. Now uses info button.
+        // this.command = {
+        //      command: 'firebird.openObject',
+        //      title: 'Show Index Info',
+        //      arguments: ['index', indexName, connection]
+        // };
     }
 }
 
