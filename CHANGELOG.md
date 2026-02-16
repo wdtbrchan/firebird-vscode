@@ -1,6 +1,6 @@
 # Changelog
 
-## [upcoming]
+## [0.15.0]
 ### Features
 - **Explorer**: Refined interaction for Database Objects (Tables, Views, Triggers, Procedures, Generators). Clicking an item now only selects/expands it to prevent accidental opening of large files.
 - **Explorer**: Added **Info button** for Tables, Indexes, and Generators to view detailed information (Structure, Statistics, Values) in a dedicated panel.
