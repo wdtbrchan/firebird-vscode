@@ -10,4 +10,5 @@ export interface QueryOptions {
 export interface QueryResult {
     rows: any[];
     affectedRows?: number;
+    hasMore?: boolean;
 }

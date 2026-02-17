@@ -61,7 +61,7 @@ export function getNoResultsHtml(affectedRows: number | undefined): string {
 /**
  * Returns the HTML for the results data table.
  */
-export function getResultsTableHtml(results: any[], locale: string, hasMore: boolean): string {
+export function getResultsTableHtml(results: any[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string): string {
     const columns = Object.keys(results[0]);
     const headerRow = '<th></th>' + columns.map(col => `<th>${col}</th>`).join('');
     
@@ -73,13 +73,26 @@ export function getResultsTableHtml(results: any[], locale: string, hasMore: boo
         return `<tr><td class="row-index">${index + 1}</td>${cells}</tr>`;
     }).join('');
 
+    let loadMoreButtonHtml = '';
+    if (hasMore) {
+        if (showButtons) {
+            loadMoreButtonHtml = `<div class="load-more-container"><button id="loadMoreBtn" onclick="loadMore()">Load More Results</button></div>`;
+        } else {
+             let btnText = 'Load More (Transaction closed)';
+             if (transactionAction && transactionAction.toLowerCase().includes('rolled back')) {
+                 btnText = 'Load More (Rolled back)';
+             }
+             loadMoreButtonHtml = `<div class="load-more-container"><button id="loadMoreBtn" disabled>${btnText}</button></div>`;
+        }
+    }
+
     return `
         <div class="table-container">
             <table>
                 <thead><tr>${headerRow}</tr></thead>
                 <tbody>${rowsHtml}</tbody>
             </table>
-            ${hasMore ? `<div class="load-more-container"><button id="loadMoreBtn" onclick="loadMore()">Load More Results</button></div>` : ''}
+            ${loadMoreButtonHtml}
         </div>
     `;
 }

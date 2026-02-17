@@ -63,7 +63,7 @@ export function getResultsPageHtml(params: ResultsPageParams): string {
     } else if (!params.results || params.results.length === 0) {
         contentHtml = getNoResultsHtml(params.affectedRows);
     } else {
-        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore);
+        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction);
     }
 
     // --- Scripts ---

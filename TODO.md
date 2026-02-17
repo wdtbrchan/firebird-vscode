@@ -41,6 +41,7 @@
 - [x] DDL formating - fix extra empty lines
 - [x] Show indexes with dynamic columns
 - [x] Show indexes, triggers, procedures, views in table info
+- [x] Implement incremental fetching using cursors instead of FIRST/SKIP
 - [ ] Show indexes in columns in table info
 - [ ] Add toggle between triggers subtree and triggers list
 - [ ] Copy results values to clipboard as list / table

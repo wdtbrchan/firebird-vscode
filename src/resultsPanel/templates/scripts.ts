@@ -75,6 +75,18 @@ export function getWebviewScripts(autoRollbackAt: number): string {
                                 <span style="font-weight: 600;">\${message.lastAction}</span>
                             </div>
                         \`;
+                        
+                        // Disable Load More button on transaction end
+                        const loadMoreBtn = document.getElementById('loadMoreBtn');
+                        if (loadMoreBtn) {
+                            loadMoreBtn.disabled = true;
+                            if (!isCommit) { // Rolled back
+                                loadMoreBtn.innerText = 'Load More (Rolled back)';
+                            } else {
+                                loadMoreBtn.innerText = 'Load More (Transaction closed)';
+                            }
+                        }
+
                         rollbackDeadline = 0;
                         updateTimer();
                     }

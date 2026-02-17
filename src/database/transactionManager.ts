@@ -13,6 +13,9 @@ export class TransactionManager {
     static autoRollbackTimer: NodeJS.Timeout | undefined;
     static autoRollbackDeadline: number | undefined;
     static currentOptions: Firebird.Options | undefined;
+    static activeStatement: any | undefined;
+    static activeQuery: string | undefined;
+    static activeConnectionInfo: string | undefined;
 
     private static onStateChangeHandlers: StateChangeHandler[] = [];
 
@@ -63,6 +66,12 @@ export class TransactionManager {
             clearTimeout(this.autoRollbackTimer);
             this.autoRollbackTimer = undefined;
         }
+        if (this.activeStatement) {
+            try { this.activeStatement.close(); } catch (e) {}
+            this.activeStatement = undefined;
+        }
+        this.activeQuery = undefined;
+        this.activeConnectionInfo = undefined;
         if (this.db) {
             try {
                 this.db.detach();

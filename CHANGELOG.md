@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.16.0]
+### Features
+- **Query Execution**: Implemented **Incremental Fetching** using low-level database cursors (`statement.fetch`). This replaces the previous `FIRST/SKIP` pagination, providing better performance and avoiding SQL syntax conflicts.
+- **Query Results**: The "Load More" button is now disabled and displays status (e.g., "(Rolled back)") when the transaction is closed.
+
+### Internal / Refactoring
+- **Query Execution**: Removed the `paginationUtils` module as automatic query modification is no longer necessary.
+- **Database Layer**: Updated `TransactionManager` to maintain active statement state across multiple fetch requests.
+
 ## [0.15.0]
 ### Features
 - **Explorer**: Refined interaction for Database Objects (Tables, Views, Triggers, Procedures, Generators). Clicking an item now only selects/expands it to prevent accidental opening of large files.

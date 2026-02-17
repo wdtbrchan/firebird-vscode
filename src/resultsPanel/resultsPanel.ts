@@ -219,6 +219,7 @@ export class ResultsPanel {
             });
             const results = queryResult.rows;
             const affectedRows = queryResult.affectedRows;
+            const hasMore = queryResult.hasMore || false;
 
             const end = performance.now();
             if (!append) {
@@ -226,24 +227,17 @@ export class ResultsPanel {
             }
             const hasTransaction = Database.hasActiveTransaction;
 
-            this._useClientSidePagination = !append && results.length > this._limit;
+            this._useClientSidePagination = false; // Disable client-side pagination, now using true incremental fetch
             
             let displayResults: any[];
-            let hasMore: boolean;
             
-            if (this._useClientSidePagination) {
-                this._allResults = results;
-                displayResults = results.slice(0, this._limit);
-                hasMore = results.length > this._limit;
-            } else if (append) {
+            if (append) {
                 this._lastResults = [...this._lastResults, ...results];
                 displayResults = results; // Use newly fetched results for append
-                hasMore = results.length === this._limit;
             } else {
                 this._allResults = [];
                 this._lastResults = results;
                 displayResults = results;
-                hasMore = results.length === this._limit;
             }
             
             if (!append) {

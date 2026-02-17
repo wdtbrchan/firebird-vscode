@@ -3,7 +3,6 @@ import * as Firebird from 'node-firebird';
 import { TransactionManager } from './transactionManager';
 import { processResultRows, prepareQueryBuffer } from './encodingUtils';
 import { QueryOptions, QueryResult } from './types';
-import { applyPagination } from './paginationUtils';
 
 /**
  * Handles query execution, affected row counting, and metadata queries.
@@ -186,8 +185,8 @@ export class QueryExecutor {
         
         const cleanQuery = query.trim().replace(/;$/, '');
         
-        // Use the helper method for pagination
-        const finalQuery = applyPagination(cleanQuery, queryOptions);
+        // Final query is just the clean query (pagination is handled via cursors)
+        const finalQuery = cleanQuery;
         
         const encodingConf = connection?.charset || config.get<string>('charset', 'UTF8');
         const options: Firebird.Options = {
@@ -231,51 +230,91 @@ export class QueryExecutor {
             const runQuery = (tr: Firebird.Transaction) => {
                 const trAny = tr as any; // Access internal methods
                 const queryString = prepareQueryBuffer(finalQuery, encodingConf);
+                const limit = queryOptions?.limit || 1000;
+                const offset = queryOptions?.offset || 0;
+                const connectionInfo = `${options.host}:${options.database}`;
 
-                trAny.newStatement(queryString, (err: any, statement: any) => {
-                    if (err) return wrapReject(err);
-                    
-                    // Pass { asObject: true } to get rows as objects with column names
-                    statement.execute(tr, [], async (err: any, result: any, output: any, isSelect: boolean) => {
+                const executeOnStatement = (stmt: any) => {
+                    stmt.execute(tr, [], async (err: any, result: any, output: any, isSelect: boolean) => {
                         if (err) return wrapReject(err);
                         
-                        // Fallback logic for isSelect if it's undefined
                         if (isSelect === undefined) {
-                             // Check statement type: 1 = SELECT
-                             isSelect = (statement.type === 1); 
+                             isSelect = (stmt.type === 1); 
                         }
 
                         if (isSelect) {
-                            statement.fetchAll(tr, async (err: any, rows: any[]) => {
+                            TransactionManager.activeStatement = stmt;
+                            TransactionManager.activeQuery = finalQuery;
+                            TransactionManager.activeConnectionInfo = connectionInfo;
+
+                            stmt.fetch(tr, limit, async (err: any, ret: any) => {
                                 if (err) {
-                                    statement.close();
+                                    stmt.close();
+                                    TransactionManager.activeStatement = undefined;
                                     return wrapReject(err);
                                 }
                                 
-                                statement.close();
-                                
                                 try {
-                                    const processed = await processResultRows(rows, encodingConf);
-                                    wrapResolve({ rows: processed });
+                                    const processed = await processResultRows(ret.data || [], encodingConf);
+                                    wrapResolve({ 
+                                        rows: processed, 
+                                        hasMore: !ret.fetched && (ret.data?.length === limit)
+                                    });
                                 } catch (readErr) {
                                     wrapReject(readErr);
                                 }
                             });
                         } else {
-                            // DML (Insert/Update/Delete) or DDL
                             const dmlType = this.detectDmlType(cleanQuery);
                             let affectedRows: number | undefined;
                             try {
-                                affectedRows = await this.getAffectedRows(statement, tr, dmlType);
-                            } catch (e) {
-                                // Ignore error fetching affected rows
-                            }
+                                affectedRows = await this.getAffectedRows(stmt, tr, dmlType);
+                            } catch (e) {}
 
-                            statement.close(); 
+                            stmt.close(); 
+                            TransactionManager.activeStatement = undefined;
                             wrapResolve({ rows: [], affectedRows });
                         }
                     }, { asObject: true });
-                });
+                };
+
+                const fetchMore = (stmt: any) => {
+                    stmt.fetch(tr, limit, async (err: any, ret: any) => {
+                        if (err) {
+                            stmt.close();
+                            TransactionManager.activeStatement = undefined;
+                            return wrapReject(err);
+                        }
+                        
+                        try {
+                            const processed = await processResultRows(ret.data || [], encodingConf);
+                            wrapResolve({ 
+                                rows: processed, 
+                                hasMore: !ret.fetched && (ret.data?.length === limit)
+                            });
+                        } catch (readErr) {
+                            wrapReject(readErr);
+                        }
+                    });
+                };
+
+                // Logic for reusing statement
+                if (offset > 0 && TransactionManager.activeStatement && 
+                    TransactionManager.activeQuery === finalQuery && 
+                    TransactionManager.activeConnectionInfo === connectionInfo) {
+                    fetchMore(TransactionManager.activeStatement);
+                } else {
+                    // Start new query
+                    if (TransactionManager.activeStatement) {
+                        try { TransactionManager.activeStatement.close(); } catch(e) {}
+                        TransactionManager.activeStatement = undefined;
+                    }
+                    
+                    trAny.newStatement(queryString, (err: any, statement: any) => {
+                        if (err) return wrapReject(err);
+                        executeOnStatement(statement);
+                    });
+                }
             };
 
             if (TransactionManager.transaction) {
