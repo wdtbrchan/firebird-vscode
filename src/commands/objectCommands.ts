@@ -228,7 +228,13 @@ export function registerObjectCommands(
                 }
             } else if (mode === 'create') {
                 switch (type) {
-                    case 'table': script = await MetadataService.getTableDDL(connection, name); break;
+                    case 'table': {
+                        script = await MetadataService.getTableDDL(connection, name);
+                        const perms = await MetadataService.getObjectPermissions(connection, name, 0);
+                        const permsSql = MetadataService.formatPermissions(perms, name, 'TABLE');
+                        if (permsSql) script += `\n\n${permsSql}`;
+                        break;
+                    }
                     case 'view': {
                         let src = await MetadataService.getViewSource(connection, name);
                         if (src.startsWith('CREATE VIEW')) {
@@ -238,7 +244,13 @@ export function registerObjectCommands(
                         break;
                     }
                     case 'trigger': script = wrapSetTerm(await MetadataService.getTriggerSource(connection, name)); break;
-                    case 'procedure': script = wrapSetTerm(await MetadataService.getProcedureSource(connection, name)); break;
+                    case 'procedure': {
+                        script = wrapSetTerm(await MetadataService.getProcedureSource(connection, name));
+                        const perms = await MetadataService.getObjectPermissions(connection, name, 5);
+                        const permsSql = MetadataService.formatPermissions(perms, name, 'PROCEDURE');
+                        if (permsSql) script += `\n\n${permsSql}`;
+                        break;
+                    }
                     case 'generator': script = await MetadataService.getGeneratorDDL(connection, name); break;
                 }
             } else {
@@ -266,6 +278,12 @@ export function registerObjectCommands(
                            src = src.replace(`CREATE ${type.toUpperCase()}`, `CREATE OR ALTER ${type.toUpperCase()}`);
                         }
                         script = wrapSetTerm(src);
+                        
+                        if (type === 'procedure') {
+                            const perms = await MetadataService.getObjectPermissions(connection, name, 5);
+                            const permsSql = MetadataService.formatPermissions(perms, name, 'PROCEDURE');
+                            if (permsSql) script += `\n\n${permsSql}`;
+                        }
                         break;
                     case 'generator':
                         const curVal = await MetadataService.getGeneratorValue(connection, name);

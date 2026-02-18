@@ -457,11 +457,15 @@ export class MetadataService {
     }
 
     public static async getTablePermissions(connection: DatabaseConnection, tableName: string): Promise<TablePermission[]> {
+        return this.getObjectPermissions(connection, tableName, 0); // 0 = Relation (Table/View)
+    }
+
+    public static async getObjectPermissions(connection: DatabaseConnection, objectName: string, objectType: number): Promise<TablePermission[]> {
         const query = `
             SELECT RDB$USER, RDB$PRIVILEGE, RDB$GRANTOR, RDB$GRANT_OPTION
             FROM RDB$USER_PRIVILEGES
-            WHERE RDB$RELATION_NAME = '${tableName}'
-              AND RDB$OBJECT_TYPE = 0
+            WHERE RDB$RELATION_NAME = '${objectName}'
+              AND RDB$OBJECT_TYPE = ${objectType}
             ORDER BY RDB$USER, RDB$PRIVILEGE
         `;
         try {
@@ -476,6 +480,19 @@ export class MetadataService {
             console.error('Error getting permissions:', err);
             return [];
         }
+    }
+
+    public static formatPermissions(permissions: TablePermission[], objectName: string, objectType: string = 'PROCEDURE'): string {
+        if (!permissions || permissions.length === 0) {
+            return '';
+        }
+
+        const lines = permissions.map(p => {
+             const grantOption = p.grantOption ? ' WITH GRANT OPTION' : '';
+             return `GRANT ${p.privilege} ON ${objectType} ${objectName} TO ${p.user}${grantOption};`;
+        });
+        
+        return lines.join('\n');
     }
 
     private static decodePrivilege(code: string): string {
