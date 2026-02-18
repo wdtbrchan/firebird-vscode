@@ -175,7 +175,13 @@ export class QueryExtractor {
         if (lastClosedBlock && offset >= lastClosedBlock.endOffset) {
             const gap = text.substring(lastClosedBlock.endOffset, offset);
             if (gap.trim().length === 0) {
-                return { text: lastClosedBlock.text, startOffset: lastClosedBlock.startOffset };
+                // If the gap is empty (only whitespace), we might be trailing the block.
+                // However, if the character AT the cursor is non-whitespace, we are likely at the start of a new statement.
+                // In that case, we should let the standard extractor handle it.
+                const charAtCursor = offset < text.length ? text[offset] : ' ';
+                if (!charAtCursor.trim()) {
+                    return { text: lastClosedBlock.text, startOffset: lastClosedBlock.startOffset };
+                }
             }
         }
 

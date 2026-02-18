@@ -1,4 +1,8 @@
-# Changelog
+
+## [Unreleased]
+### Fixes
+- **Query Extraction**: Fixed an issue where the `SET TERM` block would be active when the cursor was at the start of a subsequent SQL statement.
+
 
 ## [1.1.0]
 ### Features
