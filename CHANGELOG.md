@@ -1,14 +1,16 @@
 # Changelog
 
 ## [ upcoming ]
+
+## [1.0.0]
 ### Features
+- **Query Results**: Added context menu with options to **Copy Value**, **Copy Column**, and **Copy Table** (formatted for Excel).
+- **Triggers**: Added toggle between triggers subtree and triggers list
 - **Table Info**: Enhanced Columns view to show Primary Key (PK) and Foreign Key (FK) tags.
 - **Table Info**: Foreign Key tags now display the target table and column in a tooltip.
 - **Table Info**: Indexes in the Columns view are now displayed in a 2-column grid layout for better readability.
 - **Table Info**: Hovering over an Index tag now shows the list of columns covered by that index.
 - **Table Info**: Improved loading screen with a centered spinner.
-- **Triggers**: Added toggle between triggers subtree and triggers list
-- **Query Results**: Added context menu with options to **Copy Value**, **Copy Column**, and **Copy Table** (formatted for Excel).
 
 ## [0.16.0]
 ### Features
