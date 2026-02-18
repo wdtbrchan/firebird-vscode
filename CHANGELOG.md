@@ -1,6 +1,7 @@
 # Changelog
 
 ## [ upcoming ]
+- **Documentation**: Updated `README.md` and screenshot to reflect new features (Copy to Clipboard, Enhanced Table Info).
 
 ## [1.0.0]
 ### Features
