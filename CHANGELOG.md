@@ -1,5 +1,13 @@
 # Changelog
 
+## [ upcoming ]
+### Features
+- **Table Info**: Enhanced Columns view to show Primary Key (PK) and Foreign Key (FK) tags.
+- **Table Info**: Foreign Key tags now display the target table and column in a tooltip.
+- **Table Info**: Indexes in the Columns view are now displayed in a 2-column grid layout for better readability.
+- **Table Info**: Hovering over an Index tag now shows the list of columns covered by that index.
+- **Table Info**: Improved loading screen with a centered spinner.
+
 ## [0.16.0]
 ### Features
 - **Query Execution**: Implemented **Incremental Fetching** using low-level database cursors (`statement.fetch`). This replaces the previous `FIRST/SKIP` pagination, providing better performance and avoiding SQL syntax conflicts.

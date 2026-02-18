@@ -19,7 +19,7 @@ export interface TableIndex {
     name: string;
     unique: boolean;
     inactive: boolean;
-    columns: string;
+    columns: string[];
 }
 
 export interface TableDependency {
@@ -335,11 +335,11 @@ export class MetadataService {
                         name: name,
                         unique: row.RDB$UNIQUE_FLAG === 1,
                         inactive: row.RDB$INDEX_INACTIVE === 1,
-                        columns: col
+                        columns: col ? [col] : []
                     });
                 } else {
                     const idx = indexes.get(name)!;
-                    if (col) idx.columns += `, ${col}`;
+                    if (col) idx.columns.push(col);
                 }
             }
             return Array.from(indexes.values());
@@ -382,6 +382,56 @@ export class MetadataService {
         } catch (err) {
             console.error('Error getting table columns:', err);
             return [];
+        }
+    }
+
+    public static async getPrimaryKeyColumns(connection: DatabaseConnection, tableName: string): Promise<string[]> {
+        const query = `
+            SELECT s.RDB$FIELD_NAME
+            FROM RDB$RELATION_CONSTRAINTS rc
+            LEFT JOIN RDB$INDEX_SEGMENTS s ON rc.RDB$INDEX_NAME = s.RDB$INDEX_NAME
+            WHERE rc.RDB$RELATION_NAME = '${tableName}'
+              AND rc.RDB$CONSTRAINT_TYPE = 'PRIMARY KEY'
+            ORDER BY s.RDB$FIELD_POSITION
+        `;
+
+        try {
+            const rows = await Database.runMetaQuery(connection, query);
+            return rows.map(r => r.RDB$FIELD_NAME ? r.RDB$FIELD_NAME.trim() : '');
+        } catch (err) {
+            console.error('Error getting PK columns:', err);
+            return [];
+        }
+    }
+
+    public static async getForeignKeyColumns(connection: DatabaseConnection, tableName: string): Promise<Map<string, string>> {
+        const query = `
+             SELECT 
+                s.RDB$FIELD_NAME AS COLUMN_NAME,
+                target_idx.RDB$RELATION_NAME AS TARGET_TABLE,
+                target_s.RDB$FIELD_NAME AS TARGET_COLUMN
+            FROM RDB$RELATION_CONSTRAINTS rc
+            JOIN RDB$INDEX_SEGMENTS s ON rc.RDB$INDEX_NAME = s.RDB$INDEX_NAME
+            JOIN RDB$INDICES src_idx ON rc.RDB$INDEX_NAME = src_idx.RDB$INDEX_NAME
+            JOIN RDB$INDICES target_idx ON src_idx.RDB$FOREIGN_KEY = target_idx.RDB$INDEX_NAME
+            JOIN RDB$INDEX_SEGMENTS target_s ON target_idx.RDB$INDEX_NAME = target_s.RDB$INDEX_NAME 
+                                             AND s.RDB$FIELD_POSITION = target_s.RDB$FIELD_POSITION
+            WHERE rc.RDB$RELATION_NAME = '${tableName}'
+              AND rc.RDB$CONSTRAINT_TYPE = 'FOREIGN KEY'
+        `;
+
+        try {
+            const rows = await Database.runMetaQuery(connection, query);
+            const fks = new Map<string, string>();
+            rows.forEach(r => {
+                if (r.COLUMN_NAME && r.TARGET_TABLE && r.TARGET_COLUMN) {
+                    fks.set(r.COLUMN_NAME.trim(), `${r.TARGET_TABLE.trim()}.${r.TARGET_COLUMN.trim()}`);
+                }
+            });
+            return fks;
+        } catch (err) {
+            console.error('Error getting FK columns:', err);
+            return new Map();
         }
     }
 

@@ -58,6 +58,15 @@ export class TableInfoPanel {
             const indexes = await MetadataService.getIndexes(connection, tableName);
             const dependencies = await MetadataService.getTableDependencies(connection, tableName);
             const permissions = await MetadataService.getTablePermissions(connection, tableName);
+            const pks = await MetadataService.getPrimaryKeyColumns(connection, tableName);
+
+            const fks = await MetadataService.getForeignKeyColumns(connection, tableName);
+
+            // Mark PKs and FKs in columns
+            columns.forEach(c => {
+                if (pks.includes(c.name)) c.pk = true;
+                if (fks.has(c.name)) c.fk = fks.get(c.name);
+            });
 
             this._panel.webview.html = this._getHtmlForWebview(tableName, columns, triggers, indexes, dependencies, permissions, section);
         } catch (err) {
@@ -73,11 +82,36 @@ export class TableInfoPanel {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>${tableName}</title>
             <style>
-                body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-editor-foreground); background-color: var(--vscode-editor-background); }
+                body { 
+                    font-family: var(--vscode-font-family); 
+                    padding: 20px; 
+                    color: var(--vscode-editor-foreground); 
+                    background-color: var(--vscode-editor-background);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                    flex-direction: column;
+                }
+                .spinner {
+                    border: 4px solid var(--vscode-editor-background);
+                    border-top: 4px solid var(--vscode-progressBar-background);
+                    border-radius: 50%;
+                    width: 40px;
+                    height: 40px;
+                    animation: spin 1s linear infinite;
+                    margin-bottom: 20px;
+                }
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
             </style>
         </head>
         <body>
-            <h2>Loading info for ${tableName}...</h2>
+            <div class="spinner"></div>
+            <h2>Loading ${tableName}...</h2>
         </body>
         </html>`;
     }
@@ -128,23 +162,79 @@ export class TableInfoPanel {
             .null-cell { color: var(--vscode-descriptionForeground); font-style: italic; }
             .tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-right: 5px; }
             .tag-pk { background-color: var(--vscode-charts-blue); color: #fff; }
+            .tag-fk { background-color: var(--vscode-charts-purple); color: #fff; cursor: help; }
             .tag-active { background-color: var(--vscode-testing-iconPassed); color: #fff; }
             .tag-inactive { background-color: var(--vscode-testing-iconFailed); color: #fff; }
             .section { margin-bottom: 30px; }
+            .tag-index { display: inline-block; font-size: 0.8em; color: var(--vscode-textLink-foreground); margin-right: 5px; cursor: help; }
+            .index-grid { width: 100%; border-collapse: collapse; border: none; }
+            .index-grid td { border: none; padding: 2px; width: 50%; vertical-align: top; }
+            .pk-separator { border-bottom: 3px solid var(--vscode-panel-border); }
         `;
 
         const renderColumns = () => {
             if (columns.length === 0) return '<p>No columns found.</p>';
+            
+            // Sort: PKs first (alphabetical), then others (alphabetical)
+            const sortedColumns = [...columns].sort((a, b) => {
+                if (a.pk && !b.pk) return -1;
+                if (!a.pk && b.pk) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
             let html = `<table>
-                <thead><tr><th>Name</th><th>Type</th><th>Nullable</th><th>Default</th><th>Computed</th></tr></thead>
+                <thead><tr><th>Name</th><th>Type</th><th>Nullable</th><th>Default</th><th>Computed</th><th>Indexes</th></tr></thead>
                 <tbody>`;
-            columns.forEach(col => {
-                html += `<tr>
-                    <td><strong>${col.name}</strong></td>
+            
+            // Determine the last PK index to apply the separator
+            let lastPkIndex = -1;
+            for (let i = sortedColumns.length - 1; i >= 0; i--) {
+                if (sortedColumns[i].pk) {
+                    lastPkIndex = i;
+                    break;
+                }
+            }
+
+            sortedColumns.forEach((col, index) => {
+                const colIndexes = indexes.filter(idx => idx.columns.includes(col.name));
+                
+                let indexInfo = '';
+                if (colIndexes.length > 0) {
+                     indexInfo = '<table class="index-grid">';
+                     for (let i = 0; i < colIndexes.length; i += 2) {
+                         indexInfo += '<tr>';
+                         const idx1 = colIndexes[i];
+                         const type1 = idx1.unique ? 'Unique' : 'Index';
+                         indexInfo += `<td><div class="tag-index" title="${type1} (${idx1.columns.join(', ')})">${idx1.name}</div></td>`;
+                         
+                         if (i + 1 < colIndexes.length) {
+                             const idx2 = colIndexes[i+1];
+                              const type2 = idx2.unique ? 'Unique' : 'Index';
+                             indexInfo += `<td><div class="tag-index" title="${type2} (${idx2.columns.join(', ')})">${idx2.name}</div></td>`;
+                         } else {
+                             indexInfo += '<td></td>';
+                         }
+                         indexInfo += '</tr>';
+                     }
+                     indexInfo += '</table>';
+                }
+
+                const pkClass = (col.pk && index === lastPkIndex) ? 'pk-separator' : '';
+                let formatName = `<strong>${col.name}</strong>`;
+                if (col.pk) {
+                    formatName += ` <span class="tag tag-pk">PK</span>`;
+                }
+                if (col.fk) {
+                    formatName += ` <span class="tag tag-fk" title="-> ${col.fk}">FK</span>`;
+                }
+
+                html += `<tr class="${pkClass}">
+                    <td>${formatName}</td>
                     <td class="type-cell">${col.type}</td>
                     <td class="null-cell">${col.notNull ? 'NO' : 'YES'}</td>
                     <td>${col.defaultValue || ''}</td>
                     <td>${col.computedSource || ''}</td>
+                    <td>${indexInfo}</td>
                 </tr>`;
             });
             html += '</tbody></table>';
@@ -179,7 +269,7 @@ export class TableInfoPanel {
                 const uniqueTag = idx.unique ? '<span class="tag tag-pk">Unique</span>' : '';
                 html += `<tr>
                     <td>${idx.name}</td>
-                    <td>${idx.columns || ''}</td>
+                    <td>${idx.columns.join(', ')}</td>
                     <td>${uniqueTag}</td>
                     <td>${statusTag}</td>
                 </tr>`;
