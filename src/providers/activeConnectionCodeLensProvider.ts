@@ -68,6 +68,8 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
             let endRange: vscode.Range | undefined;
             let queryFound = false;
 
+            let result: { text: string, startOffset: number, type?: string } | null = null;
+
             // Try to find the query at the current cursor position to place the CodeLens above it
             const editor = vscode.window.activeTextEditor;
             // Ensure we are looking at the active editor and it matches the document we are providing lenses for
@@ -78,7 +80,7 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
                 const config = vscode.workspace.getConfiguration('firebird');
                 const useEmptyLineAsSeparator = config.get<boolean>('useEmptyLineAsSeparator', false);
 
-                const result = QueryExtractor.extract(document.getText(), offset, document.languageId, useEmptyLineAsSeparator);
+                result = QueryExtractor.extract(document.getText(), offset, document.languageId, useEmptyLineAsSeparator);
                 
                 if (result && result.text.trim().length > 0) {
                     // Filter out non-SQL files that don't look like SQL
@@ -118,23 +120,43 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
 
             const folderPart = activeConnDetails.group && activeConnDetails.group !== 'Root' ? `${activeConnDetails.group} / ` : '';
             let title = `${icon} ${folderPart}${activeConnDetails.name}`;
+            const lenses: vscode.CodeLens[] = [];
             
-            // Only show start CodeLens if we found a valid range (implied by endRange being set for now, or check startRange)
-            // But if no result found, we default to (0,0). 
-            // We should only show special wrapping if we found a query.
-            
+            // 1. Database Name CodeLens (First)
             if (endRange) {
                 title = `↓ ` + title;
             }
             
-            const command: vscode.Command = {
+            const selectDbCommand: vscode.Command = {
                 title: title,
                 command: 'firebird.selectDatabase',
                 arguments: [activeConnection]
             };
+            lenses.push(new vscode.CodeLens(startRange, selectDbCommand));
 
-            const lenses = [new vscode.CodeLens(startRange, command)];
-            
+
+            // 2. Run Action CodeLens (Second)
+            if (endRange) {
+                // If it is a SET TERM block, add "Run Script"
+                if (result && result.type === 'SET_TERM') {
+                     const runScriptCommand: vscode.Command = {
+                        title: `$(run-all) Run Script`,
+                        command: 'firebird.executeScript',
+                        arguments: [result.text]
+                    };
+                    lenses.push(new vscode.CodeLens(startRange, runScriptCommand));
+                }
+                // If it is a standard Query, add "Run Query"
+                else if (result && result.type === 'QUERY') {
+                     const runQueryCommand: vscode.Command = {
+                        title: `$(play) Run Query`,
+                        command: 'firebird.runQuery',
+                        arguments: []
+                    };
+                    lenses.push(new vscode.CodeLens(startRange, runQueryCommand));
+                }
+            }
+
             if (endRange) {
                 const endCommand: vscode.Command = {
                     title: `↑`,

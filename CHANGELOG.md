@@ -1,5 +1,8 @@
 
-## [Unreleased]
+## [ upcoming ]
+### Features
+- **CodeLens**: Added "Run Script" CodeLens for `SET TERM` blocks and "Run Query" CodeLens for standard queries.
+
 ### Fixes
 - **Query Extraction**: Fixed an issue where the `SET TERM` block would be active when the cursor was at the start of a subsequent SQL statement.
 

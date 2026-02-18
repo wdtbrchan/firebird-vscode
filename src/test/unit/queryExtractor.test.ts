@@ -108,6 +108,7 @@ async function runTests() {
         const offset = 5; // inside first query
         const result = QueryExtractor.extract(text, offset, 'sql');
         assert.strictEqual(result?.text, 'SELECT 1 FROM RDB$DATABASE');
+        assert.strictEqual(result?.type, 'QUERY');
     });
 
     test('SQL: Extract query with empty line separator', () => {
@@ -145,6 +146,7 @@ SELECT 2 FROM RDB$DATABASE;`;
         const result = QueryExtractor.extract(text, offset, 'sql');
         assert.ok(result?.text.startsWith('SET TERM ^ ;'), 'Should start with SET TERM ^ ;');
         assert.ok(result?.text.endsWith('SET TERM ; ^'), 'Should end with SET TERM ; ^');
+        assert.strictEqual(result?.type, 'SET_TERM');
     });
 
     test('SQL: Extract SET TERM block when cursor is after', () => {

@@ -6,7 +6,7 @@ export class QueryExtractor {
     /**
      * Extracts a SQL query from the given document text at the specified offset.
      */
-    public static extract(text: string, offset: number, languageId: string, useEmptyLineAsSeparator: boolean = false): { text: string, startOffset: number } | null {
+    public static extract(text: string, offset: number, languageId: string, useEmptyLineAsSeparator: boolean = false): { text: string, startOffset: number, type?: string } | null {
         if (languageId === 'sql') {
             return this.extractSqlFile(text, offset, useEmptyLineAsSeparator);
         }
@@ -30,14 +30,14 @@ export class QueryExtractor {
 
         // 3. Fallback/Safety: If existing logic in extension.ts had specific trimming, we emulate it.
         // The user request shows clean SQL.
-        return { text: content.trim(), startOffset: start + 1 }; // start + 1 to skip quote
+        return { text: content.trim(), startOffset: start + 1, type: 'QUERY' }; // start + 1 to skip quote
     }
 
-    private static extractSqlFile(text: string, offset: number, useEmptyLineAsSeparator: boolean): { text: string, startOffset: number } | null {
+    private static extractSqlFile(text: string, offset: number, useEmptyLineAsSeparator: boolean): { text: string, startOffset: number, type?: string } | null {
         // First, check if the offset is inside a SET TERM block
         const setTermBlock = this.findSetTermBlock(text, offset);
         if (setTermBlock) {
-            return setTermBlock;
+            return { ...setTermBlock, type: 'SET_TERM' };
         }
 
         // Standard extraction logic
@@ -103,7 +103,7 @@ export class QueryExtractor {
         const leadingWhitespace = content.length - content.trimStart().length;
         const actualStart = start + leadingWhitespace;
         
-        return { text: content.trim(), startOffset: actualStart };
+        return { text: content.trim(), startOffset: actualStart, type: 'QUERY' };
     }
 
     private static findSetTermBlock(text: string, offset: number): { text: string, startOffset: number } | null {

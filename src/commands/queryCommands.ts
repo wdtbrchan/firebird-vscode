@@ -17,14 +17,14 @@ export function registerQueryCommands(
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.executeScript', async () => {
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.executeScript', async (script?: string) => {
         const editor = vscode.window.activeTextEditor;
-        if (!editor) {
+        if (!editor && !script) {
             vscode.window.showErrorMessage('No active text editor');
             return;
         }
 
-        const query = editor.document.getText();
+        const query = script || (editor ? editor.document.getText() : '');
         
         if (!query.trim()) {
              vscode.window.showWarningMessage('Script is empty.');
@@ -59,7 +59,9 @@ export function registerQueryCommands(
                 }
             }
 
-            vscode.window.showTextDocument(editor.document, editor.viewColumn, true);
+            if (editor) {
+                vscode.window.showTextDocument(editor.document, editor.viewColumn, true);
+            }
             
         } catch (err: any) {
              const hasTransaction = Database.hasActiveTransaction;

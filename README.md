@@ -10,6 +10,7 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 ## Features
 
 - **SQL Execution**: Run queries (`CTRL+Enter`) and scripts (`CTRL+ALT+Enter`). Supports SQL from other files (e.g. PHP) with parameter injection.
+- **CodeLens Integration**: Interactive CodeLens for running queries (`Run Query`) and scripts (`Run Script` for `SET TERM` blocks) directly from the editor.
 - **Transaction Support**: Explicit Commit/Rollback support.
 - **Explorer**: View databases, tables, views, procedures, triggers and more.
 - **Table Info**: Detailed view of table structure with PK/FK tags, index column tooltips, and grouped trigger views.
