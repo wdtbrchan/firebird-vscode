@@ -1,29 +1,44 @@
 
 import * as vscode from 'vscode';
-import { DatabaseConnection } from './databaseItems';
+import { DatabaseConnection, FolderItem } from './databaseItems';
+
+export class TriggerFolderItem extends FolderItem {
+    constructor(
+        public readonly connection: DatabaseConnection,
+        public readonly viewMode: 'grouped' | 'list' = 'list'
+    ) {
+        super('Triggers', 'triggers', connection);
+        this.contextValue = `trigger-folder-${viewMode}`;
+        this.id = `${connection.id}-triggers`;
+    }
+}
+
 
 export class TriggerGroupItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
-        public readonly triggers: any[], // Store triggers directly
+        public readonly triggers: any[], // Store triggers directly or TriggerItems
         public readonly connection: DatabaseConnection,
-        state: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.Collapsed
+        state: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.Collapsed,
+        uniquePath?: string
     ) {
         super(label, state);
         this.contextValue = 'trigger-group';
         this.iconPath = new vscode.ThemeIcon('folder-active');
-        this.id = `${connection.id}|triggerGroup|${label}|${state}`;
+        this.id = `${connection.id}|triggerGroup|${uniquePath || label}|${state}`;
     }
 }
 
 export class TableTriggersItem extends vscode.TreeItem {
     constructor(
         public readonly connection: DatabaseConnection,
-        public readonly tableName: string
+        public readonly tableName: string,
+        public readonly viewMode: 'grouped' | 'list' = 'list'
     ) {
         super('Triggers', vscode.TreeItemCollapsibleState.Collapsed);
-        this.contextValue = 'table-triggers';
+        this.contextValue = `table-triggers-${viewMode}`;
         this.iconPath = new vscode.ThemeIcon('zap');
+        this.id = `${connection.id}-${tableName}-triggers`;
     }
 }
 

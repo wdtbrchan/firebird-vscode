@@ -23,7 +23,7 @@ import {
     ScriptItem, ScriptFolderItem 
 } from './treeItems/scriptItems';
 import { 
-    TriggerGroupItem, TableTriggersItem, TriggerItem, TriggerOperationItem 
+    TriggerGroupItem, TableTriggersItem, TriggerItem, TriggerOperationItem, TriggerFolderItem 
 } from './treeItems/triggerItems';
 import { 
     TableIndexesItem, CreateNewIndexItem, IndexItem, IndexOperationItem 
@@ -46,9 +46,9 @@ import { FilterManager } from './filterManager';
 import { backupConnections, restoreConnections } from './backupRestoreManager';
 import { buildTreeItem, getTreeChildren, TreeRenderingContext } from './treeRendering';
 
-export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem> {
-    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void>();
-    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
+export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerFolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem> {
+    private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerFolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerFolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void>();
+    readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerFolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
     // Sub-managers
     private favoritesManager: FavoritesManager;
@@ -58,6 +58,10 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
 
     private _loading: boolean = true;
     private treeView: vscode.TreeView<any> | undefined;
+
+    // View state for triggers (not persisted to disk)
+    private triggerViewModes: Map<string, 'grouped' | 'list'> = new Map();
+
 
     // Public access to favorites for DragAndDropController
     public get favorites(): Map<string, FavoriteItem[]> {
@@ -133,10 +137,31 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             getFilter: (connId, type) => this.filterManager.getFilter(connId, type),
             applyFilter: (items, filter) => this.filterManager.applyFilter(items, filter),
             getIconUri: (color) => this.getIconUri(color),
+            getTriggerViewMode: (connId, context) => this.triggerViewModes.get(`${connId}:${context || 'main'}`) || 'list',
+            toggleTriggerViewMode: (connId, context) => this.toggleTriggerViewMode(connId, context),
+            setTriggerViewMode: (connId, context, mode) => this.setTriggerViewMode(connId, context, mode)
         };
     }
 
-    getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | PaddingItem | vscode.TreeItem): vscode.TreeItem {
+    public toggleTriggerViewMode(connectionId: string, context: string) {
+        const key = `${connectionId}:${context || 'main'}`;
+        const currentMode = this.triggerViewModes.get(key) || 'list';
+        const newMode = currentMode === 'grouped' ? 'list' : 'grouped';
+        this.setTriggerViewMode(connectionId, context, newMode);
+    }
+
+    public setTriggerViewMode(connectionId: string, context: string, mode: 'grouped' | 'list') {
+        const key = `${connectionId}:${context || 'main'}`;
+        this.triggerViewModes.set(key, mode);
+        
+        // Refresh the specific connection
+        const conn = this.getConnectionById(connectionId);
+        if (conn) {
+            this._onDidChangeTreeData.fire(conn);
+        }
+    }
+
+    getTreeItem(element: DatabaseConnection | ConnectionGroup | FolderItem | TriggerFolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | PaddingItem | vscode.TreeItem): vscode.TreeItem {
         return buildTreeItem(element, this.renderingContext);
     }
 
@@ -161,7 +186,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         return vscode.Uri.parse(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`);
     }
 
-    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | PaddingItem | vscode.TreeItem)[]> {
+    async getChildren(element?: DatabaseConnection | ConnectionGroup | FolderItem | TriggerFolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem): Promise<(DatabaseConnection | ConnectionGroup | FolderItem | TriggerFolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | PaddingItem | vscode.TreeItem)[]> {
         return getTreeChildren(element, this.renderingContext, this._loading);
     }
 
@@ -169,6 +194,10 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
 
     public setFilter(connectionId: string, type: string, value: string) {
         this.filterManager.setFilter(connectionId, type, value);
+    }
+
+    public getFilter(connectionId: string, type: string): string {
+        return this.filterManager.getFilter(connectionId, type);
     }
 
     // --- Delegations to GroupManager ---

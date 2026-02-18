@@ -7,7 +7,7 @@ import { ScriptService } from '../services/scriptService';
 import { DatabaseConnection, ConnectionGroup, FolderItem, ObjectItem, FilterItem } from './treeItems/databaseItems';
 import { FavoriteItem, FavoritesRootItem, FavoriteFolderItem, FavoriteScriptItem, FavoriteIndexItem } from './treeItems/favoritesItems';
 import { ScriptItem, ScriptFolderItem } from './treeItems/scriptItems';
-import { TriggerGroupItem, TableTriggersItem, TriggerItem, TriggerOperationItem } from './treeItems/triggerItems';
+import { TriggerGroupItem, TableTriggersItem, TriggerItem, TriggerOperationItem, TriggerFolderItem } from './treeItems/triggerItems';
 import { TableIndexesItem, CreateNewIndexItem, IndexItem, IndexOperationItem } from './treeItems/indexItems';
 import { OperationItem } from './treeItems/operationItems';
 import { PaddingItem } from './treeItems/common';
@@ -28,7 +28,11 @@ export interface TreeRenderingContext {
     getFilter(connectionId: string, type: string): string;
     applyFilter(items: string[], filter: string): string[];
     getIconUri(color: string): vscode.Uri;
+    getTriggerViewMode(connectionId: string, context: string): 'grouped' | 'list';
+    toggleTriggerViewMode(connectionId: string, context: string): void;
+    setTriggerViewMode(connectionId: string, context: string, mode: 'grouped' | 'list'): void;
 }
+
 
 /**
  * Builds a vscode.TreeItem from any tree element.
@@ -169,6 +173,29 @@ export async function getTreeChildren(
                 });
             }
             return [];
+
+        } else if (element instanceof TriggerFolderItem) {
+            const filter = ctx.getFilter(element.connection.id, 'triggers');
+            const resultItems: (ObjectItem | TriggerGroupItem | FilterItem | TriggerItem)[] = [];
+            
+            // @ts-ignore - Validated type
+            resultItems.push(new FilterItem(element.connection, 'triggers', filter));
+
+            if (element.viewMode === 'list') {
+                 // Flat list
+                 const list = await getTriggerList(element.connection, ctx, undefined);
+                 if (filter) {
+                     const filtered = list.filter(i => i.label && i.label.toString().toLowerCase().includes(filter.toLowerCase()));
+                     resultItems.push(...filtered);
+                 } else {
+                     resultItems.push(...list);
+                 }
+            } else {
+                // Grouped
+                const groups = await getGroupedTriggers(element.connection, ctx, 'main', undefined, filter, !!filter);
+                resultItems.push(...groups);
+            }
+            return resultItems;
         } else if (element instanceof FolderItem) {
             try {
                 if (element.type === 'local-scripts') {
@@ -213,7 +240,10 @@ export async function getTreeChildren(
                     case 'views':
                         return loadObjectList(element.connection, 'view', MetadataService.getViews.bind(MetadataService), filter, ctx);
                     case 'triggers':
-                        const groups = await getGroupedTriggers(element.connection, ctx, undefined, filter, !!filter);
+                        // This case is for generic FolderItem, which might serve as a fallback or for other contexts.
+                        // However, the main "Triggers" folder in the root list should now be a TriggerFolderItem.
+                        // If we encounter a generic FolderItem('triggers'), we treat it as grouped by default.
+                        const groups = await getGroupedTriggers(element.connection, ctx, 'main', undefined, filter, !!filter);
                         resultItems.push(...groups);
                         break;
                     case 'procedures':
@@ -227,7 +257,13 @@ export async function getTreeChildren(
                 return [];
             }
         } else if (element instanceof TableTriggersItem) {
-             return getGroupedTriggers(element.connection, ctx, element.tableName, undefined, true);
+             if (element.viewMode === 'list') {
+                 // Flat list for table triggers
+                 return getTriggerList(element.connection, ctx, element.tableName);
+             } else {
+                 // Grouped for table triggers
+                 return getGroupedTriggers(element.connection, ctx, element.tableName, element.tableName, undefined, true);
+             }
         } else if (element instanceof TableIndexesItem) {
              const indexes = await MetadataService.getIndexes(element.connection, element.tableName);
              const items: vscode.TreeItem[] = [];
@@ -248,6 +284,15 @@ export async function getTreeChildren(
              ops.push(new IndexOperationItem('Recompute statistics for index', 'recompute', element.connection, element.indexName));
              return ops;
         } else if (element instanceof TriggerGroupItem) {
+            // Check if triggers are actually items (TriggerGroupItem or TriggerItem)
+            if (element.triggers.length > 0) {
+                const first = element.triggers[0];
+                if (first instanceof TriggerGroupItem || first instanceof TriggerItem) {
+                    return element.triggers;
+                }
+            }
+
+            // Fallback for raw trigger objects (should not happen with new structure but good for safety)
             const sorted = element.triggers.sort((a, b) => {
                 const pa = a.sequence || 0;
                 const pb = b.sequence || 0;
@@ -258,6 +303,14 @@ export async function getTreeChildren(
                  const isFav = !!ctx.getFavorite(element.connection.id, t.name, 'trigger');
                  return new TriggerItem(element.connection, t.name, t.sequence, t.inactive, isFav);
             });
+        } else if (element instanceof TriggerFolderItem) {
+             if (element.viewMode === 'list') {
+                 // Flat list
+                 return getTriggerList(element.connection, ctx);
+             } else {
+                 // Grouped
+                 return getGroupedTriggers(element.connection, ctx, 'main', undefined, undefined, false);
+             }
         } else if (element instanceof TriggerItem) {
              const ops: (TriggerOperationItem | OperationItem)[] = [];
              ops.push(new OperationItem('DDL Script', 'alter', new ObjectItem(element.triggerName, 'trigger', element.connection)));
@@ -270,14 +323,14 @@ export async function getTreeChildren(
              }
              return ops;
         } else if (element instanceof ObjectItem) {
-            const ops: (OperationItem | TableTriggersItem)[] = [];
+            const ops: (OperationItem | TableTriggersItem | TableIndexesItem)[] = [];
             
             if (element.type === 'table') {
                 ops.push(new OperationItem('Create Script', 'create', element));
                 ops.push(new OperationItem('Alter Script', 'alter', element));
                 ops.push(new OperationItem('Drop table', 'drop', element));
                 ops.push(new TableIndexesItem(element.connection, element.objectName));
-                ops.push(new TableTriggersItem(element.connection, element.objectName));
+                ops.push(new TableTriggersItem(element.connection, element.objectName, ctx.getTriggerViewMode(element.connection.id, element.objectName)));
             } else if (['view', 'trigger', 'procedure'].includes(element.type)) {
                 ops.push(new OperationItem('DDL Script', 'alter', element));
                 
@@ -325,7 +378,7 @@ export async function getTreeChildren(
                 new FavoritesRootItem(element),
                 new FolderItem('Tables', 'tables', element),
                 new FolderItem('Views', 'views', element),
-                new FolderItem('Triggers', 'triggers', element),
+                new TriggerFolderItem(element, ctx.getTriggerViewMode(element.id, 'main')),
                 new FolderItem('Procedures', 'procedures', element),
                 new FolderItem('Generators', 'generators', element),
                 new FolderItem('Local Scripts', 'local-scripts', element),
@@ -374,44 +427,144 @@ async function loadObjectList(
 }
 
 /**
- * Groups triggers by type and returns TriggerGroupItems.
+ * Groups triggers by Event then Time.
  */
 export async function getGroupedTriggers(
-    connection: DatabaseConnection,
-    ctx: TreeRenderingContext,
-    tableName?: string,
-    filter?: string,
-    expanded: boolean = false
+    connection: DatabaseConnection, 
+    ctx: TreeRenderingContext, 
+    context: string,
+    tableName?: string, 
+    filter?: string, 
+    forceGroup?: boolean
 ): Promise<TriggerGroupItem[]> {
     try {
+        // vscode.window.showInformationMessage(`DEBUG: Fetching triggers. Table: ${tableName}, Context: ${context}`);
         const allTriggers = await MetadataService.getTriggers(connection, tableName);
-        const groups: { [key: string]: any[] } = {};
+        // vscode.window.showInformationMessage(`DEBUG: Got ${allTriggers.length} triggers`);
+        const hierarchy: { [event: string]: { [time: string]: any[] } } = {};
         
         for (const t of allTriggers) {
-          if (filter && !t.name.toLowerCase().includes(filter.toLowerCase())) {
-              continue;
-          }
+            if (filter && !t.name.toLowerCase().includes(filter.toLowerCase())) {
+                continue;
+            }
 
-          const typeName = MetadataService.decodeTriggerType(t.type);
-          const groupName = typeName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-          
-          if (!groups[groupName]) groups[groupName] = [];
-          groups[groupName].push(t);
+            const typeName = MetadataService.decodeTriggerType(t.type);
+            // Expected format: "BEFORE INSERT", "AFTER UPDATE", "BEFORE INSERT OR UPDATE", etc.
+            // We want to group by Event (INSERT, UPDATE...) then Time (BEFORE, AFTER).
+            
+            let time = 'OTHER';
+            let event = typeName;
+
+            if (typeName.startsWith('BEFORE ')) {
+                time = 'BEFORE';
+                event = typeName.substring(7);
+            } else if (typeName.startsWith('AFTER ')) {
+                time = 'AFTER';
+                event = typeName.substring(6);
+            } else if (typeName.startsWith('ON ')) {
+                time = 'ON';
+                event = typeName.substring(3);
+            }
+
+            // Capitalize event for consistency
+            event = event.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+
+            if (!hierarchy[event]) hierarchy[event] = {};
+            if (!hierarchy[event][time]) hierarchy[event][time] = [];
+            
+            hierarchy[event][time].push(t);
         }
-        for (const key in groups) {
-            groups[key].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+        // Ordered events
+        const eventOrder = ['Insert', 'Update', 'Insert Or Update', 'Delete', 'Insert Or Delete', 'Update Or Delete', 'Insert Or Update Or Delete', 'Transaction Start', 'Transaction Commit', 'Transaction Rollback', 'Connect', 'Disconnect'];
+        
+        const sortedEvents = Object.keys(hierarchy).sort((a, b) => {
+             const ia = eventOrder.indexOf(a);
+             const ib = eventOrder.indexOf(b);
+             if (ia !== -1 && ib !== -1) return ia - ib;
+             if (ia !== -1) return -1;
+             if (ib !== -1) return 1;
+             return a.localeCompare(b);
+        });
+
+        const result: TriggerGroupItem[] = [];
+
+        for (const event of sortedEvents) {
+            const timeGroups = hierarchy[event];
+            const timeKeys = Object.keys(timeGroups);
+            
+            // If only one time group or generic, maybe flatten? logic check.
+            // Requirement: Event -> Time -> Triggers.
+            
+            const children: (TriggerGroupItem | TriggerItem)[] = [];
+            
+            // Order times: BEFORE, AFTER
+            const sortedTimes = timeKeys.sort((a, b) => {
+                if (a === 'BEFORE') return -1;
+                if (b === 'BEFORE') return 1;
+                if (a === 'AFTER') return -1;
+                if (b === 'AFTER') return 1;
+                return a.localeCompare(b);
+            });
+
+            for (const time of sortedTimes) {
+                 const triggers = timeGroups[time];
+                 triggers.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+                 
+                 const triggerItems = triggers.map(t => {
+                     const isFav = !!ctx.getFavorite(connection.id, t.name, 'trigger');
+                     return new TriggerItem(connection, t.name, t.sequence, t.inactive, isFav);
+                 });
+
+                 // Create a group for the time (e.g. "Before")
+                 const timeGroup = new TriggerGroupItem(
+                     time, 
+                     triggerItems, 
+                     connection,
+                     vscode.TreeItemCollapsibleState.Collapsed,
+                     `${context}-${event}-${time}` // Unique path for ID
+                 );
+                 children.push(timeGroup);
+            }
+
+            // Now create the Event group
+             const eventGroup = new TriggerGroupItem(
+                 event,
+                 children, 
+                 connection,
+                 vscode.TreeItemCollapsibleState.Collapsed,
+                 `${context}-${event}` // Unique path
+             );
+             result.push(eventGroup);
         }
         
-        return Object.keys(groups).sort().map(g => {
-            return new TriggerGroupItem(
-                g, 
-                groups[g], 
-                connection, 
-                expanded ? vscode.TreeItemCollapsibleState.Expanded : vscode.TreeItemCollapsibleState.Collapsed
-            );
+        return result;
+    } catch (err: any) {
+        console.error('Error getting grouped triggers:', err);
+        vscode.window.showErrorMessage(`Error loading grouped triggers: ${err.message}`);
+        return [];
+    }
+}
+
+/**
+ * Gets a flat list of all triggers.
+ */
+async function getTriggerList(
+    connection: DatabaseConnection,
+    ctx: TreeRenderingContext,
+    tableName?: string
+): Promise<TriggerItem[]> {
+    try {
+        const allTriggers = await MetadataService.getTriggers(connection, tableName);
+        
+        allTriggers.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
+        return allTriggers.map(t => {
+            const isFav = !!ctx.getFavorite(connection.id, t.name, 'trigger');
+            return new TriggerItem(connection, t.name, t.sequence, t.inactive, isFav);
         });
     } catch (err) {
-        console.error('Error getting grouped triggers:', err);
+        console.error('Error getting trigger list:', err);
         return [];
     }
 }

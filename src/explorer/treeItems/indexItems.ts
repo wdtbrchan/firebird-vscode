@@ -10,6 +10,7 @@ export class TableIndexesItem extends vscode.TreeItem {
         super('Indexes', vscode.TreeItemCollapsibleState.Collapsed);
         this.contextValue = 'table-indexes';
         this.iconPath = new vscode.ThemeIcon('key');
+        this.id = `${connection.id}-${tableName}-indexes`;
     }
 }
 

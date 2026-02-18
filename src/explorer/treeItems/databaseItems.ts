@@ -47,6 +47,7 @@ export class FolderItem extends vscode.TreeItem {
                 break;
             default: this.iconPath = new vscode.ThemeIcon('folder'); break;
         }
+        this.id = `${connection.id}-${type}`;
     }
 }
 

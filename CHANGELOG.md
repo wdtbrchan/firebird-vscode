@@ -7,6 +7,7 @@
 - **Table Info**: Indexes in the Columns view are now displayed in a 2-column grid layout for better readability.
 - **Table Info**: Hovering over an Index tag now shows the list of columns covered by that index.
 - **Table Info**: Improved loading screen with a centered spinner.
+- **Triggers**: Added toggle between triggers subtree and triggers list
 
 ## [0.16.0]
 ### Features

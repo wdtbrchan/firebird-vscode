@@ -293,6 +293,16 @@
         "command": "firebird.favorites.clear",
         "title": "Clear All Favorites",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "firebird.switchToTriggerList",
+        "title": "Show as List",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "firebird.switchToTriggerGroups",
+        "title": "Show as Groups",
+        "icon": "$(list-tree)"
       }
     ],
     "keybindings": [
@@ -575,6 +585,21 @@
         {
           "command": "firebird.favorites.clear",
           "when": "view == firebird.databases && viewItem == favorites-root",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.switchToTriggerGroups",
+          "when": "view == firebird.databases && viewItem == trigger-folder-list",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.switchToTriggerList",
+          "when": "view == firebird.databases && (viewItem == table-triggers-grouped || viewItem == trigger-folder-grouped)",
+          "group": "inline"
+        },
+        {
+          "command": "firebird.switchToTriggerGroups",
+          "when": "view == firebird.databases && viewItem == table-triggers-list",
           "group": "inline"
         }
       ]

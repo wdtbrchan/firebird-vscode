@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
+import { DatabaseTreeDataProvider } from '../explorer/databaseTreeDataProvider';
 
 export function registerIndexTriggerCommands(
-    context: vscode.ExtensionContext
+    context: vscode.ExtensionContext,
+    treeDataProvider: DatabaseTreeDataProvider
 ): void {
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.createIndex', async (connection: DatabaseConnection, tableName: string) => {
@@ -66,4 +68,30 @@ export function registerIndexTriggerCommands(
              vscode.window.showErrorMessage(`Operation failed: ${err.message}`);
         }
     }));
+    const getContext = (item: any): string => {
+        if (item && item.contextValue) {
+            if (item.contextValue.startsWith('table-triggers')) {
+                // TableTriggersItem has tableName property? checking definition
+                // It is instantiated in treeItems/triggerItems.ts
+                // public readonly tableName: string
+                return item.tableName;
+            }
+        }
+        return 'main';
+    };
+
+    const switchToListHandler = async (item: any) => {
+        if (item && item.connection) {
+            treeDataProvider.setTriggerViewMode(item.connection.id, getContext(item), 'list');
+        }
+    };
+
+    const switchToGroupsHandler = async (item: any) => {
+        if (item && item.connection) {
+            treeDataProvider.setTriggerViewMode(item.connection.id, getContext(item), 'grouped');
+        }
+    };
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.switchToTriggerList', switchToListHandler));
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.switchToTriggerGroups', switchToGroupsHandler));
 }

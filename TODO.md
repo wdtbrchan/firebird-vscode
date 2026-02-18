@@ -43,7 +43,7 @@
 - [x] Show indexes, triggers, procedures, views in table info
 - [x] Implement incremental fetching using cursors instead of FIRST/SKIP
 - [x] Show indexes in columns in table info
-- [ ] Add toggle between triggers subtree and triggers list
+- [x] Add toggle between triggers subtree and triggers list
 - [ ] Copy results values to clipboard as list / table
 - [ ] Export results to CSV
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
