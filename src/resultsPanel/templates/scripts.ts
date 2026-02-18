@@ -108,6 +108,148 @@ export function getWebviewScripts(autoRollbackAt: number): string {
         }
         if (rollbackDeadline > 0) setInterval(updateTimer, 1000);
         updateTimer(); 
+
+        // --- Context Menu & Copy Functionality ---
+        (function() {
+            let contextMenu = null;
+            let currentTargetCell = null;
+
+            function createContextMenu() {
+                if (contextMenu) return;
+                contextMenu = document.createElement('div');
+                contextMenu.className = 'context-menu';
+                contextMenu.innerHTML = \`
+                    <div class="context-menu-item" id="cm-copy-val">Copy Value</div>
+                    <div class="context-menu-item" id="cm-copy-col">Copy Column '...'</div>
+                    <div class="context-menu-separator"></div>
+                    <div class="context-menu-item" id="cm-copy-table">Copy All</div>
+                \`;
+                document.body.appendChild(contextMenu);
+
+                contextMenu.querySelector('#cm-copy-val').addEventListener('click', () => {
+                   if(currentTargetCell) copyToClipboard(currentTargetCell.innerText);
+                   hideContextMenu();
+                });
+
+                contextMenu.querySelector('#cm-copy-col').addEventListener('click', () => {
+                   if(currentTargetCell) copyColumn(currentTargetCell.cellIndex);
+                   hideContextMenu();
+                });
+
+                contextMenu.querySelector('#cm-copy-table').addEventListener('click', () => {
+                   copyTable();
+                   hideContextMenu();
+                });
+            }
+
+            function showContextMenu(e, cell) {
+                e.preventDefault();
+                createContextMenu();
+                currentTargetCell = cell;
+
+                // Update column name in menu
+                const table = document.querySelector('table');
+                if (table) {
+                    const header = table.rows[0].cells[cell.cellIndex];
+                    const colName = header ? header.innerText : 'Column';
+                    const item = document.getElementById('cm-copy-col');
+                    if (item) item.innerText = \`Copy Column '\${colName}'\`;
+                }
+
+                const menuWidth = contextMenu.offsetWidth || 150;
+                const menuHeight = contextMenu.offsetHeight || 100;
+                const windowWidth = window.innerWidth;
+                const windowHeight = window.innerHeight;
+
+                let left = e.clientX;
+                let top = e.clientY;
+
+                if (left + menuWidth > windowWidth) left = windowWidth - menuWidth;
+                if (top + menuHeight > windowHeight) top = windowHeight - menuHeight;
+
+                contextMenu.style.left = left + 'px';
+                contextMenu.style.top = top + 'px';
+                contextMenu.style.display = 'block';
+            }
+
+            function hideContextMenu() {
+                if (contextMenu) contextMenu.style.display = 'none';
+                currentTargetCell = null;
+            }
+
+            // Global click to close menu
+            document.addEventListener('click', (e) => {
+                if (contextMenu && contextMenu.style.display === 'block') {
+                    if (!contextMenu.contains(e.target)) {
+                        hideContextMenu();
+                    }
+                }
+            });
+
+            // Delegate right-click logic
+            document.addEventListener('contextmenu', (e) => {
+                const cell = e.target.closest('td');
+                if (cell && cell.closest('table')) {
+                    // Start from cellIndex 1 to skip row number
+                    if (cell.cellIndex > 0) { 
+                        showContextMenu(e, cell);
+                    }
+                }
+            });
+
+            function copyToClipboard(text) {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                } catch (err) {
+                    console.error('Failed to copy', err);
+                }
+                document.body.removeChild(textarea);
+            }
+
+            function copyColumn(colIndex) {
+                 const table = document.querySelector('table');
+                 if (!table) return;
+                 let text = '';
+                 // Skip header row usually, but user asked for "values under each other"
+                 // If strictly values, start from row 1.
+                 for (let i = 1; i < table.rows.length; i++) {
+                     const row = table.rows[i];
+                     if (row.cells.length > colIndex) {
+                         text += row.cells[colIndex].innerText + '\\n';
+                     }
+                 }
+                 copyToClipboard(text);
+            }
+
+            function copyTable() {
+                 const table = document.querySelector('table');
+                 if (!table) return;
+                 let text = '';
+                 
+                 // Header
+                 // Skip first column (row index) by starting at index 1
+                 const headerCells = table.rows[0].cells;
+                 for (let j = 1; j < headerCells.length; j++) {
+                     text += headerCells[j].innerText + (j < headerCells.length - 1 ? '\\t' : '');
+                 }
+                 text += '\\n';
+
+                 // Rows
+                 for (let i = 1; i < table.rows.length; i++) {
+                     const row = table.rows[i];
+                     for (let j = 1; j < row.cells.length; j++) {
+                         text += row.cells[j].innerText + (j < row.cells.length - 1 ? '\\t' : '');
+                     }
+                     text += '\\n';
+                 }
+                 copyToClipboard(text);
+            }
+
+        })();
     `;
 }
 

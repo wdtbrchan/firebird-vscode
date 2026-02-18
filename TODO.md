@@ -44,7 +44,7 @@
 - [x] Implement incremental fetching using cursors instead of FIRST/SKIP
 - [x] Show indexes in columns in table info
 - [x] Add toggle between triggers subtree and triggers list
-- [ ] Copy results values to clipboard as list / table
+- [x] Copy results values to clipboard as list / table
 - [ ] Export results to CSV
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
 - [ ] Support multiple simultaneous active database connections

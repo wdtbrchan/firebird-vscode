@@ -8,6 +8,7 @@
 - **Table Info**: Hovering over an Index tag now shows the list of columns covered by that index.
 - **Table Info**: Improved loading screen with a centered spinner.
 - **Triggers**: Added toggle between triggers subtree and triggers list
+- **Query Results**: Added context menu with options to **Copy Value**, **Copy Column**, and **Copy Table** (formatted for Excel).
 
 ## [0.16.0]
 ### Features

@@ -224,6 +224,54 @@ export function getMainStyles(connectionColor: string): string {
             opacity: 0.7;
             cursor: not-allowed;
         }
+
+        /* Context Menu */
+        .context-menu {
+            display: none;
+            position: absolute;
+            z-index: 1000;
+            background-color: #252526;
+            border: 1px solid #454545;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            padding: 4px 0;
+            min-width: 140px;
+            border-radius: 3px;
+        }
+        .context-menu-item {
+            padding: 6px 12px;
+            cursor: pointer;
+            color: #cccccc;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+        }
+        .context-menu-item:hover {
+            background-color: #094771;
+            color: white;
+        }
+        .context-menu-separator {
+            height: 1px;
+            background-color: #454545;
+            margin: 4px 0;
+        }
+        
+        /* Context Menu Light Theme Overrides */
+        body.vscode-light .context-menu {
+            background-color: #f3f3f3;
+            border: 1px solid #cecece;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            color: #333;
+        }
+        body.vscode-light .context-menu-item {
+            color: #333;
+        }
+        body.vscode-light .context-menu-item:hover {
+            background-color: #0060c0;
+            color: white;
+        }
+        body.vscode-light .context-menu-separator {
+            background-color: #cecece;
+        }
     `;
 }
 
