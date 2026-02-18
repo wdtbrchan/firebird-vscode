@@ -1,6 +1,7 @@
 # Changelog
 
-## [ upcoming ]
+## [1.1.0]
+### Features
 - **DDL Generation**: Added support for including `GRANT` permissions in generated DDL scripts for Procedures and Tables.
 - **Documentation**: Updated `README.md` and screenshot to reflect new features (Copy to Clipboard, Enhanced Table Info).
 
