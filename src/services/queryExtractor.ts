@@ -189,69 +189,119 @@ export class QueryExtractor {
     }
 
     private static findOutermostString(text: string, offset: number): { content: string, quoteChar: string, length: number, start: number } | null {
-        // Scan backwards to find potential start quotes.
-        // We look for " or ' that are NOT escaped.
-        // For each candidate, we check if there is a matching end quote AFTER the offset.
-        
-        const candidates: { start: number, char: string }[] = [];
-        
-        // Optimization: limit lookback to reasonable size (e.g. 50KB or 2000 lines) 
-        // to prevent freezing on huge files.
-        const limit = 50000; 
-        const minIndex = Math.max(0, offset - limit);
+        let i = 0;
+        const len = text.length;
 
-        for (let i = offset - 1; i >= minIndex; i--) {
+        // State tracking
+        let inString: string | null = null; // ' or " or `
+        let inComment: 'LINE' | 'BLOCK' | null = null;
+        let stringStart = -1;
+
+        // Optimization: For very large files, scanning from 0 might be slow.
+        // However, correct parsing requires knowing the context from the start.
+        // V8 is very fast at linear scanning.
+
+        while (i < len) {
             const char = text[i];
-            const prev = i > 0 ? text[i-1] : '';
-            
-            // Check for unescaped quote
-            if ((char === '"' || char === "'") && prev !== '\\') {
-                candidates.push({ start: i, char });
-                // We keep searching backwards to find *outer* quotes.
-                // But we can stop if we find too many unconnected quotes? 
-                // No, we just collect them.
-                if (candidates.length > 20) break; // limit candidates
-            }
-        }
+            const next = i + 1 < len ? text[i+1] : '';
 
-        // Check candidates. We want the one that:
-        // 1. Encloses the offset (end > offset)
-        // 2. Is the "largest" / outermost valid string.
-        
-        let bestMatch: { content: string, quoteChar: string, length: number, start: number } | null = null;
-        
-        for (const candidate of candidates) {
-            const end = this.findMatchingQuote(text, candidate.start + 1, candidate.char);
-            
-            // If valid string and contains offset
-            // We need strictly > offset for end quote? offset is where cursor is.
-            // If cursor is AT the closing quote, it's inside? 
-            // Usually cursor |" is inside if we consider " to " range.
-            if (end !== -1 && end >= offset) {
-                // Determine if this is "better" (larger/outer)
-                const len = end - candidate.start;
+            // 1. Inside String
+            if (inString) {
+                if (char === '\\') {
+                    // Escape sequence, skip next char (e.g. \" or \\)
+                    i += 2; 
+                    continue;
+                }
+                if (char === inString) {
+                    // End of string
+                    const stringEnd = i;
+                    
+                    // Check if this string covers the offset
+                    // Range: [stringStart, stringEnd] inclusive
+                    if (stringStart <= offset && offset <= stringEnd) {
+                        const content = text.substring(stringStart + 1, stringEnd);
+                        return {
+                            content,
+                            quoteChar: inString,
+                            start: stringStart,
+                            length: stringEnd - stringStart + 1
+                        };
+                    }
+
+                    // Reset state
+                    inString = null;
+                    stringStart = -1;
+                    
+                    // Specific logic: if text[offset] was inside this string, we returned.
+                    // If we are here, it means the string we just closed did NOT contain offset.
+                    // If i >= offset now, it means the offset was either inside this string (handled)
+                    // or prior to this string?
+                    // No. We scan i from 0.
+                    // If i >= offset, we passed the offset.
+                    // Since we were IN a string when we passed offset (if offset < i),
+                    // we would have returned if it started before offset.
+                    
+                    if (i >= offset) {
+                         return null;
+                    }
+                } else {
+                    i++;
+                }
+            }
+            // 2. Inside Line Comment
+            else if (inComment === 'LINE') {
+                if (char === '\n' || char === '\r') {
+                    inComment = null;
+                }
+                i++;
+            }
+            // 3. Inside Block Comment
+            else if (inComment === 'BLOCK') {
+                if (char === '*' && next === '/') {
+                    inComment = null;
+                    i += 2;
+                } else {
+                    i++;
+                }
+            }
+            // 4. Code / Whitespace
+            else {
+                // Check for Comments Start
+                if (char === '/' && next === '/') {
+                    inComment = 'LINE';
+                    i += 2;
+                }
+                else if (char === '#' && (i === 0 || /[\s\n\r]/.test(text[i-1]))) {
+                    // PHP/Shell style comment. 
+                    inComment = 'LINE';
+                    i++;
+                }
+                else if (char === '/' && next === '*') {
+                    inComment = 'BLOCK';
+                    i += 2;
+                }
+                // Check for String Start
+                else if (char === '"' || char === "'" || char === '`') {
+                    inString = char;
+                    stringStart = i;
+                    i++;
+                }
+                else {
+                    i++;
+                }
+
+                // If we are in code/whitespace and pass the offset, then the offset is not in a string within our scan logic.
+                // However, there is an edge case: offset is at the very start of a string (Start quote). 
+                // Then inString becomes set, but stringStart == offset. 
+                // The loop continues.
                 
-                if (!bestMatch || len > bestMatch.length) {
-                    const content = text.substring(candidate.start + 1, end);
-                    bestMatch = { content, quoteChar: candidate.char, length: len, start: candidate.start };
+                if (i > offset && !inString && !inComment) {
+                    return null;
                 }
             }
         }
         
-        return bestMatch;
-    }
-
-    private static findMatchingQuote(text: string, startIndex: number, quoteChar: string): number {
-        // Scan forward
-        for (let i = startIndex; i < text.length; i++) {
-            const char = text[i];
-            const prev = i > 0 ? text[i-1] : '';
-            
-            if (char === quoteChar && prev !== '\\') {
-                return i;
-            }
-        }
-        return -1;
+        return null;
     }
 
     /**

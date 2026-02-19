@@ -103,6 +103,81 @@ async function runTests() {
         assert.strictEqual(result?.text, "SELECT * FROM table WHERE x='val'");
     });
 
+    // --- Tokenizer: Comment handling tests ---
+
+    test('PHP: Line comment (//) with quote does not swallow next string', () => {
+        const text = `// This is a "comment with unclosed quote
+$sql = "SELECT * FROM table";`;
+        const offset = text.indexOf('SELECT');
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.strictEqual(result?.text, 'SELECT * FROM table');
+    });
+
+    test('PHP: Block comment (/* */) with quote does not swallow next string', () => {
+        const text = `/* comment "with quote */
+$sql = "SELECT * FROM table";`;
+        const offset = text.indexOf('SELECT');
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.strictEqual(result?.text, 'SELECT * FROM table');
+    });
+
+    test('PHP: Hash comment (#) with quote does not swallow next string', () => {
+        const text = `
+ # comment "with quote
+$sql = "SELECT * FROM table";`;
+        const offset = text.indexOf('SELECT');
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.strictEqual(result?.text, 'SELECT * FROM table');
+    });
+
+    test('PHP: SQL comment (--) inside string is preserved', () => {
+        const text = `$sql = "SELECT * FROM t WHERE x=? --@val='FIO' AND y=1";`;
+        const offset = text.indexOf('SELECT');
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.strictEqual(result?.text, "SELECT * FROM t WHERE x=? --@val='FIO' AND y=1");
+    });
+
+    test('PHP: Cursor outside any string returns null', () => {
+        const text = `$x = 1; $sql = "SELECT 1"; $y = 2;`;
+        const offset = 3; // at "= 1"
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.strictEqual(result, null);
+    });
+
+    test('PHP: Repro - multiline queryp with SQL comment inside string', () => {
+        const text = `$ciselnikLastTimestamp = $wpsql->queryp("
+    SELECT MAX(datumzmeny) 
+    FROM ciselnik 
+    WHERE typ=? --@val='FIO'
+    AND idciselnik=111
+    AND activ='T';    
+")->fetchOneValue();`;
+        const offset = text.indexOf('SELECT');
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.ok(result, 'Result should not be null');
+        assert.ok(result!.text.includes('SELECT MAX(datumzmeny)'), 'Should contain SELECT');
+        assert.ok(result!.text.includes("--@val='FIO'"), 'Should preserve SQL comment');
+        assert.ok(result!.text.includes("AND activ='T'"), 'Should contain full WHERE clause');
+        assert.ok(!result!.text.includes('fetchOneValue'), 'Should not include PHP code');
+    });
+
+    test('PHP: Repro - comment before query does not break extraction', () => {
+        const text = `
+    // This is a "comment with unclosed quote
+    $ciselnikLastTimestamp = $wpsql->queryp("
+        SELECT MAX(datumzmeny) 
+        FROM ciselnik 
+        WHERE typ=? --@val='FIO'
+        AND idciselnik=111
+        AND activ='T';    
+    ")->fetchOneValue();
+    `;
+        const offset = text.indexOf('SELECT');
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.ok(result, 'Result should not be null');
+        assert.ok(result!.text.trim().startsWith('SELECT'), 'Should start with SELECT, not comment text');
+    });
+
     test('SQL: Extract query with semicolon', () => {
         const text = `SELECT 1 FROM RDB$DATABASE; SELECT 2 FROM RDB$DATABASE;`;
         const offset = 5; // inside first query

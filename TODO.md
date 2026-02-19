@@ -49,4 +49,5 @@
 - [ ] Export results to CSV
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
 - [ ] Support multiple simultaneous active database connections
-- [ ] diff between SQL in the editor and actual DDL in database
+- [ ] Diff between SQL in the editor and actual DDL in database
+- [ ] Copy data between two databases
