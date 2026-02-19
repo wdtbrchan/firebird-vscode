@@ -231,6 +231,7 @@ export class QueryExtractor {
                     // Reset state
                     inString = null;
                     stringStart = -1;
+                    i++; // Move past the closing quote
                     
                     // Specific logic: if text[offset] was inside this string, we returned.
                     // If we are here, it means the string we just closed did NOT contain offset.

@@ -276,6 +276,28 @@ SET TERM ; ^
     });
 
 
+    test('PHP: Full file with multiple strings before SQL query', () => {
+        const text = `<?php
+
+$shopman->set('shop_mask', 'cashdesk');
+
+$ciselnikLastTimestamp = $wpsql->queryp("
+    SELECT MAX(datumzmeny) 
+    FROM ciselnik 
+    WHERE typ=? --@val='FIO'
+    AND idciselnik=111
+    AND activ='T';    
+")->fetchOneValue();
+`;
+        const offset = text.indexOf('SELECT');
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.ok(result, 'Result should not be null');
+        assert.ok(result!.text.includes('SELECT MAX(datumzmeny)'), 'Should contain SELECT');
+        assert.ok(result!.text.includes("--@val='FIO'"), 'Should preserve SQL comment');
+        assert.ok(result!.text.includes("AND activ='T'"), 'Should contain full WHERE clause');
+        assert.ok(!result!.text.includes('fetchOneValue'), 'Should not include PHP code');
+    });
+
     // --- End Tests ---
 
     console.log(`\nResults: ${passed} passed, ${failed} failed.`);
