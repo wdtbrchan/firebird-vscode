@@ -14,7 +14,13 @@
     "vscode": "^1.80.0"
   },
   "categories": [
+    "Programming Languages",
     "Other"
+  ],
+  "tags": [
+    "firebird",
+    "sql",
+    "database"
   ],
   "activationEvents": [],
   "main": "./out/extension.js",

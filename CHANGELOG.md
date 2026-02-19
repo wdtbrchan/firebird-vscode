@@ -1,5 +1,9 @@
 
-## [1.2.2]
+## [ upcoming ]
+### Metadata
+- **package.json**: Added `Programming Languages` category and `firebird`, `sql`, `database` tags for better visibility.
+
+
 ### Fixes
 - **Query Extraction**: Fixed SQL detection failing in files with multiple string literals before the SQL query.
 
