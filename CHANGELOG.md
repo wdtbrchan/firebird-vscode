@@ -1,13 +1,13 @@
 
-## [ upcoming ]
+## [1.2.2]
 ### Fixes
 - **Query Extraction**: Fixed SQL detection failing in files with multiple string literals before the SQL query.
 
-## [1.2.1] - 2026-02-19
+## [1.2.1]
 ### Fixes
 - **Query Extraction**: Replaced naive backward-scanning string detection with a robust forward-scanning tokenizer. This fixes incorrect SQL extraction in non-SQL files (e.g. PHP) when comments contain unmatched quotes or SQL comments (`--`) appear inside string literals.
 
-## [1.2.0] - 2026-02-18
+## [1.2.0]
 ### Features
 - **CodeLens**: Added "Run Script" CodeLens for `SET TERM` blocks and "Run Query" CodeLens for standard queries.
 
