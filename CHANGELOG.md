@@ -1,5 +1,5 @@
 
-## [ upcoming ]
+## [1.2.1] - 2026-02-19
 ### Fixes
 - **Query Extraction**: Replaced naive backward-scanning string detection with a robust forward-scanning tokenizer. This fixes incorrect SQL extraction in non-SQL files (e.g. PHP) when comments contain unmatched quotes or SQL comments (`--`) appear inside string literals.
 
