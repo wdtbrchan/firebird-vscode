@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.png" alt="Firebird VS Code Logo" width="128" />
+  <img src="docs/logo.png" alt="Firebird VS Code Logo" width="200" />
 </p>
 
 # Firebird SQL

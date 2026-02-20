@@ -1,5 +1,8 @@
 
 ## [ upcoming ]
+### UI / UX
+- **Logo**: Updated extension logo and README.md.
+
 ### Metadata
 - **package.json**: Added `Programming Languages` category and `firebird`, `sql`, `database` tags for better visibility.
 
