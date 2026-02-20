@@ -1,5 +1,5 @@
 
-## [ upcoming ]
+## [1.3.0]
 ### Features
 - **CSV Export**: Added ability to export query results to CSV file with configurable delimiter, string qualifier, encoding, and filename.
 
@@ -8,7 +8,6 @@
 
 ### Metadata
 - **package.json**: Added `Programming Languages` category and `firebird`, `sql`, `database` tags for better visibility.
-
 
 ### Fixes
 - **Query Extraction**: Fixed SQL detection failing in files with multiple string literals before the SQL query.
