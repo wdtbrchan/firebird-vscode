@@ -25,6 +25,15 @@ export interface ResultsPageParams {
 }
 
 /**
+ * Extracts the table name from a SQL query (best-effort, parses FROM clause).
+ */
+function extractTableName(query: string | undefined): string | undefined {
+    if (!query) return undefined;
+    const match = query.match(/\bFROM\s+([^\s,;()+]+)/i);
+    return match ? match[1].replace(/['"]/g, '') : undefined;
+}
+
+/**
  * Assembles the full HTML page for the results webview.
  */
 export function getResultsPageHtml(params: ResultsPageParams): string {
@@ -63,7 +72,9 @@ export function getResultsPageHtml(params: ResultsPageParams): string {
     } else if (!params.results || params.results.length === 0) {
         contentHtml = getNoResultsHtml(params.affectedRows);
     } else {
-        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction);
+        const encoding = params.currentConnection?.charset || 'UTF8';
+        const tableName = extractTableName(params.currentQuery);
+        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction, encoding, tableName);
     }
 
     // --- Scripts ---

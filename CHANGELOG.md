@@ -1,5 +1,8 @@
 
 ## [ upcoming ]
+### Features
+- **CSV Export**: Added ability to export query results to CSV file with configurable delimiter, string qualifier, encoding, and filename.
+
 ### UI / UX
 - **Logo**: Updated extension logo and README.md.
 
@@ -187,8 +190,7 @@
 
 ## [0.7.2]
 ### UI Improvements
-- **Query Results**:
-  - Restyled query result header and removed top reserved space above header.  
+- **Query Results**: Restyled query result header and removed top reserved space above header.  
 - **Explorer Icons**:
   - Added specific icons for Table Indexes (Key) and Triggers (Zap) within the Table view.
 

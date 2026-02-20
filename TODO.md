@@ -46,7 +46,7 @@
 - [x] Add toggle between triggers subtree and triggers list
 - [x] Copy results values to clipboard as list / table
 - [x] Add permisions in procedure DDL
-- [ ] Export results to CSV
+- [x] Export results to CSV
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
 - [ ] Support multiple simultaneous active database connections
 - [ ] Diff between SQL in the editor and actual DDL in database

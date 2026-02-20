@@ -46,6 +46,26 @@ export function getWebviewScripts(autoRollbackAt: number): string {
                 }
             }
 
+            if (message.command === 'csvExportStatus') {
+                const statusEl = document.getElementById('csvExportStatusText');
+                const formEl = document.getElementById('csvModalForm');
+                const overlay = document.getElementById('csvModalOverlay');
+                if (statusEl && overlay) {
+                    if (message.status) {
+                        statusEl.innerText = message.status;
+                        statusEl.style.display = 'block';
+                        statusEl.style.color = message.status.startsWith('Error') ? '#f44' : '';
+                        if (formEl) formEl.style.display = 'none';
+                        overlay.classList.add('visible');
+                    } else {
+                        statusEl.style.display = 'none';
+                        statusEl.innerText = '';
+                        if (formEl) formEl.style.display = 'block';
+                        overlay.classList.remove('visible');
+                    }
+                }
+            }
+
             if (message.command === 'updateTransaction') {
                 const area = document.getElementById('transaction-area');
                 if (area) {
@@ -249,6 +269,39 @@ export function getWebviewScripts(autoRollbackAt: number): string {
                  copyToClipboard(text);
             }
 
+        })();
+
+        // --- CSV Export Modal ---
+        function showCsvModal() {
+            const overlay = document.getElementById('csvModalOverlay');
+            if (overlay) overlay.classList.add('visible');
+        }
+        function hideCsvModal() {
+            const overlay = document.getElementById('csvModalOverlay');
+            if (overlay) overlay.classList.remove('visible');
+        }
+        function exportCsv() {
+            const delimiter = document.getElementById('csvDelimiter').value || ';';
+            const qualifier = document.getElementById('csvQualifier').value || '"';
+            const encoding = document.getElementById('csvEncoding').value || 'UTF8';
+            const filename = document.getElementById('csvFilename').value || 'export.csv';
+            hideCsvModal();
+            vscode.postMessage({ 
+                command: 'exportCsv',
+                delimiter: delimiter,
+                qualifier: qualifier,
+                encoding: encoding,
+                filename: filename
+            });
+        }
+        // Close modal on overlay click
+        (function() {
+            const overlay = document.getElementById('csvModalOverlay');
+            if (overlay) {
+                overlay.addEventListener('click', function(e) {
+                    if (e.target === overlay) hideCsvModal();
+                });
+            }
         })();
     `;
 }

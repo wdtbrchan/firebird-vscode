@@ -61,7 +61,7 @@ export function getNoResultsHtml(affectedRows: number | undefined): string {
 /**
  * Returns the HTML for the results data table.
  */
-export function getResultsTableHtml(results: any[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string): string {
+export function getResultsTableHtml(results: any[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string, encoding?: string, tableName?: string): string {
     const columns = Object.keys(results[0]);
     const headerRow = '<th></th>' + columns.map(col => `<th>${col}</th>`).join('');
     
@@ -86,13 +86,47 @@ export function getResultsTableHtml(results: any[], locale: string, hasMore: boo
         }
     }
 
+    const defaultFilename = (tableName || 'export') + '.csv';
+    const defaultEncoding = encoding || 'UTF8';
+
     return `
+        <div class="export-bar">
+            <button id="exportCsvBtn" onclick="showCsvModal()">⤓ Export CSV</button>
+        </div>
         <div class="table-container">
             <table>
                 <thead><tr>${headerRow}</tr></thead>
                 <tbody>${rowsHtml}</tbody>
             </table>
             ${loadMoreButtonHtml}
+        </div>
+        <div class="csv-modal-overlay" id="csvModalOverlay">
+            <div class="csv-modal">
+                <h3>Export to CSV</h3>
+                <div id="csvExportStatusText" style="display:none; padding: 12px 0; font-size: 13px;"></div>
+                <div id="csvModalForm">
+                <div class="csv-modal-field">
+                    <label for="csvDelimiter">Delimiter</label>
+                    <input type="text" id="csvDelimiter" value=";" maxlength="5" />
+                </div>
+                <div class="csv-modal-field">
+                    <label for="csvQualifier">String Qualifier</label>
+                    <input type="text" id="csvQualifier" value="&quot;" maxlength="5" />
+                </div>
+                <div class="csv-modal-field">
+                    <label for="csvEncoding">Encoding</label>
+                    <input type="text" id="csvEncoding" value="${defaultEncoding}" />
+                </div>
+                <div class="csv-modal-field">
+                    <label for="csvFilename">Filename</label>
+                    <input type="text" id="csvFilename" value="${defaultFilename}" />
+                </div>
+                <div class="csv-modal-buttons">
+                    <button class="btn-cancel" onclick="hideCsvModal()">Cancel</button>
+                    <button class="btn-export" onclick="exportCsv()">Export to file</button>
+                </div>
+                </div>
+            </div>
         </div>
     `;
 }

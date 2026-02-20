@@ -225,6 +225,135 @@ export function getMainStyles(connectionColor: string): string {
             cursor: not-allowed;
         }
 
+        /* Export CSV Button */
+        .export-bar {
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            background-color: var(--vscode-editor-background);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            flex-shrink: 0;
+        }
+        #exportCsvBtn {
+            padding: 3px 10px;
+            font-size: 12px;
+            background-color: transparent;
+            color: var(--vscode-button-secondaryForeground, #ccc);
+            border: 1px solid var(--vscode-button-secondaryBackground, #555);
+            border-radius: 3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background-color 0.15s;
+        }
+        #exportCsvBtn:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground, #444);
+        }
+
+        /* CSV Modal */
+        .csv-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .csv-modal-overlay.visible { display: flex; }
+        .csv-modal {
+            background-color: #252526;
+            border: 1px solid #454545;
+            border-radius: 6px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            padding: 20px 24px;
+            min-width: 380px;
+            max-width: 440px;
+            color: #ccc;
+        }
+        .csv-modal h3 {
+            margin: 0 0 16px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .csv-modal-field {
+            margin-bottom: 12px;
+        }
+        .csv-modal-field label {
+            display: block;
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: #aaa;
+        }
+        .csv-modal-field input,
+        .csv-modal-field select {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 5px 8px;
+            font-size: 13px;
+            background-color: #3c3c3c;
+            color: #ccc;
+            border: 1px solid #555;
+            border-radius: 3px;
+            outline: none;
+        }
+        .csv-modal-field input:focus,
+        .csv-modal-field select:focus {
+            border-color: var(--vscode-focusBorder, #007fd4);
+        }
+        .csv-modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 18px;
+            gap: 10px;
+        }
+        .csv-modal-buttons button {
+            padding: 6px 16px;
+            font-size: 13px;
+            border-radius: 3px;
+            cursor: pointer;
+            border: none;
+        }
+        .csv-modal-buttons .btn-cancel {
+            background-color: transparent;
+            color: #ccc;
+            border: 1px solid #555;
+        }
+        .csv-modal-buttons .btn-cancel:hover {
+            background-color: #3c3c3c;
+        }
+        .csv-modal-buttons .btn-export {
+            background-color: var(--vscode-button-background, #0e639c);
+            color: var(--vscode-button-foreground, #fff);
+        }
+        .csv-modal-buttons .btn-export:hover {
+            background-color: var(--vscode-button-hoverBackground, #1177bb);
+        }
+
+        /* CSV Modal Light Theme */
+        body.vscode-light .csv-modal {
+            background-color: #f3f3f3;
+            border: 1px solid #cecece;
+            color: #333;
+        }
+        body.vscode-light .csv-modal h3 { color: #222; }
+        body.vscode-light .csv-modal-field label { color: #666; }
+        body.vscode-light .csv-modal-field input,
+        body.vscode-light .csv-modal-field select {
+            background-color: #fff;
+            color: #333;
+            border: 1px solid #cecece;
+        }
+        body.vscode-light .csv-modal-buttons .btn-cancel {
+            color: #333;
+            border: 1px solid #cecece;
+        }
+        body.vscode-light .csv-modal-buttons .btn-cancel:hover {
+            background-color: #e0e0e0;
+        }
+
         /* Context Menu */
         .context-menu {
             display: none;
