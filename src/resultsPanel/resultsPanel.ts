@@ -16,6 +16,7 @@ export class ResultsPanel {
     private _lastMessage: string | undefined;
     private _showButtons: boolean = false;
     private _currentQuery: string | undefined;
+    private _displayQuery: string | undefined;
     private _currentConnection: any | undefined;
     private _currentOffset: number = 0;
     private _limit: number = 1000;
@@ -118,6 +119,7 @@ export class ResultsPanel {
 
     public async runNewQuery(query: string, connection: any, context?: string) {
         this._currentQuery = query;
+        this._displayQuery = query;
         this._currentConnection = connection;
         this._currentContext = context;
         this._currentOffset = 0;
@@ -143,8 +145,22 @@ export class ResultsPanel {
         this.showLoading();
         this._panel.webview.postMessage({ command: 'message', text: 'Executing script...' });
 
-        let executedCount = 0;
         const total = statements.length;
+
+        if (total === 0) {
+            this._displayQuery = undefined;
+        } else if (total === 1) {
+            this._displayQuery = statements[0];
+        } else {
+            const getPrefix = (stmt: string) => {
+                const trimmed = stmt.trim();
+                const firstLine = trimmed.split(/\r?\n/)[0].trim();
+                return firstLine.length > 40 ? firstLine.substring(0, 40) + '...' : firstLine;
+            };
+            this._displayQuery = `${getPrefix(statements[0])} ... ${getPrefix(statements[total - 1])}`;
+        }
+
+        let executedCount = 0;
 
         try {
             for (let i = 0; i < total; i++) {
@@ -322,6 +338,7 @@ export class ResultsPanel {
             transactionAction,
             affectedRows,
             currentQuery: this._currentQuery,
+            displayQuery: this._displayQuery,
             currentConnection: this._currentConnection,
             lastExecutionTime: this._lastExecutionTime,
             autoRollbackAt: this._currentAutoRollbackAt || 0,

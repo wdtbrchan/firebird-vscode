@@ -18,6 +18,7 @@ export interface ResultsPageParams {
     transactionAction: string | undefined;
     affectedRows: number | undefined;
     currentQuery: string | undefined;
+    displayQuery?: string;
     currentConnection: any;
     lastExecutionTime: number | undefined;
     autoRollbackAt: number;
@@ -57,7 +58,7 @@ export function getResultsPageHtml(params: ResultsPageParams): string {
     }
 
     const infoBarParams: InfoBarParams = {
-        query: params.currentQuery,
+        query: params.displayQuery || params.currentQuery,
         timeText,
         rowsText,
         showButtons: params.showButtons,
