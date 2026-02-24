@@ -357,7 +357,7 @@ export class ResultsPanel {
 
         try {
             const Firebird = require('node-firebird');
-            const { prepareQueryBuffer, processResultRows } = require('../database/encodingUtils');
+            const { prepareQueryBuffer, processResultRows, getUniqueColumnNames } = require('../database/encodingUtils');
             const options = {
                 host: connection.host,
                 port: connection.port,
@@ -405,6 +405,7 @@ export class ResultsPanel {
                                 }
 
                                 const collected: any[] = [];
+                                const columnNames = getUniqueColumnNames(stmt.output);
                                 const fetchBatch = () => {
                                     stmt.fetch(tr, batchSize, async (err: any, ret: any) => {
                                         if (err) {
@@ -413,7 +414,7 @@ export class ResultsPanel {
                                         }
 
                                         try {
-                                            const processed = await processResultRows(ret.data || [], encodingConf);
+                                            const processed = await processResultRows(ret.data || [], encodingConf, columnNames);
                                             collected.push(...processed);
 
                                             // Report progress
@@ -437,7 +438,7 @@ export class ResultsPanel {
                                     });
                                 };
                                 fetchBatch();
-                            }, { asObject: true });
+                            }, { asObject: false });
                         });
                     });
                 });

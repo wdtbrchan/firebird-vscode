@@ -1,6 +1,33 @@
 import * as iconv from 'iconv-lite';
 
 /**
+ * Extracts unique column names from a node-firebird statement output array.
+ * Suffixes duplicate column names with _1, _2, etc.
+ */
+export function getUniqueColumnNames(outputs: any[]): string[] {
+    const names: string[] = [];
+    const nameCounts = new Map<string, number>();
+    for (const out of (outputs || [])) {
+        let baseName = out.alias || out.field || 'COLUMN';
+        let finalName = baseName;
+        let count = nameCounts.get(baseName) || 0;
+        
+        if (count > 0) {
+            finalName = `${baseName}_${count}`;
+        }
+        nameCounts.set(baseName, count + 1);
+        
+        while (names.includes(finalName)) {
+             count++;
+             finalName = `${baseName}_${count}`;
+             nameCounts.set(baseName, count + 1);
+        }
+        names.push(finalName);
+    }
+    return names;
+}
+
+/**
  * Processes result rows from node-firebird, decoding buffers and BLOBs
  * according to the configured charset encoding.
  */

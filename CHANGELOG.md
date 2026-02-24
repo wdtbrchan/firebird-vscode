@@ -1,4 +1,11 @@
 
+## [ upcoming ]
+
+### Fixes
+- **Query Results**: Fixed an issue where duplicate column names in `SELECT` queries resulted in missing columns in the results table and CSV export.
+- **Script Parsing**: Fixed script parsing and execution inside custom `SET TERM` blocks when empty lines are used within procedures.
+- **Script Parsing**: Fixed `SET TERM` delimiter parsing when spacing is omitted before the old delimiter (e.g., `SET TERM ^;`).
+
 ## [1.3.0]
 ### Features
 - **CSV Export**: Added ability to export query results to CSV file with configurable delimiter, string qualifier, encoding, and filename.

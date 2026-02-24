@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as Firebird from 'node-firebird';
 import { TransactionManager } from './transactionManager';
-import { processResultRows, prepareQueryBuffer } from './encodingUtils';
+import { processResultRows, prepareQueryBuffer, getUniqueColumnNames } from './encodingUtils';
 import { QueryOptions, QueryResult } from './types';
 
 /**
@@ -247,6 +247,7 @@ export class QueryExecutor {
                             TransactionManager.activeQuery = finalQuery;
                             TransactionManager.activeConnectionInfo = connectionInfo;
 
+                            const columnNames = getUniqueColumnNames(stmt.output);
                             stmt.fetch(tr, limit, async (err: any, ret: any) => {
                                 if (err) {
                                     stmt.close();
@@ -255,7 +256,7 @@ export class QueryExecutor {
                                 }
                                 
                                 try {
-                                    const processed = await processResultRows(ret.data || [], encodingConf);
+                                    const processed = await processResultRows(ret.data || [], encodingConf, columnNames);
                                     wrapResolve({ 
                                         rows: processed, 
                                         hasMore: !ret.fetched && (ret.data?.length === limit)
@@ -275,10 +276,11 @@ export class QueryExecutor {
                             TransactionManager.activeStatement = undefined;
                             wrapResolve({ rows: [], affectedRows });
                         }
-                    }, { asObject: true });
+                    }, { asObject: false });
                 };
 
                 const fetchMore = (stmt: any) => {
+                    const columnNames = getUniqueColumnNames(stmt.output);
                     stmt.fetch(tr, limit, async (err: any, ret: any) => {
                         if (err) {
                             stmt.close();
@@ -287,7 +289,7 @@ export class QueryExecutor {
                         }
                         
                         try {
-                            const processed = await processResultRows(ret.data || [], encodingConf);
+                            const processed = await processResultRows(ret.data || [], encodingConf, columnNames);
                             wrapResolve({ 
                                 rows: processed, 
                                 hasMore: !ret.fetched && (ret.data?.length === limit)

@@ -126,6 +126,11 @@ export class QueryExtractor {
         for (let i = 0; i < setTerms.length; i++) {
             const term = setTerms[i];
             
+            // Clean up delimiter if user omitted space (e.g. SET TERM ^;)
+            if (term.delimiter.length > 1 && term.delimiter.endsWith(currentDelimiter)) {
+                term.delimiter = term.delimiter.substring(0, term.delimiter.length - currentDelimiter.length);
+            }
+
             // Start of a block: switching away from default delimiter
             if (currentDelimiter === ';' && term.delimiter !== ';') {
                 blockStart = term.index;

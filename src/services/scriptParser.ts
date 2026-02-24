@@ -96,7 +96,15 @@ export class ScriptParser {
                 const match = /^\s*SET\s+TERM\s+(\S+)/i.exec(rest);
                 if (match) {
                      // Found SET TERM
-                     delimiter = match[1];
+                     let newDelim = match[1];
+                     
+                     // Clean up delimiter if user omitted space (e.g. SET TERM ^;)
+                     if (newDelim.length > 1 && newDelim.endsWith(delimiter)) {
+                         newDelim = newDelim.substring(0, newDelim.length - delimiter.length);
+                     }
+                     
+                     delimiter = newDelim;
+                     
                      // Skip the whole line/command. 
                      // We assume SET TERM ends with newline or is just a directive.
                      
@@ -137,7 +145,7 @@ export class ScriptParser {
                 }
 
                 // Empty line separator check
-                if (useEmptyLineAsSeparator && (char === '\n' || char === '\r')) {
+                if (useEmptyLineAsSeparator && delimiter === ';' && (char === '\n' || char === '\r')) {
                     // Check if the current line being finished is empty (only whitespace)
                     // and if it was preceded by a newline.
                     // Actually, we want to split when we see a newline followed by an empty line.

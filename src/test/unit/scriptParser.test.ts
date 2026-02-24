@@ -68,6 +68,19 @@ SELECT 1 FROM RDB$DATABASE;`;
         assert.strictEqual(result[1], 'SELECT 1 FROM RDB$DATABASE');
     });
 
+    test('Empty line inside custom terminator block should not split script', () => {
+        const text = `SET TERM ^ ;
+CREATE OR ALTER PROCEDURE SKUPINY_USERS () AS
+BEGIN
+
+END ^
+SET TERM ; ^`;
+        const result = ScriptParser.split(text, true);
+        assert.strictEqual(result.length, 1);
+        assert.ok(result[0].includes('CREATE OR ALTER PROCEDURE'));
+        assert.ok(result[0].includes('END'));
+    });
+
     console.log(`\nResults: ${passed} passed, ${failed} failed.`);
     if (failed > 0) process.exit(1);
 }

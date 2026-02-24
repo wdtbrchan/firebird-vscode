@@ -236,6 +236,34 @@ SET TERM ; ^
         assert.ok(result?.text.startsWith('SET TERM ^ ;'), 'Should return the preceding SET TERM block');
     });
 
+    test('SQL: Cursor inside SET TERM block with trailing statements', () => {
+        const text = `SET TERM ^ ;
+CREATE OR ALTER PROCEDURE SKUPINY_USERS (
+    WP_TYP VARCHAR(10)
+)
+AS
+BEGIN
+END ^
+SET TERM ; ^
+
+GRANT EXECUTE ON PROCEDURE SKUPINY_USERS TO FIN_REG;
+`;
+        const offset = text.indexOf('WP_TYP');
+        const result = QueryExtractor.extract(text, offset, 'sql');
+        assert.ok(result?.text.startsWith('SET TERM ^ ;'), 'Should return the SET TERM block');
+        assert.ok(result?.text.endsWith('SET TERM ; ^'), 'Should end with SET TERM ; ^ instead of GRANT');
+        assert.strictEqual(result?.type, 'SET_TERM');
+    });
+
+    test('SQL: Trailing statements with CRLF', () => {
+        const text = "SET TERM ^ ;\r\nCREATE OR ALTER PROCEDURE SKUPINY_USERS (\r\n    WP_TYP VARCHAR(10)\r\n)\r\nAS\r\nBEGIN\r\nEND ^\r\nSET TERM ; ^\r\n\r\nGRANT EXECUTE ON PROCEDURE SKUPINY_USERS TO FIN_REG;\r\n";
+        const offset = text.indexOf('WP_TYP');
+        const result = QueryExtractor.extract(text, offset, 'sql');
+        assert.ok(result?.text.startsWith('SET TERM ^ ;'), 'Should return the SET TERM block');
+        assert.ok(result?.text.endsWith('SET TERM ; ^'), 'Should end with SET TERM ; ^ instead of GRANT');
+        assert.strictEqual(result?.type, 'SET_TERM');
+    });
+
     // --- hasSqlKeywords Tests ---
 
     test('Keywords: Detect SELECT', () => {
