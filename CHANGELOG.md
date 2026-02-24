@@ -1,5 +1,6 @@
 
-## [ upcoming ]
+## [1.3.1]
+
 
 ### Fixes
 - **Query Results**: Shortened display title for script execution to show only the first and last command prefixes (e.g. `cmd1 ... cmdN`) when multiple commands are executed.
