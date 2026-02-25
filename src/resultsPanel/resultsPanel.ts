@@ -155,7 +155,7 @@ export class ResultsPanel {
             const getPrefix = (stmt: string) => {
                 const trimmed = stmt.trim();
                 const firstLine = trimmed.split(/\r?\n/)[0].trim();
-                return firstLine.length > 40 ? firstLine.substring(0, 40) + '...' : firstLine;
+                return firstLine.length > 40 ? firstLine.substring(0, 40) : firstLine;
             };
             this._displayQuery = `${getPrefix(statements[0])} ... ${getPrefix(statements[total - 1])}`;
         }

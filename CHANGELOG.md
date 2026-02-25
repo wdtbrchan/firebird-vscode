@@ -1,4 +1,10 @@
 
+## [ upcoming ]
+### Fixes
+- **CodeLens**: Hidden the trailing CodeLens marker (`↑`) for SQL scripts using `SET TERM` blocks.
+- **CodeLens**: Fixed "Run Script" CodeLens to execute the entire editor content (matching `CTRL+ALT+ENTER`).
+- **Query Results**: Refined script execution summary to use a single `...` separator when truncating long commands.
+
 ## [1.3.1]
 
 

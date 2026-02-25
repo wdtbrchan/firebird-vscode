@@ -142,7 +142,7 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
                      const runScriptCommand: vscode.Command = {
                         title: `$(run-all) Run Script`,
                         command: 'firebird.executeScript',
-                        arguments: [result.text]
+                        arguments: []
                     };
                     lenses.push(new vscode.CodeLens(startRange, runScriptCommand));
                 }
@@ -157,7 +157,7 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
                 }
             }
 
-            if (endRange) {
+            if (endRange && result?.type !== 'SET_TERM') {
                 const endCommand: vscode.Command = {
                     title: `↑`,
                     command: 'firebird.selectDatabase',
