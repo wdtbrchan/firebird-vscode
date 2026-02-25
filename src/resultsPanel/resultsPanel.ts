@@ -5,21 +5,18 @@ import { getLoadingHtml } from './templates/loadingTemplate';
 import { getResultsPageHtml } from './templates/resultsTemplate';
 import { generateRowsHtml } from './templates/contentTemplates';
 import { ExportService } from './exportService';
+import { ExecutionService } from '../services/executionService';
 
 export class ResultsPanel {
     public static currentPanel: ResultsPanel | undefined;
     private readonly _panel: vscode.WebviewPanel;
     private _disposables: vscode.Disposable[] = [];
     private _lastResults: any[] = [];
-    private _allResults: any[] = [];  // All fetched results (for client-side pagination)
-    private _useClientSidePagination: boolean = false;
     private _lastMessage: string | undefined;
     private _showButtons: boolean = false;
     private _currentQuery: string | undefined;
     private _displayQuery: string | undefined;
     private _currentConnection: any | undefined;
-    private _currentOffset: number = 0;
-    private _limit: number = 1000;
     private _currentContext: string | undefined;
     private _currentAutoRollbackAt: number | undefined;
     private _lastExecutionTime: number | undefined;
@@ -52,7 +49,7 @@ export class ResultsPanel {
                         vscode.commands.executeCommand('firebird.rollback');
                         return;
                     case 'loadMore':
-                        this._loadMore();
+                        ExecutionService.getInstance().loadMore();
                         return;
                     case 'exportCsv':
                         ExportService.exportCsv(this._panel, this._currentQuery, this._currentConnection, message);
@@ -62,6 +59,29 @@ export class ResultsPanel {
             null,
             this._disposables
         );
+
+        const execService = ExecutionService.getInstance();
+        execService.onStart(() => this.showLoading(), this, this._disposables);
+        execService.onMessage(e => this._panel.webview.postMessage({ command: 'message', text: e.text }), this, this._disposables);
+        execService.onError(e => this.showError(e.message, e.hasTransaction), this, this._disposables);
+        execService.onSuccessMessage(e => this.showSuccess(e.message, e.hasTransaction), this, this._disposables);
+        execService.onData(e => {
+            this._currentQuery = e.query;
+            this._displayQuery = e.displayQuery;
+            this._currentConnection = e.connection;
+            this._currentContext = e.context;
+            this._lastExecutionTime = e.executionTime;
+            
+            if (e.append) {
+                this._appendRowsToWebview(e.results, this._lastResults.length, e.hasMore, e.affectedRows);
+                this._lastResults = [...this._lastResults, ...e.results];
+            } else if (e.results.length > 0 || (e.affectedRows !== undefined && e.affectedRows >= 0)) {
+                this._updateContentForTable(e.results, e.hasTransaction, e.context, e.hasMore, e.affectedRows);
+            } else {
+                this._updateContentForTable([], e.hasTransaction, e.context, false, undefined);
+            }
+        }, this, this._disposables);
+
         this._updateContentForTable([], false);
     }
 
@@ -117,89 +137,9 @@ export class ResultsPanel {
         this._panel.webview.html = this._getHtmlForWebview([], message, hasTransaction, true, this._lastContext);
     }
 
-    public async runNewQuery(query: string, connection: any, context?: string) {
-        this._currentQuery = query;
-        this._displayQuery = query;
-        this._currentConnection = connection;
-        this._currentContext = context;
-        this._currentOffset = 0;
-        this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
-        this._lastResults = [];
-        this._lastTransactionAction = undefined;
-        this._affectedRows = undefined;
-        this._lastExecutionTime = undefined;
-        this._hasMore = false; // Reset hasMore
-        
-        await this._fetchAndDisplay();
-    }
 
-    public async runScript(statements: string[], connection: any, context?: string) {
-        this._currentConnection = connection;
-        this._currentContext = context;
-        this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
-        this._lastResults = [];
-        this._lastTransactionAction = undefined;
-        this._affectedRows = undefined;
-        this._lastExecutionTime = undefined;
 
-        this.showLoading();
-        this._panel.webview.postMessage({ command: 'message', text: 'Executing script...' });
-
-        const total = statements.length;
-
-        if (total === 0) {
-            this._displayQuery = undefined;
-        } else if (total === 1) {
-            this._displayQuery = statements[0];
-        } else {
-            const getPrefix = (stmt: string) => {
-                const trimmed = stmt.trim();
-                const firstLine = trimmed.split(/\r?\n/)[0].trim();
-                return firstLine.length > 40 ? firstLine.substring(0, 40) : firstLine;
-            };
-            this._displayQuery = `${getPrefix(statements[0])} ... ${getPrefix(statements[total - 1])}`;
-        }
-
-        let executedCount = 0;
-
-        try {
-            for (let i = 0; i < total; i++) {
-                const stmt = statements[i];
-                this._currentQuery = stmt;
-                
-                if (i === total - 1) {
-                     this._currentOffset = 0;
-                     await this._fetchAndDisplay();
-                } else {
-                    await Database.executeQuery(stmt, connection, { limit: 1000, offset: 0 }); 
-                }
-                executedCount++;
-            }
-        } catch (err: any) {
-            const hasTransaction = Database.hasActiveTransaction;
-            this.showError(`Script error at statement ${executedCount + 1}: ${err.message}`, hasTransaction);
-        }
-    }
-
-    private async _loadMore() {
-        this._currentOffset += this._limit;
-        try {
-            if (this._useClientSidePagination) {
-                const startIndex = this._currentOffset;
-                const endIndex = this._currentOffset + this._limit;
-                const newRows = this._allResults.slice(startIndex, endIndex);
-                const hasMore = endIndex < this._allResults.length;
-                this._lastResults = this._allResults.slice(0, endIndex);
-                this._appendRowsToWebview(newRows, startIndex, hasMore);
-            } else {
-                await this._fetchAndDisplay(true);
-            }
-        } catch (e) {
-            console.error('Load more failed', e);
-        }
-    }
-
-    private _appendRowsToWebview(newRows: any[], startIndex: number, hasMore: boolean) {
+    private _appendRowsToWebview(newRows: any[], startIndex: number, hasMore: boolean, affectedRows?: number) {
         const config = vscode.workspace.getConfiguration('firebird');
         const locale = this._currentConnection?.resultLocale || config.get<string>('resultLocale', 'en-US');
         
@@ -212,8 +152,8 @@ export class ResultsPanel {
         } else {
              rowsText = `${rowCount} rows fetched`;
         }
-        if (this._affectedRows !== undefined && this._affectedRows >= 0) {
-             rowsText += `, ${this._affectedRows} affected`;
+        if (affectedRows !== undefined && affectedRows >= 0) {
+             rowsText += `, ${affectedRows} affected`;
         }
         
         this._panel.webview.postMessage({
@@ -224,64 +164,7 @@ export class ResultsPanel {
         });
     }
 
-    private async _fetchAndDisplay(append: boolean = false) {
-        if (!this._currentQuery) return;
 
-        const start = performance.now();
-        try {
-            if (!append) {
-                this.showLoading();
-            }
-
-            const queryResult = await Database.executeQuery(this._currentQuery, this._currentConnection, {
-                limit: this._limit,
-                offset: this._currentOffset
-            });
-            const results = queryResult.rows;
-            const affectedRows = queryResult.affectedRows;
-            const hasMore = queryResult.hasMore || false;
-
-            const end = performance.now();
-            if (!append) {
-                this._lastExecutionTime = (end - start) / 1000;
-            }
-            const hasTransaction = Database.hasActiveTransaction;
-
-            this._useClientSidePagination = false; // Disable client-side pagination, now using true incremental fetch
-            
-            let displayResults: any[];
-            
-            if (append) {
-                this._lastResults = [...this._lastResults, ...results];
-                displayResults = results; // Use newly fetched results for append
-            } else {
-                this._allResults = [];
-                this._lastResults = results;
-                displayResults = results;
-            }
-            
-            if (!append) {
-                 this._lastResults = displayResults;
-            }
-            
-            if (append) {
-                 this._appendRowsToWebview(displayResults, this._currentOffset, hasMore);
-            } else if (displayResults.length > 0 || (affectedRows !== undefined && affectedRows >= 0)) {
-                 this._updateContentForTable(displayResults, hasTransaction, undefined, hasMore, affectedRows);
-            } else {
-                 this._updateContentForTable([], hasTransaction, undefined, false, undefined);
-            }
-
-        } catch (err: any) {
-            const end = performance.now();
-            if (!append) {
-                this._lastExecutionTime = (end - start) / 1000;
-            }
-            const hasTransaction = Database.hasActiveTransaction;
-            this.showError(err.message, hasTransaction);
-            throw err;
-        }
-    }
 
     private _updateContentForTable(results: any[], hasTransaction: boolean, context?: string, hasMore: boolean = false, affectedRows?: number) {
          this._isLoading = false;

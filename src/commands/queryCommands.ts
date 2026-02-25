@@ -5,6 +5,7 @@ import { DatabaseTreeDataProvider } from '../explorer/databaseTreeDataProvider';
 import { ScriptParser } from '../services/scriptParser';
 import { ParameterInjector } from '../services/parameterInjector';
 import { QueryExtractor } from '../services/queryExtractor';
+import { ExecutionService } from '../services/executionService';
 
 export function registerQueryCommands(
     context: vscode.ExtensionContext,
@@ -52,7 +53,7 @@ export function registerQueryCommands(
                     vscode.window.showWarningMessage('No valid SQL statements found in script.');
                     return;
                 }
-                await ResultsPanel.currentPanel.runScript(statements, activeConn, contextTitle);
+                await ExecutionService.getInstance().executeScript(statements, activeConn, contextTitle);
 
                 if (statements.some(stmt => ScriptParser.isDDL(stmt))) {
                     databaseTreeDataProvider.refreshItem(activeConn);
@@ -149,7 +150,7 @@ export function registerQueryCommands(
             cleanQuery = ParameterInjector.inject(cleanQuery);
 
             if (ResultsPanel.currentPanel) {
-                await ResultsPanel.currentPanel.runNewQuery(cleanQuery, activeConn, contextTitle);
+                await ExecutionService.getInstance().executeNewQuery(cleanQuery, activeConn, contextTitle);
             }
 
             if (ScriptParser.isDDL(cleanQuery)) {

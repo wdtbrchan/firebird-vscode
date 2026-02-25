@@ -1,6 +1,8 @@
-
 ## [ upcoming ]
 ### Refactoring
+- **Results Panel**: Decoupled UI logic from business logic by introducing `ExecutionService`.
+- **Results Panel**: `ResultsPanel` now acts as a passive listener to execution events, improving testability and separation of concerns.
+- **Services**: Introduced `ExecutionService` to centralize query and script execution, pagination, and event broadcasting.
 - **Codebase**: Refactored large monolithic files into smaller, more maintainable modules and services.
 - **Explorer**: Refactored `DatabaseTreeDataProvider` to remove the "God Object" anti-pattern. Sub-managers (Connection, Group, Favorites, Filter) are now accessed directly, improving decoupling and maintainability.
 - **Explorer**: Added `refreshItem(item)` to `DatabaseTreeDataProvider` for more efficient, targeted UI updates.
