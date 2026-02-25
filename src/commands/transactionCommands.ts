@@ -11,9 +11,9 @@ export function registerTransactionCommands(
         try {
             await Database.commit();
             
-            const activeConn = databaseTreeDataProvider.getActiveConnection();
+            const activeConn = databaseTreeDataProvider.connectionManager.getActiveConnection();
             if (activeConn) {
-                databaseTreeDataProvider.refreshDatabase(activeConn);
+                databaseTreeDataProvider.refreshItem(activeConn);
             }
 
             vscode.window.setStatusBarMessage('Firebird: Transaction Committed', 3000);

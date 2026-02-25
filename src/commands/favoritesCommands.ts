@@ -12,7 +12,7 @@ export function registerFavoritesCommands(
         if (node instanceof ScriptItem) {
             let connectionId = node.connectionId;
             if (!connectionId) {
-                const active = databaseTreeDataProvider.getActiveConnection();
+                const active = databaseTreeDataProvider.connectionManager.getActiveConnection();
                 if (active) {
                     connectionId = active.id;
                 } else {
@@ -20,11 +20,11 @@ export function registerFavoritesCommands(
                      return;
                 }
             }
-            await databaseTreeDataProvider.addFavoriteScript(connectionId!, node.data.id, node.data.name);
+            await databaseTreeDataProvider.favoritesManager.addFavoriteScript(connectionId!, node.data.id, node.data.name);
         } else if (node instanceof IndexItem) {
-            await databaseTreeDataProvider.addFavorite(node.connection, node.indexName, 'index' as any);
+            await databaseTreeDataProvider.favoritesManager.addFavorite(node.connection, node.indexName, 'index' as any);
         } else if (node && node.connection && node.objectName && node.type) {
-             await databaseTreeDataProvider.addFavorite(node.connection, node.objectName, node.type);
+             await databaseTreeDataProvider.favoritesManager.addFavorite(node.connection, node.objectName, node.type);
         }
     }));
 
@@ -38,7 +38,7 @@ export function registerFavoritesCommands(
              const label = node.label || node.data.label;
              const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove '${label}' from favorites?`, { modal: true }, 'Remove');
              if (confirm === 'Remove') {
-                 await databaseTreeDataProvider.removeFavoriteItem(node.data);
+                 await databaseTreeDataProvider.favoritesManager.removeFavoriteItem(node.data);
              }
              return;
          }
@@ -46,7 +46,7 @@ export function registerFavoritesCommands(
          if (node && node.connection && node.objectName && node.type) {
              const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove '${node.objectName}' from favorites?`, { modal: true }, 'Remove');
              if (confirm === 'Remove') {
-                 await databaseTreeDataProvider.removeFavoriteObject(node.connection, node.objectName, node.type);
+                 await databaseTreeDataProvider.favoritesManager.removeFavoriteObject(node.connection, node.objectName, node.type);
              }
              return;
          }
@@ -54,7 +54,7 @@ export function registerFavoritesCommands(
          if (node instanceof ScriptItem && node.isFavorite) {
              const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove script '${node.data.name}' from favorites?`, { modal: true }, 'Remove');
              if (confirm === 'Remove') {
-                 await databaseTreeDataProvider.removeScriptFavorite(node.data.id);
+                 await databaseTreeDataProvider.favoritesManager.removeScriptFavorite(node.data.id);
              }
              return;
          }
@@ -62,13 +62,13 @@ export function registerFavoritesCommands(
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.createFavoriteFolder', async (node: any) => {
         if (node && node.contextValue === 'favorites-root') {
-             await databaseTreeDataProvider.createFavoriteFolder(node.connection);
+             await databaseTreeDataProvider.favoritesManager.createFavoriteFolder(node.connection);
         } else if (node && node.contextValue === 'favorite-folder') {
-             await databaseTreeDataProvider.createFavoriteFolder(node.connection, node.data);
+             await databaseTreeDataProvider.favoritesManager.createFavoriteFolder(node.connection, node.data);
         } else {
-             const conn = databaseTreeDataProvider.getActiveConnection();
+             const conn = databaseTreeDataProvider.connectionManager.getActiveConnection();
              if (conn) {
-                 await databaseTreeDataProvider.createFavoriteFolder(conn);
+                 await databaseTreeDataProvider.favoritesManager.createFavoriteFolder(conn);
              }
         }
     }));
@@ -77,14 +77,14 @@ export function registerFavoritesCommands(
          if (node && node.data) {
              const confirm = await vscode.window.showWarningMessage(`Are you sure you want to delete folder '${node.label}'?`, { modal: true }, 'Delete');
              if (confirm === 'Delete') {
-                 await databaseTreeDataProvider.deleteFavoriteFolder(node.data);
+                 await databaseTreeDataProvider.favoritesManager.deleteFavoriteFolder(node.data);
              }
          }
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.renameFavoriteFolder', async (node: any) => {
          if (node && node.data) {
-             await databaseTreeDataProvider.renameFavoriteFolder(node.data);
+             await databaseTreeDataProvider.favoritesManager.renameFavoriteFolder(node.data);
          }
     }));
 
@@ -94,7 +94,7 @@ export function registerFavoritesCommands(
         if (node && node.connection) {
             connectionId = node.connection.id;
         } else {
-            const active = databaseTreeDataProvider.getActiveConnection();
+            const active = databaseTreeDataProvider.connectionManager.getActiveConnection();
             if (active) {
                 connectionId = active.id;
             }
@@ -103,7 +103,7 @@ export function registerFavoritesCommands(
         if (connectionId) {
             const confirm = await vscode.window.showWarningMessage('Are you sure you want to clear all favorites for this connection?', { modal: true }, 'Clear All');
             if (confirm === 'Clear All') {
-                await databaseTreeDataProvider.clearFavorites(connectionId);
+                await databaseTreeDataProvider.favoritesManager.clearFavorites(connectionId);
             }
         } else {
             vscode.window.showWarningMessage('No connection selected to clear favorites.');

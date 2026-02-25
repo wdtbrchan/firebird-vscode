@@ -51,10 +51,10 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     readonly onDidChangeTreeData: vscode.Event<DatabaseConnection | ConnectionGroup | FolderItem | TriggerFolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
     // Sub-managers
-    private favoritesManager: FavoritesManager;
-    private connectionManager: ConnectionManager;
-    private groupManager: GroupManager;
-    private filterManager: FilterManager;
+    public readonly favoritesManager: FavoritesManager;
+    public readonly connectionManager: ConnectionManager;
+    public readonly groupManager: GroupManager;
+    public readonly filterManager: FilterManager;
 
     private _loading: boolean = true;
     private treeView: vscode.TreeView<any> | undefined;
@@ -71,8 +71,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     constructor(private context: vscode.ExtensionContext) {
         // Initialize sub-managers
         this.favoritesManager = new FavoritesManager(context, () => this._onDidChangeTreeData.fire(undefined));
-        this.connectionManager = new ConnectionManager(context, () => this._onDidChangeTreeData.fire(undefined));
-        this.groupManager = new GroupManager(context, () => this.saveConnections());
+        this.connectionManager = new ConnectionManager(context, () => this.groupManager.getGroups(), () => this._onDidChangeTreeData.fire(undefined));
+        this.groupManager = new GroupManager(context, () => this.connectionManager.getConnections(), () => this.saveConnections());
         this.filterManager = new FilterManager(context);
 
         ScriptService.initialize(context);
@@ -100,12 +100,16 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     }
 
     private saveConnections() {
-        this.connectionManager.saveConnections(this.groupManager.getGroups());
+        this.connectionManager.saveConnections();
     }
 
     refresh(): void {
         this.loadConnections();
         this._onDidChangeTreeData.fire(undefined);
+    }
+
+    refreshItem(item?: any): void {
+        this._onDidChangeTreeData.fire(item);
     }
 
     // --- Connection delegations ---
@@ -115,7 +119,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     }
 
     public getConnectionsInGroup(groupId: string | undefined): DatabaseConnection[] {
-        return this.connectionManager.getConnectionsInGroup(groupId, this.groupManager.getGroups());
+        return this.connectionManager.getConnectionsInGroup(groupId);
     }
 
     public getGroups(): ConnectionGroup[] {
@@ -132,8 +136,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             connectingConnectionIds: this.connectionManager.connectingConnectionIds,
             failedConnectionIds: this.connectionManager.failedConnectionIds,
             favorites: this.favoritesManager.favorites,
-            isScriptFavorite: (connId, scriptId) => this.isScriptFavorite(connId, scriptId),
-            getFavorite: (connId, name, type) => this.getFavorite(connId, name, type),
+            isScriptFavorite: (connId, scriptId) => this.favoritesManager.isScriptFavorite(connId, scriptId),
+            getFavorite: (connId, name, type) => this.favoritesManager.getFavorite(connId, name, type),
             getFilter: (connId, type) => this.filterManager.getFilter(connId, type),
             applyFilter: (items, filter) => this.filterManager.applyFilter(items, filter),
             getIconUri: (color) => this.getIconUri(color),
@@ -190,77 +194,6 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         return getTreeChildren(element, this.renderingContext, this._loading);
     }
 
-    // --- Filter delegations ---
-
-    public setFilter(connectionId: string, type: string, value: string) {
-        this.filterManager.setFilter(connectionId, type, value);
-    }
-
-    public getFilter(connectionId: string, type: string): string {
-        return this.filterManager.getFilter(connectionId, type);
-    }
-
-    // --- Delegations to GroupManager ---
-
-    async createGroup() {
-        return this.groupManager.createGroup();
-    }
-
-    async renameGroup(group?: ConnectionGroup) {
-        return this.groupManager.renameGroup(group);
-    }
-
-    async deleteGroup(group: ConnectionGroup) {
-        return this.groupManager.deleteGroup(group, this.connectionManager.getConnections());
-    }
-
-    moveGroup(groupId: string, targetIndex: number) {
-        return this.groupManager.moveGroup(groupId, targetIndex);
-    }
-
-    // --- Delegations to ConnectionManager ---
-
-    async addDatabase() {
-        return this.connectionManager.addDatabase(this.context.extensionUri, this.groupManager.getGroups(), () => this.saveConnections());
-    }
-
-    async editDatabase(conn: DatabaseConnection) {
-        return this.connectionManager.editDatabase(conn, this.context.extensionUri, this.groupManager.getGroups(), () => this.saveConnections(), () => this.refresh());
-    }
-
-    moveConnection(conn: DatabaseConnection, targetGroupId: string | undefined, targetIndex?: number) {
-        this.connectionManager.moveConnection(conn, targetGroupId, this.groupManager.getGroups(), targetIndex);
-        this.saveConnections();
-    }
-
-    refreshDatabase(conn: DatabaseConnection) {
-        this._onDidChangeTreeData.fire(conn);
-    }
-
-    removeDatabase(conn: DatabaseConnection) {
-        this.connectionManager.removeDatabase(conn, () => this.saveConnections());
-    }
-
-    disconnect(conn: DatabaseConnection) {
-        this.connectionManager.disconnect(conn, () => this.saveConnections());
-    }
-
-    async setActive(conn: DatabaseConnection) {
-        return this.connectionManager.setActive(conn, () => this.saveConnections(), this.treeView);
-    }
-
-    public getConnectionBySlot(slot: number): DatabaseConnection | undefined {
-        return this.connectionManager.getConnectionBySlot(slot);
-    }
-
-    getActiveConnectionDetails(): { name: string, group: string } | undefined {
-        return this.connectionManager.getActiveConnectionDetails(this.groupManager.getGroups());
-    }
-
-    getActiveConnection(): DatabaseConnection | undefined {
-        return this.connectionManager.getActiveConnection();
-    }
-
     // --- Delegations to BackupRestoreManager ---
 
     async backupConnections() {
@@ -294,63 +227,5 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             this.connectionManager.setActiveConnectionId(undefined);
             this.refresh();
         }
-    }
-
-    // --- Delegations to FavoritesManager ---
-
-    public isScriptFavorite(connectionId: string | undefined, scriptId: string): boolean {
-        return this.favoritesManager.isScriptFavorite(connectionId, scriptId);
-    }
-
-    public async removeScriptFavorite(scriptId: string) {
-        return this.favoritesManager.removeScriptFavorite(scriptId);
-    }
-
-    public async addFavoriteScript(connectionId: string, scriptId: string, scriptName: string) {
-        return this.favoritesManager.addFavoriteScript(connectionId, scriptId, scriptName);
-    }
-
-    public async addFavorite(connection: DatabaseConnection, objectName: string, objectType: 'table' | 'view' | 'trigger' | 'procedure' | 'generator' | 'function' | 'index') {
-        return this.favoritesManager.addFavorite(connection, objectName, objectType);
-    }
-
-    public async removeFavorite(item: FavoriteItem) {
-        return this.favoritesManager.removeFavorite(item);
-    }
-
-    public async clearFavorites(connectionId: string) {
-        return this.favoritesManager.clearFavorites(connectionId);
-    }
-
-    public async createFavoriteFolder(connection: DatabaseConnection, parent?: FavoriteItem) {
-        return this.favoritesManager.createFavoriteFolder(connection, parent);
-    }
-
-    public async deleteFavoriteFolder(item: FavoriteItem) {
-        return this.favoritesManager.deleteFavoriteFolder(item);
-    }
-
-    public async renameFavoriteFolder(item: FavoriteItem) {
-        return this.favoritesManager.renameFavoriteFolder(item);
-    }
-
-    public async moveFavorite(movedItem: FavoriteItem, targetParent: FavoriteItem | undefined, targetIndex?: number) {
-        return this.favoritesManager.moveFavorite(movedItem, targetParent, targetIndex);
-    }
-
-    public getFavorite(connectionId: string, objectName: string, objectType: string): FavoriteItem | undefined {
-        return this.favoritesManager.getFavorite(connectionId, objectName, objectType);
-    }
-
-    public async removeFavoriteObject(connection: DatabaseConnection, objectName: string, objectType: string) {
-        return this.favoritesManager.removeFavoriteObject(connection, objectName, objectType);
-    }
-
-    public async removeFavoriteItem(item: FavoriteItem) {
-        return this.favoritesManager.removeFavoriteItem(item);
-    }
-
-    private saveFavorites() {
-        this.favoritesManager.saveFavorites();
     }
 }

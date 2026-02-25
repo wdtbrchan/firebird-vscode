@@ -16,6 +16,7 @@ export class ConnectionManager {
 
     constructor(
         private context: vscode.ExtensionContext,
+        private getGroups: () => ConnectionGroup[],
         private onSave: () => void
     ) {}
 
@@ -27,9 +28,9 @@ export class ConnectionManager {
     }
 
     /** Save connections to global state and fire change event. */
-    public saveConnections(groups: ConnectionGroup[]) {
+    public saveConnections() {
         this.context.globalState.update('firebird.connections', this.connections);
-        this.context.globalState.update('firebird.groups', groups);
+        this.context.globalState.update('firebird.groups', this.getGroups());
         this.context.globalState.update('firebird.activeConnectionId', this.activeConnectionId);
         this.onSave();
     }
@@ -48,7 +49,8 @@ export class ConnectionManager {
         return this.connections.find(c => c.id === id);
     }
 
-    public getConnectionsInGroup(groupId: string | undefined, groups: ConnectionGroup[]): DatabaseConnection[] {
+    public getConnectionsInGroup(groupId: string | undefined): DatabaseConnection[] {
+        const groups = this.getGroups();
         if (groupId) {
             return this.connections.filter(c => c.groupId === groupId);
         }
@@ -63,42 +65,43 @@ export class ConnectionManager {
         this.activeConnectionId = id;
     }
 
-    async addDatabase(extensionUri: vscode.Uri, groups: ConnectionGroup[], saveConnections: () => void) {
+    async addDatabase() {
         ConnectionEditor.createOrShow(
-            extensionUri,
-            () => ({ groups: groups, connection: undefined }),
+            this.context.extensionUri,
+            () => ({ groups: this.getGroups(), connection: undefined }),
             async (conn) => {
                 this.connections.push(conn);
                 if (this.connections.length === 1) {
                     this.activeConnectionId = conn.id;
                 }
-                saveConnections();
+                this.saveConnections();
             }
         );
     }
 
-    async editDatabase(conn: DatabaseConnection, extensionUri: vscode.Uri, groups: ConnectionGroup[], saveConnections: () => void, refresh: () => void) {
+    async editDatabase(conn: DatabaseConnection, refresh: () => void) {
         ConnectionEditor.createOrShow(
-            extensionUri,
-            () => ({ groups: groups, connection: conn }),
+            this.context.extensionUri,
+            () => ({ groups: this.getGroups(), connection: conn }),
             async (updatedConn) => {
                 const index = this.connections.findIndex(c => c.id === conn.id);
                 if (index !== -1) {
                     if (updatedConn.color) updatedConn.color = updatedConn.color.toLowerCase();
                     
                     this.connections[index] = updatedConn;
-                    saveConnections();
+                    this.saveConnections();
                     
                     refresh();
                 }
             },
             async (connToDelete) => {
-                this.removeDatabase(connToDelete, saveConnections);
+                this.removeDatabase(connToDelete);
             }
         );
     }
 
-    moveConnection(conn: DatabaseConnection, targetGroupId: string | undefined, groups: ConnectionGroup[], targetIndex?: number) {
+    moveConnection(conn: DatabaseConnection, targetGroupId: string | undefined, targetIndex?: number) {
+        const groups = this.getGroups();
         const index = this.connections.findIndex(c => c.id === conn.id);
         if (index === -1) return;
 
@@ -127,30 +130,31 @@ export class ConnectionManager {
         } else {
             this.connections.push(removed);
         }
+        this.saveConnections();
     }
 
     refreshDatabase(conn: DatabaseConnection, fireChange: (element: any) => void) {
         fireChange(conn);
     }
 
-    removeDatabase(conn: DatabaseConnection, saveConnections: () => void) {
+    removeDatabase(conn: DatabaseConnection) {
         this.connections = this.connections.filter(c => c.id !== conn.id);
         if (this.activeConnectionId === conn.id) {
             this.activeConnectionId = undefined;
         }
-        saveConnections();
+        this.saveConnections();
     }
 
-    disconnect(conn: DatabaseConnection, saveConnections: () => void) {
+    disconnect(conn: DatabaseConnection) {
         if (this.activeConnectionId === conn.id) {
             this.activeConnectionId = undefined;
-            saveConnections();
+            this.saveConnections();
         }
     }
 
-    async setActive(conn: DatabaseConnection, saveConnections: () => void, treeView?: vscode.TreeView<any>) {
+    async setActive(conn: DatabaseConnection, treeView?: vscode.TreeView<any>) {
         this.connectingConnectionIds.add(conn.id);
-        saveConnections(); // Fire update to show spinner
+        this.saveConnections(); // Fire update to show spinner
 
         try {
             await Database.checkConnection(conn);
@@ -159,14 +163,14 @@ export class ConnectionManager {
             this.failedConnectionIds.set(conn.id, err.message);
             vscode.window.showErrorMessage(`Failed to connect to ${conn.name || conn.database}: ${err.message}`);
             this.connectingConnectionIds.delete(conn.id);
-            saveConnections(); 
+            this.saveConnections(); 
             return; 
         }
 
         // Connection success
         this.connectingConnectionIds.delete(conn.id);
         this.activeConnectionId = conn.id;
-        saveConnections();
+        this.saveConnections();
         
         // Force expand the active connection
         if (treeView) {
@@ -182,11 +186,11 @@ export class ConnectionManager {
         return this.connections.find(c => c.shortcutSlot === slot);
     }
 
-    getActiveConnectionDetails(groups: ConnectionGroup[]): { name: string, group: string } | undefined {
+    getActiveConnectionDetails(): { name: string, group: string } | undefined {
         const conn = this.getActiveConnection();
         if (!conn) return undefined;
         
-        const group = conn.groupId ? groups.find(g => g.id === conn.groupId)?.name : undefined;
+        const group = conn.groupId ? this.getGroups().find(g => g.id === conn.groupId)?.name : undefined;
         return {
             name: conn.name || path.basename(conn.database),
             group: group || 'Root'

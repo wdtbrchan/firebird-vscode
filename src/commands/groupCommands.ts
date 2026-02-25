@@ -7,14 +7,14 @@ export function registerGroupCommands(
 ): void {
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.createGroup', async () => {
-        await databaseTreeDataProvider.createGroup();
+        await databaseTreeDataProvider.groupManager.createGroup();
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.renameGroup', async (group: any) => {
-        await databaseTreeDataProvider.renameGroup(group);
+        await databaseTreeDataProvider.groupManager.renameGroup(group);
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.deleteGroup', async (group: any) => {
-        await databaseTreeDataProvider.deleteGroup(group);
+        await databaseTreeDataProvider.groupManager.deleteGroup(group);
     }));
 }

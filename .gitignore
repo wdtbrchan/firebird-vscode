@@ -5,3 +5,4 @@ out
 *.vsix
 .test.sql
 firebird-vscode.code-workspace
+docs/architecture-proposal.md

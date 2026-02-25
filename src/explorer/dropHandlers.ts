@@ -22,7 +22,7 @@ export class DropHandlers {
 
         if (target instanceof FavoritesRootItem) {
             if (target.connection.id === droppedData.connectionId) {
-                provider.moveFavorite(droppedData, undefined);
+                provider.favoritesManager.moveFavorite(droppedData, undefined);
             }
         } else if (target instanceof FavoriteFolderItem) {
             if (target.connection.id === droppedData.connectionId) {
@@ -31,7 +31,7 @@ export class DropHandlers {
                         vscode.window.showWarningMessage('Cannot move a folder into its own child.');
                         return true;
                     }
-                    provider.moveFavorite(droppedData, target.data);
+                    provider.favoritesManager.moveFavorite(droppedData, target.data);
                 }
             }
         } else if ((target instanceof ObjectItem && target.isFavorite) || target instanceof FavoriteScriptItem) {
@@ -43,7 +43,7 @@ export class DropHandlers {
                 if (target.favoriteId) {
                     targetFav = this.findFavoriteById(provider, targetConnId, target.favoriteId);
                 } else {
-                    targetFav = provider.getFavorite(targetConnId, target.objectName, target.type);
+                    targetFav = provider.favoritesManager.getFavorite(targetConnId, target.objectName, target.type);
                 }
             } else if (target instanceof FavoriteScriptItem) {
                 targetConnId = target.connection.id;
@@ -51,7 +51,7 @@ export class DropHandlers {
             }
 
             if (targetConnId && targetFav && targetConnId === droppedData.connectionId) {
-                const list = provider.favorites.get(targetConnId) || [];
+                const list = provider.favoritesManager.favorites.get(targetConnId) || [];
                 let parentItem: FavoriteItem | undefined = undefined;
                 let targetIndex: number = -1;
 
@@ -62,7 +62,7 @@ export class DropHandlers {
 
                     if (droppedData.id === targetFav.id) return true;
 
-                    provider.moveFavorite(droppedData, parentItem, targetIndex);
+                    provider.favoritesManager.moveFavorite(droppedData, parentItem, targetIndex);
                 }
             }
         }

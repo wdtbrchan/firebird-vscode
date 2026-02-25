@@ -22,7 +22,7 @@ export function createStatusBar(
         activeAutoRollbackAt: undefined,
 
         updateStatusBar: () => {
-            const details = databaseTreeDataProvider.getActiveConnectionDetails();
+            const details = databaseTreeDataProvider.connectionManager.getActiveConnectionDetails();
             let text = '';
 
             if (details) {

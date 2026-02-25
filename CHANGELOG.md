@@ -2,10 +2,8 @@
 ## [ upcoming ]
 ### Refactoring
 - **Codebase**: Refactored large monolithic files into smaller, more maintainable modules and services.
-  - Split `resultsPanel.ts` and extracted CSV export logic to `ExportService.ts`.
-  - Refactored `databaseDragAndDropController.ts` by delegating specialized drop handling to `DropHandlers.ts`.
-  - Extracted trigger rendering logic from `treeRendering.ts` to `triggerRendering.ts`.
-  - Centralized SQL queries from `metadataService.ts` into `MetadataQueries.ts` for improved readability.
+- **Explorer**: Refactored `DatabaseTreeDataProvider` to remove the "God Object" anti-pattern. Sub-managers (Connection, Group, Favorites, Filter) are now accessed directly, improving decoupling and maintainability.
+- **Explorer**: Added `refreshItem(item)` to `DatabaseTreeDataProvider` for more efficient, targeted UI updates.
 
 ## [1.3.2]
 ### Fixes

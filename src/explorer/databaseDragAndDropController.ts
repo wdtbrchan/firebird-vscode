@@ -66,7 +66,7 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
                  favItem = find(items);
              } else {
                  // Fallback
-                 favItem = this.provider.getFavorite(item.connection.id, item.objectName, item.type);
+                 favItem = this.provider.favoritesManager.getFavorite(item.connection.id, item.objectName, item.type);
              }
              
              if (favItem) {
@@ -101,32 +101,32 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
                 const droppedConnection = droppedItem as DatabaseConnection;
 
                 if (!target) {
-                    this.provider.moveConnection(droppedConnection, undefined);
+                    this.provider.connectionManager.moveConnection(droppedConnection, undefined);
                     return;
                 }
 
                 if (this.isConnectionItem(target)) {
                     const targetConn = target as DatabaseConnection;
                     const targetGroupId = targetConn.groupId;
-                    const groupConns = this.provider.getConnectionsInGroup(targetGroupId);
+                    const groupConns = this.provider.connectionManager.getConnectionsInGroup(targetGroupId);
                     let targetIndex = groupConns.findIndex((c: DatabaseConnection) => c.id === targetConn.id);
-                    this.provider.moveConnection(droppedConnection, targetGroupId, targetIndex >= 0 ? targetIndex : undefined);
+                    this.provider.connectionManager.moveConnection(droppedConnection, targetGroupId, targetIndex >= 0 ? targetIndex : undefined);
                 } else if (this.isGroupItem(target)) {
-                    this.provider.moveConnection(droppedConnection, target.id);
+                    this.provider.connectionManager.moveConnection(droppedConnection, target.id);
                 }
             } else if (this.isGroupItem(droppedItem)) {
                 if (!target) {
-                    const allGroups = this.provider.getGroups();
-                    this.provider.moveGroup(droppedItem.id, allGroups.length);
+                    const allGroups = this.provider.groupManager.getGroups();
+                    this.provider.groupManager.moveGroup(droppedItem.id, allGroups.length);
                     return;
                 }
 
                 if (this.isGroupItem(target)) {
                     if (droppedItem.id === target.id) return;
-                    const allGroups = this.provider.getGroups();
+                    const allGroups = this.provider.groupManager.getGroups();
                     let targetIndex = allGroups.findIndex(g => g.id === target.id);
                     if (targetIndex >= 0) {
-                        this.provider.moveGroup(droppedItem.id, targetIndex);
+                        this.provider.groupManager.moveGroup(droppedItem.id, targetIndex);
                     }
                 }
             }

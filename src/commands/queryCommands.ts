@@ -32,14 +32,14 @@ export function registerQueryCommands(
         }
 
         try {
-            const activeConn = databaseTreeDataProvider.getActiveConnection();
+            const activeConn = databaseTreeDataProvider.connectionManager.getActiveConnection();
             
             if (!activeConn) {
                 vscode.window.showWarningMessage('No active database connection selected. Please select a database.');
                 return;
             }
 
-            const activeDetails = databaseTreeDataProvider.getActiveConnectionDetails();
+            const activeDetails = databaseTreeDataProvider.connectionManager.getActiveConnectionDetails();
             const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
             
             ResultsPanel.createOrShow(context.extensionUri);
@@ -55,7 +55,7 @@ export function registerQueryCommands(
                 await ResultsPanel.currentPanel.runScript(statements, activeConn, contextTitle);
 
                 if (statements.some(stmt => ScriptParser.isDDL(stmt))) {
-                    databaseTreeDataProvider.refreshDatabase(activeConn);
+                    databaseTreeDataProvider.refreshItem(activeConn);
                 }
             }
 
@@ -134,14 +134,14 @@ export function registerQueryCommands(
         // --- End Query Cleanup ---
 
         try {
-            const activeConn = databaseTreeDataProvider.getActiveConnection();
+            const activeConn = databaseTreeDataProvider.connectionManager.getActiveConnection();
             
             if (!activeConn) {
                 vscode.window.showWarningMessage('No active database connection selected. Please select a database.');
                 return;
             }
 
-            const activeDetails = databaseTreeDataProvider.getActiveConnectionDetails();
+            const activeDetails = databaseTreeDataProvider.connectionManager.getActiveConnectionDetails();
             const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
             
             ResultsPanel.createOrShow(context.extensionUri);
@@ -153,7 +153,7 @@ export function registerQueryCommands(
             }
 
             if (ScriptParser.isDDL(cleanQuery)) {
-                databaseTreeDataProvider.refreshDatabase(activeConn);
+                databaseTreeDataProvider.refreshItem(activeConn);
             }
 
             vscode.window.showTextDocument(editor.document, editor.viewColumn, true);

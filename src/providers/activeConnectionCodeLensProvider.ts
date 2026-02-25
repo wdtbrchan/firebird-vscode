@@ -60,8 +60,8 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
             return [];
         }
 
-        const activeConnDetails = this.dbProvider.getActiveConnectionDetails();
-        const activeConnection = this.dbProvider.getActiveConnection();
+        const activeConnDetails = this.dbProvider.connectionManager.getActiveConnectionDetails();
+        const activeConnection = this.dbProvider.connectionManager.getActiveConnection();
 
         if (activeConnection && activeConnDetails) {
             let startRange = new vscode.Range(0, 0, 0, 0);

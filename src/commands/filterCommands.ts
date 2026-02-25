@@ -17,7 +17,7 @@ export function registerFilterCommands(
         
         inputBox.onDidChangeValue(value => {
             (databaseTreeDataProvider as any).setFilter(connection.id, type, value);
-            databaseTreeDataProvider.refreshDatabase(connection);
+            databaseTreeDataProvider.refreshItem(connection);
         });
 
         inputBox.onDidAccept(() => {
@@ -32,7 +32,7 @@ export function registerFilterCommands(
              const connection = item.command.arguments[0];
              const type = item.command.arguments[1];
              (databaseTreeDataProvider as any).setFilter(connection.id, type, '');
-             databaseTreeDataProvider.refreshDatabase(connection);
+             databaseTreeDataProvider.refreshItem(connection);
         }
     }));
 }

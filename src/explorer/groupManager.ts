@@ -10,6 +10,7 @@ export class GroupManager {
 
     constructor(
         private context: vscode.ExtensionContext,
+        private getConnections: () => { groupId?: string }[],
         private onSave: () => void
     ) {}
 
@@ -67,9 +68,9 @@ export class GroupManager {
         }
     }
 
-    async deleteGroup(group: ConnectionGroup, connections: { groupId?: string }[]) {
+    async deleteGroup(group: ConnectionGroup) {
         // Move children to root (ungroup)
-        connections.forEach(c => {
+        this.getConnections().forEach(c => {
             if (c.groupId === group.id) {
                 c.groupId = undefined;
             }
