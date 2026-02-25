@@ -1,6 +1,7 @@
 
 import { Database } from '../database';
 import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
+import { MetadataQueries } from './metadataQueries';
 
 export interface TableColumn {
     name: string;
@@ -37,37 +38,15 @@ export interface TablePermission {
 export class MetadataService {
 
     public static async getTables(connection: DatabaseConnection): Promise<string[]> {
-        const query = `
-            SELECT RDB$RELATION_NAME 
-            FROM RDB$RELATIONS 
-            WHERE RDB$VIEW_BLR IS NULL 
-              AND (RDB$SYSTEM_FLAG IS NULL OR RDB$SYSTEM_FLAG = 0)
-            ORDER BY RDB$RELATION_NAME
-        `;
-        return this.fetchNames(connection, query, 'RDB$RELATION_NAME');
+        return this.fetchNames(connection, MetadataQueries.getTables, 'RDB$RELATION_NAME');
     }
 
     public static async getViews(connection: DatabaseConnection): Promise<string[]> {
-        const query = `
-            SELECT RDB$RELATION_NAME 
-            FROM RDB$RELATIONS 
-            WHERE RDB$VIEW_BLR IS NOT NULL 
-              AND (RDB$SYSTEM_FLAG IS NULL OR RDB$SYSTEM_FLAG = 0)
-            ORDER BY RDB$RELATION_NAME
-        `;
-        return this.fetchNames(connection, query, 'RDB$RELATION_NAME');
+        return this.fetchNames(connection, MetadataQueries.getViews, 'RDB$RELATION_NAME');
     }
 
     public static async getTriggers(connection: DatabaseConnection, tableName?: string): Promise<any[]> {
-        let query = `
-            SELECT RDB$TRIGGER_NAME, RDB$RELATION_NAME, RDB$TRIGGER_SEQUENCE, RDB$TRIGGER_TYPE, RDB$TRIGGER_INACTIVE 
-            FROM RDB$TRIGGERS 
-            WHERE (RDB$SYSTEM_FLAG IS NULL OR RDB$SYSTEM_FLAG = 0)
-        `;
-        if (tableName) {
-            query += ` AND RDB$RELATION_NAME = '${tableName}'`;
-        }
-        query += ` ORDER BY RDB$TRIGGER_SEQUENCE`;
+        const query = MetadataQueries.getTriggers(tableName);
 
         // We still use fetchNames generic structure? No, custom row mapping needed.
         const rows = await Database.runMetaQuery(connection, query);
@@ -81,23 +60,11 @@ export class MetadataService {
     }
 
     public static async getProcedures(connection: DatabaseConnection): Promise<string[]> {
-        const query = `
-            SELECT RDB$PROCEDURE_NAME 
-            FROM RDB$PROCEDURES 
-            WHERE (RDB$SYSTEM_FLAG IS NULL OR RDB$SYSTEM_FLAG = 0)
-            ORDER BY RDB$PROCEDURE_NAME
-        `;
-        return this.fetchNames(connection, query, 'RDB$PROCEDURE_NAME');
+        return this.fetchNames(connection, MetadataQueries.getProcedures, 'RDB$PROCEDURE_NAME');
     }
 
     public static async getGenerators(connection: DatabaseConnection): Promise<string[]> {
-        const query = `
-            SELECT RDB$GENERATOR_NAME 
-            FROM RDB$GENERATORS 
-            WHERE (RDB$SYSTEM_FLAG IS NULL OR RDB$SYSTEM_FLAG = 0)
-            ORDER BY RDB$GENERATOR_NAME
-        `;
-        return this.fetchNames(connection, query, 'RDB$GENERATOR_NAME');
+        return this.fetchNames(connection, MetadataQueries.getGenerators, 'RDB$GENERATOR_NAME');
     }
 
     private static async fetchNames(connection: DatabaseConnection, query: string, fieldName: string): Promise<string[]> {
@@ -106,11 +73,7 @@ export class MetadataService {
     }
 
     public static async getViewSource(connection: DatabaseConnection, name: string): Promise<string> {
-        const query = `
-            SELECT RDB$VIEW_SOURCE 
-            FROM RDB$RELATIONS 
-            WHERE RDB$RELATION_NAME = '${name}'
-        `;
+        const query = MetadataQueries.getViewSource(name);
         const rows = await Database.runMetaQuery(connection, query);
         if (rows.length > 0 && rows[0].RDB$VIEW_SOURCE) {
             return `CREATE VIEW ${name} AS ${rows[0].RDB$VIEW_SOURCE.trim()}`;
@@ -119,11 +82,7 @@ export class MetadataService {
     }
 
     public static async getTriggerSource(connection: DatabaseConnection, name: string): Promise<string> {
-        const query = `
-            SELECT RDB$TRIGGER_SOURCE, RDB$RELATION_NAME, RDB$TRIGGER_TYPE, RDB$TRIGGER_SEQUENCE, RDB$TRIGGER_INACTIVE
-            FROM RDB$TRIGGERS 
-            WHERE RDB$TRIGGER_NAME = '${name}'
-        `;
+        const query = MetadataQueries.getTriggerSource(name);
         const rows = await Database.runMetaQuery(connection, query);
         if (rows.length > 0) {
             const row = rows[0];
@@ -169,11 +128,7 @@ export class MetadataService {
     }
 
     public static async getProcedureSource(connection: DatabaseConnection, name: string): Promise<string> {
-        const query = `
-            SELECT RDB$PROCEDURE_SOURCE 
-            FROM RDB$PROCEDURES 
-            WHERE RDB$PROCEDURE_NAME = '${name}'
-        `;
+        const query = MetadataQueries.getProcedureSource(name);
         
         try {
             const rows = await Database.runMetaQuery(connection, query);
@@ -218,13 +173,7 @@ export class MetadataService {
 
     private static async getProcedureParameters(connection: DatabaseConnection, procName: string, type: number): Promise<string[]> {
         // type: 0 = input, 1 = output
-        const query = `
-            SELECT p.RDB$PARAMETER_NAME, f.RDB$FIELD_TYPE, f.RDB$FIELD_LENGTH, f.RDB$FIELD_PRECISION, f.RDB$FIELD_SCALE, f.RDB$FIELD_SUB_TYPE
-            FROM RDB$PROCEDURE_PARAMETERS p
-            LEFT JOIN RDB$FIELDS f ON p.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
-            WHERE p.RDB$PROCEDURE_NAME = '${procName}' AND p.RDB$PARAMETER_TYPE = ${type}
-            ORDER BY p.RDB$PARAMETER_NUMBER
-        `;
+        const query = MetadataQueries.getProcedureParameters(procName, type);
         
         try {
             const rows = await Database.runMetaQuery(connection, query);
@@ -272,13 +221,7 @@ export class MetadataService {
     }
 
     public static async getTableDDL(connection: DatabaseConnection, name: string): Promise<string> {
-        const query = `
-            SELECT rf.RDB$FIELD_NAME, f.RDB$FIELD_TYPE, f.RDB$FIELD_LENGTH, f.RDB$FIELD_PRECISION, f.RDB$FIELD_SCALE, f.RDB$FIELD_SUB_TYPE, rf.RDB$NULL_FLAG
-            FROM RDB$RELATION_FIELDS rf
-            JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
-            WHERE rf.RDB$RELATION_NAME = '${name}'
-            ORDER BY rf.RDB$FIELD_POSITION
-        `;
+        const query = MetadataQueries.getTableFields(name);
         
         try {
             const rows = await Database.runMetaQuery(connection, query);
@@ -300,7 +243,7 @@ export class MetadataService {
 
     public static async getGeneratorValue(connection: DatabaseConnection, name: string): Promise<string> {
         // GEN_ID(name, 0) returns current value without incrementing
-        const query = `SELECT GEN_ID(${name}, 0) AS CUR_VAL FROM RDB$DATABASE`;
+        const query = MetadataQueries.getGeneratorValue(name);
         try {
             const rows = await Database.runMetaQuery(connection, query);
             if (rows.length > 0) {
@@ -313,14 +256,7 @@ export class MetadataService {
     }
 
     public static async getIndexes(connection: DatabaseConnection, tableName: string): Promise<TableIndex[]> {
-        const query = `
-            SELECT i.RDB$INDEX_NAME, i.RDB$UNIQUE_FLAG, i.RDB$INDEX_INACTIVE, s.RDB$FIELD_NAME
-            FROM RDB$INDICES i
-            LEFT JOIN RDB$INDEX_SEGMENTS s ON i.RDB$INDEX_NAME = s.RDB$INDEX_NAME
-            WHERE i.RDB$RELATION_NAME = '${tableName}'
-              AND (i.RDB$SYSTEM_FLAG IS NULL OR i.RDB$SYSTEM_FLAG = 0)
-            ORDER BY i.RDB$INDEX_NAME, s.RDB$FIELD_POSITION
-        `;
+        const query = MetadataQueries.getIndexes(tableName);
         
         try {
             const rows = await Database.runMetaQuery(connection, query);
@@ -350,22 +286,7 @@ export class MetadataService {
     }
 
     public static async getTableColumns(connection: DatabaseConnection, tableName: string): Promise<TableColumn[]> {
-        const query = `
-            SELECT 
-                rf.RDB$FIELD_NAME, 
-                f.RDB$FIELD_TYPE, 
-                f.RDB$FIELD_SUB_TYPE,
-                f.RDB$FIELD_LENGTH, 
-                f.RDB$FIELD_PRECISION, 
-                f.RDB$FIELD_SCALE, 
-                rf.RDB$NULL_FLAG,
-                rf.RDB$DEFAULT_SOURCE,
-                f.RDB$COMPUTED_SOURCE
-            FROM RDB$RELATION_FIELDS rf
-            JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
-            WHERE rf.RDB$RELATION_NAME = '${tableName}'
-            ORDER BY rf.RDB$FIELD_POSITION
-        `;
+        const query = MetadataQueries.getTableColumnsDetailed(tableName);
 
         try {
             const rows = await Database.runMetaQuery(connection, query);
@@ -386,14 +307,7 @@ export class MetadataService {
     }
 
     public static async getPrimaryKeyColumns(connection: DatabaseConnection, tableName: string): Promise<string[]> {
-        const query = `
-            SELECT s.RDB$FIELD_NAME
-            FROM RDB$RELATION_CONSTRAINTS rc
-            LEFT JOIN RDB$INDEX_SEGMENTS s ON rc.RDB$INDEX_NAME = s.RDB$INDEX_NAME
-            WHERE rc.RDB$RELATION_NAME = '${tableName}'
-              AND rc.RDB$CONSTRAINT_TYPE = 'PRIMARY KEY'
-            ORDER BY s.RDB$FIELD_POSITION
-        `;
+        const query = MetadataQueries.getPrimaryKeyColumns(tableName);
 
         try {
             const rows = await Database.runMetaQuery(connection, query);
@@ -405,20 +319,7 @@ export class MetadataService {
     }
 
     public static async getForeignKeyColumns(connection: DatabaseConnection, tableName: string): Promise<Map<string, string>> {
-        const query = `
-             SELECT 
-                s.RDB$FIELD_NAME AS COLUMN_NAME,
-                target_idx.RDB$RELATION_NAME AS TARGET_TABLE,
-                target_s.RDB$FIELD_NAME AS TARGET_COLUMN
-            FROM RDB$RELATION_CONSTRAINTS rc
-            JOIN RDB$INDEX_SEGMENTS s ON rc.RDB$INDEX_NAME = s.RDB$INDEX_NAME
-            JOIN RDB$INDICES src_idx ON rc.RDB$INDEX_NAME = src_idx.RDB$INDEX_NAME
-            JOIN RDB$INDICES target_idx ON src_idx.RDB$FOREIGN_KEY = target_idx.RDB$INDEX_NAME
-            JOIN RDB$INDEX_SEGMENTS target_s ON target_idx.RDB$INDEX_NAME = target_s.RDB$INDEX_NAME 
-                                             AND s.RDB$FIELD_POSITION = target_s.RDB$FIELD_POSITION
-            WHERE rc.RDB$RELATION_NAME = '${tableName}'
-              AND rc.RDB$CONSTRAINT_TYPE = 'FOREIGN KEY'
-        `;
+        const query = MetadataQueries.getForeignKeyColumns(tableName);
 
         try {
             const rows = await Database.runMetaQuery(connection, query);
@@ -436,14 +337,7 @@ export class MetadataService {
     }
 
     public static async getTableDependencies(connection: DatabaseConnection, tableName: string): Promise<TableDependency[]> {
-         const query = `
-            SELECT DISTINCT d.RDB$DEPENDENT_NAME, d.RDB$DEPENDENT_TYPE
-            FROM RDB$DEPENDENCIES d
-            WHERE d.RDB$DEPENDED_ON_NAME = '${tableName}'
-              AND d.RDB$DEPENDED_ON_TYPE = 0 
-              AND d.RDB$DEPENDENT_TYPE = 1 
-            ORDER BY d.RDB$DEPENDENT_NAME
-        `;
+         const query = MetadataQueries.getTableDependencies(tableName);
         try {
             const rows = await Database.runMetaQuery(connection, query);
             return rows.map(row => ({
@@ -461,13 +355,7 @@ export class MetadataService {
     }
 
     public static async getObjectPermissions(connection: DatabaseConnection, objectName: string, objectType: number): Promise<TablePermission[]> {
-        const query = `
-            SELECT RDB$USER, RDB$PRIVILEGE, RDB$GRANTOR, RDB$GRANT_OPTION
-            FROM RDB$USER_PRIVILEGES
-            WHERE RDB$RELATION_NAME = '${objectName}'
-              AND RDB$OBJECT_TYPE = ${objectType}
-            ORDER BY RDB$USER, RDB$PRIVILEGE
-        `;
+        const query = MetadataQueries.getObjectPermissions(objectName, objectType);
         try {
             const rows = await Database.runMetaQuery(connection, query);
             return rows.map(row => ({
@@ -530,18 +418,8 @@ export class MetadataService {
     }
 
     public static async getIndexDetails(connection: DatabaseConnection, indexName: string): Promise<any> {
-        const queryIdx = `
-            SELECT RDB$RELATION_NAME, RDB$UNIQUE_FLAG, RDB$INDEX_INACTIVE, RDB$INDEX_TYPE, RDB$STATISTICS, RDB$EXPRESSION_SOURCE
-            FROM RDB$INDICES 
-            WHERE RDB$INDEX_NAME = '${indexName}'
-        `;
-        
-        const querySeg = `
-            SELECT RDB$FIELD_NAME 
-            FROM RDB$INDEX_SEGMENTS 
-            WHERE RDB$INDEX_NAME = '${indexName}' 
-            ORDER BY RDB$FIELD_POSITION
-        `;
+        const queryIdx = MetadataQueries.getIndexInfo(indexName);
+        const querySeg = MetadataQueries.getIndexSegments(indexName);
 
         try {
             const idxRows = await Database.runMetaQuery(connection, queryIdx);

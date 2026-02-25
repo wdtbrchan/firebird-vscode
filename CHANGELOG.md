@@ -1,5 +1,11 @@
 
 ## [ upcoming ]
+### Refactoring
+- **Codebase**: Refactored large monolithic files into smaller, more maintainable modules and services.
+  - Split `resultsPanel.ts` and extracted CSV export logic to `ExportService.ts`.
+  - Refactored `databaseDragAndDropController.ts` by delegating specialized drop handling to `DropHandlers.ts`.
+  - Extracted trigger rendering logic from `treeRendering.ts` to `triggerRendering.ts`.
+  - Centralized SQL queries from `metadataService.ts` into `MetadataQueries.ts` for improved readability.
 
 ## [1.3.2]
 ### Fixes
