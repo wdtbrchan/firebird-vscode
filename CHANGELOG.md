@@ -1,4 +1,6 @@
 ## [ upcoming ]
+### Features
+- **Query Results**: Added a dropdown arrow (chevron) to each column header that opens a menu to **Copy Column** data directly. The arrow is only visible on hover for a cleaner look.
 ### Refactoring
 - **Results Panel**: Decoupled UI logic from business logic by introducing `ExecutionService` and replaced `any` types with `DatabaseConnection`.
 - **Results Panel**: `ResultsPanel` now acts as a passive listener to execution events, improving testability and separation of concerns.

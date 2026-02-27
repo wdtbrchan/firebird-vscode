@@ -162,19 +162,52 @@ export function getWebviewScripts(autoRollbackAt: number): string {
                 });
             }
 
+            function updateContextMenuContent(colIndex) {
+                const table = document.querySelector('table');
+                if (!table) return;
+                
+                const header = table.rows[0].cells[colIndex];
+                const colNameElt = header ? header.querySelector('.col-name') : null;
+                const colName = colNameElt ? colNameElt.innerText : (header ? header.innerText : 'Column');
+                
+                const copyValItem = document.getElementById('cm-copy-val');
+                const copyColItem = document.getElementById('cm-copy-col');
+                
+                if (copyColItem) copyColItem.innerText = \`Copy Column '\${colName}'\`;
+                if (copyValItem) {
+                    copyValItem.style.display = (currentTargetCell && currentTargetCell.tagName === 'TD') ? 'block' : 'none';
+                }
+            }
+
+            window.showColumnMenu = function(e, trigger, colIndex) {
+                e.preventDefault();
+                e.stopPropagation();
+                createContextMenu();
+                
+                currentTargetCell = { cellIndex: colIndex, tagName: 'TH' }; 
+                updateContextMenuContent(colIndex);
+
+                contextMenu.style.display = 'block';
+                const rect = trigger.getBoundingClientRect();
+                
+                let left = rect.left;
+                let top = rect.bottom;
+                
+                const menuWidth = contextMenu.offsetWidth || 150;
+                if (left + menuWidth > window.innerWidth) {
+                    left = window.innerWidth - menuWidth - 5;
+                }
+
+                contextMenu.style.left = left + 'px';
+                contextMenu.style.top = top + 'px';
+            };
+
             function showContextMenu(e, cell) {
                 e.preventDefault();
                 createContextMenu();
                 currentTargetCell = cell;
 
-                // Update column name in menu
-                const table = document.querySelector('table');
-                if (table) {
-                    const header = table.rows[0].cells[cell.cellIndex];
-                    const colName = header ? header.innerText : 'Column';
-                    const item = document.getElementById('cm-copy-col');
-                    if (item) item.innerText = \`Copy Column '\${colName}'\`;
-                }
+                updateContextMenuContent(cell.cellIndex);
 
                 const menuWidth = contextMenu.offsetWidth || 150;
                 const menuHeight = contextMenu.offsetHeight || 100;

@@ -401,6 +401,43 @@ export function getMainStyles(connectionColor: string): string {
         body.vscode-light .context-menu-separator {
             background-color: #cecece;
         }
+
+        /* Column Header Dropdown */
+        .col-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 4px;
+            width: 100%;
+        }
+        .col-dropdown-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            color: #aaa;
+            transition: background-color 0.1s;
+            visibility: hidden;
+        }
+        th:hover .col-dropdown-trigger {
+            visibility: visible;
+        }
+        .col-dropdown-trigger:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+            color: #fff;
+        }
+        body.vscode-light .col-dropdown-trigger:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+            color: #000;
+        }
+        .col-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
     `;
 }
 

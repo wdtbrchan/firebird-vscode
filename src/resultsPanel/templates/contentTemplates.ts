@@ -58,12 +58,20 @@ export function getNoResultsHtml(affectedRows: number | undefined): string {
     `;
 }
 
+import { iconChevronDown } from './icons';
+
 /**
  * Returns the HTML for the results data table.
  */
 export function getResultsTableHtml(results: any[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string, encoding?: string, tableName?: string): string {
     const columns = Object.keys(results[0]);
-    const headerRow = '<th></th>' + columns.map(col => `<th>${col}</th>`).join('');
+    const headerRow = '<th></th>' + columns.map((col, idx) => `
+        <th data-col-index="${idx + 1}">
+            <div class="col-header-content">
+                <span class="col-name">${col}</span>
+                <span class="col-dropdown-trigger" onclick="showColumnMenu(event, this, ${idx + 1})">${iconChevronDown}</span>
+            </div>
+        </th>`).join('');
     
     const rowsHtml = results.map((row, index) => {
         const cells = columns.map(col => {
