@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { MetadataService } from '../services/metadataService';
-import { DatabaseConnection } from './treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 import { TriggerGroupItem, TriggerItem } from './treeItems/triggerItems';
 import { TreeRenderingContext } from './treeRendering';
 

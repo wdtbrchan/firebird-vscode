@@ -1,11 +1,14 @@
 import * as vscode from 'vscode';
 import * as iconv from 'iconv-lite';
+import { DatabaseConnection } from '../database/types';
+import * as Firebird from 'node-firebird';
+import { prepareQueryBuffer, processResultRows, getUniqueColumnNames } from '../database/encodingUtils';
 
 export class ExportService {
     public static async exportCsv(
         panel: vscode.WebviewPanel,
         currentQuery: string | undefined,
-        currentConnection: any | undefined,
+        currentConnection: DatabaseConnection | undefined,
         message: any
     ) {
         const delimiter: string = message.delimiter || ';';
@@ -26,16 +29,14 @@ export class ExportService {
         panel.webview.postMessage({ command: 'csvExportStatus', status: 'Executing query...' });
 
         try {
-            const Firebird = require('node-firebird');
-            const { prepareQueryBuffer, processResultRows, getUniqueColumnNames } = require('../database/encodingUtils');
-            const options = {
+            const options: Firebird.Options = {
                 host: connection.host,
                 port: connection.port,
                 database: connection.database,
                 user: connection.user,
                 password: connection.password,
                 role: connection.role,
-                encoding: 'NONE',
+                encoding: 'NONE' as any,
                 lowercase_keys: false
             };
 
@@ -49,20 +50,20 @@ export class ExportService {
 
                     db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err: any, tr: any) => {
                         if (err) {
-                            try { db.detach(); } catch(e) {}
+                            try { db.detach(); } catch (e) { /* ignore */ }
                             return reject(err);
                         }
 
                         const trAny = tr as any;
                         trAny.newStatement(queryString, (err: any, stmt: any) => {
                             if (err) {
-                                try { tr.rollback(() => db.detach()); } catch(e) {}
+                                try { tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
                                 return reject(err);
                             }
 
                             stmt.execute(tr, [], (err: any, _result: any, _output: any, isSelect: boolean) => {
                                 if (err) {
-                                    try { stmt.close(); tr.rollback(() => db.detach()); } catch(e) {}
+                                    try { stmt.close(); tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
                                     return reject(err);
                                 }
 
@@ -70,7 +71,7 @@ export class ExportService {
                                     isSelect = (stmt.type === 1);
                                 }
                                 if (!isSelect) {
-                                    try { stmt.close(); tr.rollback(() => db.detach()); } catch(e) {}
+                                    try { stmt.close(); tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
                                     return reject(new Error('Query does not return rows.'));
                                 }
 
@@ -79,7 +80,7 @@ export class ExportService {
                                 const fetchBatch = () => {
                                     stmt.fetch(tr, batchSize, async (err: any, ret: any) => {
                                         if (err) {
-                                            try { stmt.close(); tr.rollback(() => db.detach()); } catch(e) {}
+                                            try { stmt.close(); tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
                                             return reject(err);
                                         }
 
@@ -98,11 +99,11 @@ export class ExportService {
                                                 fetchBatch();
                                             } else {
                                                 // Done fetching
-                                                try { stmt.close(); tr.rollback(() => db.detach()); } catch(e) {}
+                                                try { stmt.close(); tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
                                                 resolve(collected);
                                             }
                                         } catch (readErr) {
-                                            try { stmt.close(); tr.rollback(() => db.detach()); } catch(e) {}
+                                            try { stmt.close(); tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
                                             reject(readErr);
                                         }
                                     });

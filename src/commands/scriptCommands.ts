@@ -177,7 +177,7 @@ export function registerScriptCommands(
     context.subscriptions.push(vscode.commands.registerCommand('firebird.openFavoriteScript', async (data: any) => {
         if (data && data.scriptId) {
              const service = ScriptService.getInstance();
-             let scriptItem = service.getScriptById(data.scriptId);
+             const scriptItem = service.getScriptById(data.scriptId);
              
              if (scriptItem) {
                  vscode.commands.executeCommand('firebird.openScript', scriptItem);

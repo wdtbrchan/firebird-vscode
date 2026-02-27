@@ -8,7 +8,7 @@ export function getUniqueColumnNames(outputs: any[]): string[] {
     const names: string[] = [];
     const nameCounts = new Map<string, number>();
     for (const out of (outputs || [])) {
-        let baseName = out.alias || out.field || 'COLUMN';
+        const baseName = out.alias || out.field || 'COLUMN';
         let finalName = baseName;
         let count = nameCounts.get(baseName) || 0;
         
@@ -58,7 +58,7 @@ export async function processResultRows(result: any[], encodingConf: string, col
                 val = await new Promise((resolve, reject) => {
                      val((err: any, name: any, emitter: any) => {
                          if (err) return reject(err);
-                         let chunks: Buffer[] = [];
+                         const chunks: Buffer[] = [];
                          emitter.on('data', (chunk: Buffer) => chunks.push(chunk));
                          emitter.on('end', () => {
                              const buf = Buffer.concat(chunks);

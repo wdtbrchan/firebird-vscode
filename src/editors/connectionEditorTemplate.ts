@@ -1,4 +1,5 @@
-import { DatabaseConnection, ConnectionGroup } from '../explorer/treeItems/databaseItems';
+import { ConnectionGroup } from '../explorer/treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 
 /**
  * Generates the full HTML for the Connection Editor webview.

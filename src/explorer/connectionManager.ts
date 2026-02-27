@@ -3,7 +3,8 @@ import * as path from 'path';
 
 import { ConnectionEditor } from '../editors/connectionEditor';
 import { Database } from '../database';
-import { DatabaseConnection, ConnectionGroup } from './treeItems/databaseItems';
+import { ConnectionGroup } from './treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 
 /**
  * Manages database connections – add, edit, remove, activate, move.

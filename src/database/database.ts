@@ -1,4 +1,4 @@
-import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
+import { DatabaseConnection } from './types';
 import { TransactionManager } from './transactionManager';
 import { QueryExecutor } from './queryExecutor';
 import { QueryOptions, QueryResult } from './types';
@@ -16,11 +16,11 @@ export class Database {
     }
 
     // --- Query execution ---
-    public static async executeQuery(query: string, connection?: { host: string, port: number, database: string, user: string, password?: string, role?: string, charset?: string }, queryOptions?: QueryOptions): Promise<QueryResult> {
+    public static async executeQuery(query: string, connection?: DatabaseConnection, queryOptions?: QueryOptions): Promise<QueryResult> {
         return QueryExecutor.executeQuery(query, connection, queryOptions);
     }
 
-    public static async runMetaQuery(connection: any, query: string): Promise<any[]> {
+    public static async runMetaQuery(connection: DatabaseConnection, query: string): Promise<any[]> {
         return QueryExecutor.runMetaQuery(connection, query);
     }
 

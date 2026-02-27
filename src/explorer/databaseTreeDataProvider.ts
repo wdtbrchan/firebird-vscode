@@ -13,9 +13,8 @@ export * from './treeItems/indexItems';
 export * from './treeItems/operationItems';
 export * from './treeItems/common';
 
-import { 
-    DatabaseConnection, ConnectionGroup, FolderItem, ObjectItem, FilterItem 
-} from './treeItems/databaseItems';
+import { ConnectionGroup, FolderItem, ObjectItem, FilterItem } from './treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 import { 
     FavoriteItem, FavoritesRootItem, FavoriteFolderItem, FavoriteScriptItem, FavoriteIndexItem 
 } from './treeItems/favoritesItems';

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 import { DatabaseTreeDataProvider } from '../explorer/databaseTreeDataProvider';
 
 export function registerIndexTriggerCommands(

@@ -3,16 +3,15 @@ import * as assert from 'assert';
 import * as mock from './vscodeMock';
 
 // Mocking vscode before importing the components
-// @ts-ignore
-const Module = require('module');
-const originalRequire = Module.prototype.require;
-Module.prototype.require = function(path: string) {
+import * as Module from 'module';
+const originalRequire = (Module as any).prototype.require;
+(Module as any).prototype.require = function(path: string, ...args: any[]) {
     if (path === 'vscode') {
         return mock;
     }
-    return originalRequire.apply(this, arguments);
+    return originalRequire.apply(this, [path, ...args]);
 };
-// @ts-ignore
+// @ts-expect-error Global mock
 global.vscode = mock;
 
 // Now import the classes we want to test
@@ -21,9 +20,9 @@ import {
     ObjectItem, 
     TriggerItem, 
     IndexItem, 
-    DatabaseConnection,
     FavoritesRootItem
 } from '../../explorer/databaseTreeDataProvider';
+import { DatabaseConnection } from '../../database/types';
 
 async function runTests() {
     console.log('Running TreeItem tests...');

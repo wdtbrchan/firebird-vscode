@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { v4 as uuidv4 } from 'uuid';
 
-import { DatabaseConnection } from './treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 import { FavoriteItem } from './treeItems/favoritesItems';
 
 /**

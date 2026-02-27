@@ -67,7 +67,7 @@ export class TransactionManager {
             this.autoRollbackTimer = undefined;
         }
         if (this.activeStatement) {
-            try { this.activeStatement.close(); } catch (e) {}
+            try { this.activeStatement.close(); } catch (e) { /* ignore */ }
             this.activeStatement = undefined;
         }
         this.activeQuery = undefined;
@@ -75,7 +75,7 @@ export class TransactionManager {
         if (this.db) {
             try {
                 this.db.detach();
-            } catch (e) {}
+            } catch (e) { /* ignore */ }
             this.db = undefined;
             this.currentOptions = undefined;
         }

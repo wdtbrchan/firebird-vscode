@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
-import { DatabaseConnection, ConnectionGroup } from './treeItems/databaseItems';
+import { ConnectionGroup } from './treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 import { FavoriteItem } from './treeItems/favoritesItems';
 import { ScriptService } from '../services/scriptService';
 
@@ -101,7 +102,7 @@ export async function restoreConnections(
 
         let connections: DatabaseConnection[];
         let groups: ConnectionGroup[];
-        let activeConnectionId: string | undefined = undefined;
+        const activeConnectionId: string | undefined = undefined;
 
         if (choice === 'Yes, Clear and Restore') {
             connections = data.connections || [];

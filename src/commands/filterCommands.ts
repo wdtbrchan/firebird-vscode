@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { DatabaseTreeDataProvider } from '../explorer/databaseTreeDataProvider';
-import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 
 export function registerFilterCommands(
     context: vscode.ExtensionContext,

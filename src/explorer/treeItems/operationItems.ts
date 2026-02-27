@@ -1,6 +1,7 @@
 
 import * as vscode from 'vscode';
-import { ObjectItem, DatabaseConnection } from './databaseItems';
+import { ObjectItem } from './databaseItems';
+import { DatabaseConnection } from '../../database/types';
 
 export class OperationItem extends vscode.TreeItem {
     constructor(

@@ -1,6 +1,6 @@
 
 import * as vscode from 'vscode';
-import { DatabaseConnection } from './databaseItems';
+import { DatabaseConnection } from '../../database/types';
 
 export class TableIndexesItem extends vscode.TreeItem {
     constructor(

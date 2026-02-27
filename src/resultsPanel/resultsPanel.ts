@@ -6,6 +6,7 @@ import { getResultsPageHtml } from './templates/resultsTemplate';
 import { generateRowsHtml } from './templates/contentTemplates';
 import { ExportService } from './exportService';
 import { ExecutionService } from '../services/executionService';
+import { DatabaseConnection } from '../database/types';
 
 export class ResultsPanel {
     public static currentPanel: ResultsPanel | undefined;
@@ -16,7 +17,7 @@ export class ResultsPanel {
     private _showButtons: boolean = false;
     private _currentQuery: string | undefined;
     private _displayQuery: string | undefined;
-    private _currentConnection: any | undefined;
+    private _currentConnection: DatabaseConnection | undefined;
     private _currentContext: string | undefined;
     private _currentAutoRollbackAt: number | undefined;
     private _lastExecutionTime: number | undefined;
@@ -146,7 +147,7 @@ export class ResultsPanel {
         const rowsHtml = generateRowsHtml(newRows, startIndex, locale);
 
         const rowCount = this._lastResults.length;
-        let rowsText = '';
+        let rowsText: string;
         if (hasMore) {
              rowsText = `First ${rowCount} rows fetched`;
         } else {

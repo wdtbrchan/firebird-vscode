@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { Database } from '../database';
+import { DatabaseConnection } from '../database/types';
 
 export interface ExecutionDataEvent {
     results: any[];
@@ -12,7 +13,7 @@ export interface ExecutionDataEvent {
     isError?: boolean;
     query?: string;
     displayQuery?: string;
-    connection?: any;
+    connection?: DatabaseConnection;
     executionTime?: number;
 }
 
@@ -36,7 +37,7 @@ export class ExecutionService {
     public readonly onMessage = this._onMessage.event;
 
     // State
-    private _currentConnection: any | undefined;
+    private _currentConnection: DatabaseConnection | undefined;
     private _currentContext: string | undefined;
     private _currentQuery: string | undefined;
     private _displayQuery: string | undefined;
@@ -58,11 +59,11 @@ export class ExecutionService {
         return this._currentQuery;
     }
 
-    public get currentConnection(): any | undefined {
+    public get currentConnection(): DatabaseConnection | undefined {
         return this._currentConnection;
     }
 
-    public async executeNewQuery(query: string, connection: any, context?: string) {
+    public async executeNewQuery(query: string, connection: DatabaseConnection, context?: string) {
         this._currentQuery = query;
         this._displayQuery = query;
         this._currentConnection = connection;
@@ -76,7 +77,7 @@ export class ExecutionService {
         await this._fetchAndEmit(false);
     }
 
-    public async executeScript(statements: string[], connection: any, context?: string) {
+    public async executeScript(statements: string[], connection: DatabaseConnection, context?: string) {
         this._currentConnection = connection;
         this._currentContext = context;
         this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);

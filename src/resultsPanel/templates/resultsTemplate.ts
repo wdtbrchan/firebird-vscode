@@ -46,7 +46,7 @@ export function getResultsPageHtml(params: ResultsPageParams): string {
     // --- Info bar ---
     const timeText = params.lastExecutionTime !== undefined ? `${params.lastExecutionTime.toFixed(3)}s` : '-';
 
-    let rowsText = '';
+    let rowsText: string;
     const rowCount = params.results ? params.results.length : 0;
     if (params.hasMore) {
         rowsText = `First ${rowCount} rows fetched`;
@@ -67,7 +67,7 @@ export function getResultsPageHtml(params: ResultsPageParams): string {
     const infoBarHtml = getInfoBarHtml(infoBarParams);
 
     // --- Content area ---
-    let contentHtml = '';
+    let contentHtml: string;
     if (params.isError && params.message) {
         contentHtml = getErrorHtml(params.message);
     } else if (!params.results || params.results.length === 0) {

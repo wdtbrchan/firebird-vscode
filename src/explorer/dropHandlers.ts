@@ -52,8 +52,8 @@ export class DropHandlers {
 
             if (targetConnId && targetFav && targetConnId === droppedData.connectionId) {
                 const list = provider.favoritesManager.favorites.get(targetConnId) || [];
-                let parentItem: FavoriteItem | undefined = undefined;
-                let targetIndex: number = -1;
+                let parentItem: FavoriteItem | undefined;
+                let targetIndex: number;
 
                 const loc = this.findFavoriteLocation(list, targetFav.id);
                 if (loc) {
@@ -121,9 +121,9 @@ export class DropHandlers {
             const isGlobal = targetConnId === undefined;
             const collection = service.getScripts(targetConnId);
 
-            let result = this.findScriptListContaining(collection, targetId);
+            const result = this.findScriptListContaining(collection, targetId);
             if (result) {
-                let targetIndex = result.list.findIndex(i => i.id === targetId);
+                const targetIndex = result.list.findIndex(i => i.id === targetId);
                 if (targetIndex !== -1) {
                     service.moveItem(droppedItem.id, result.parentId, targetConnId, isGlobal, targetIndex);
                 }

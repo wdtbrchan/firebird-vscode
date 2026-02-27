@@ -1,6 +1,7 @@
 
 import * as vscode from 'vscode';
-import { DatabaseConnection, FolderItem } from './databaseItems';
+import { FolderItem } from './databaseItems';
+import { DatabaseConnection } from '../../database/types';
 
 export class TriggerFolderItem extends FolderItem {
     constructor(

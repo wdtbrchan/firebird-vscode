@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { DatabaseTreeDataProvider } from '../explorer/databaseTreeDataProvider';
-import { DatabaseConnection, ObjectItem } from '../explorer/treeItems/databaseItems';
+import { ObjectItem } from '../explorer/treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 import { TableTriggersItem } from '../explorer/treeItems/triggerItems';
 import { TableIndexesItem } from '../explorer/treeItems/indexItems';
 import { MetadataService } from '../services/metadataService';
@@ -164,7 +165,7 @@ export function registerObjectCommands(
              return;
         }
 
-        let script = '';
+        let script: string;
         switch (objectType) {
             case 'table':
                 script = `CREATE TABLE NEW_TABLE (\n    ID INTEGER NOT NULL,\n    NAME VARCHAR(50),\n    CONSTRAINT PK_NEW_TABLE PRIMARY KEY (ID)\n);`;
@@ -259,7 +260,7 @@ export function registerObjectCommands(
                     case 'table':
                         script = `ALTER TABLE ${name} ADD column_name datatype; -- Template\n-- ALTER TABLE ${name} DROP column_name;\n-- ALTER TABLE ${name} ALTER COLUMN column_name TYPE new_type;`;
                         break;
-                    case 'view':
+                    case 'view': {
                         let vSrc = await MetadataService.getViewSource(connection, name);
                         if (vSrc.startsWith('CREATE VIEW')) {
                              vSrc = vSrc.replace('CREATE VIEW', 'CREATE OR ALTER VIEW');
@@ -268,8 +269,9 @@ export function registerObjectCommands(
                         }
                         script = wrapSetTerm(vSrc);
                         break;
+                    }
                     case 'trigger':
-                    case 'procedure':
+                    case 'procedure': {
                         let src = '';
                         if (type === 'trigger') src = await MetadataService.getTriggerSource(connection, name);
                         else src = await MetadataService.getProcedureSource(connection, name);
@@ -285,12 +287,14 @@ export function registerObjectCommands(
                             if (permsSql) script += `\n\n${permsSql}`;
                         }
                         break;
-                    case 'generator':
+                    }
+                    case 'generator': {
                         const curVal = await MetadataService.getGeneratorValue(connection, name);
                         const valNum = parseInt(curVal, 10);
                         const nextVal = isNaN(valNum) ? 0 : valNum;
                         script = `ALTER SEQUENCE ${name} RESTART WITH ${nextVal}; -- Set to desired value`;
                         break;
+                    }
                 }
             }
 

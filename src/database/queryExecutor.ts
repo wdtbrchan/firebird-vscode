@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as Firebird from 'node-firebird';
 import { TransactionManager } from './transactionManager';
 import { processResultRows, prepareQueryBuffer, getUniqueColumnNames } from './encodingUtils';
-import { QueryOptions, QueryResult } from './types';
+import { QueryOptions, QueryResult, DatabaseConnection } from './types';
 
 /**
  * Handles query execution, affected row counting, and metadata queries.
@@ -12,7 +12,7 @@ export class QueryExecutor {
     /**
      * Runs a simple metadata query using a one-shot connection (no transaction reuse).
      */
-    public static async runMetaQuery(connection: any, query: string): Promise<any[]> {
+    public static async runMetaQuery(connection: DatabaseConnection, query: string): Promise<any[]> {
         const config = vscode.workspace.getConfiguration('firebird');
         const encodingConf = connection.charset || config.get<string>('charset', 'UTF8');
 
@@ -35,16 +35,16 @@ export class QueryExecutor {
 
                 db.query(finalQuery, [], async (err, result) => {
                     if (err) {
-                        try { db.detach(); } catch(e) {}
+                        try { db.detach(); } catch (e) { /* ignore */ }
                         return reject(err);
                     }
                     
                     try {
                         const rows = await processResultRows(result, encodingConf);
-                        try { db.detach(); } catch(e) {}
+                        try { db.detach(); } catch (e) { /* ignore */ }
                         resolve(rows);
                     } catch(readErr) {
-                         try { db.detach(); } catch(e) {}
+                         try { db.detach(); } catch (e) { /* ignore */ }
                          reject(readErr);
                     }
                 });
@@ -180,7 +180,7 @@ export class QueryExecutor {
      * Executes a query against the Firebird database.
      * Handles SELECT pagination, DML affected rows, transaction reuse, and encoding.
      */
-    public static async executeQuery(query: string, connection?: { host: string, port: number, database: string, user: string, password?: string, role?: string, charset?: string }, queryOptions?: QueryOptions): Promise<QueryResult> {
+    public static async executeQuery(query: string, connection?: DatabaseConnection, queryOptions?: QueryOptions): Promise<QueryResult> {
         const config = vscode.workspace.getConfiguration('firebird');
         
         const cleanQuery = query.trim().replace(/;$/, '');
@@ -270,7 +270,7 @@ export class QueryExecutor {
                             let affectedRows: number | undefined;
                             try {
                                 affectedRows = await this.getAffectedRows(stmt, tr, dmlType);
-                            } catch (e) {}
+                            } catch (e) { /* ignore */ }
 
                             stmt.close(); 
                             TransactionManager.activeStatement = undefined;
@@ -308,7 +308,7 @@ export class QueryExecutor {
                 } else {
                     // Start new query
                     if (TransactionManager.activeStatement) {
-                        try { TransactionManager.activeStatement.close(); } catch(e) {}
+                        try { TransactionManager.activeStatement.close(); } catch (e) { /* ignore */ }
                         TransactionManager.activeStatement = undefined;
                     }
                     
@@ -349,7 +349,7 @@ export class QueryExecutor {
     /**
      * Tests that a connection can be established.
      */
-    public static async checkConnection(connection: any): Promise<void> {
+    public static async checkConnection(connection: DatabaseConnection): Promise<void> {
         const options: Firebird.Options = {
             host: connection.host,
             port: connection.port,
@@ -366,7 +366,7 @@ export class QueryExecutor {
                 if (err) return reject(err);
                 try {
                     db.detach();
-                } catch (e) {}
+                } catch (e) { /* ignore */ }
                 resolve();
             });
         });

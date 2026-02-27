@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { DatabaseConnection, ConnectionGroup } from '../explorer/treeItems/databaseItems';
+import { ConnectionGroup } from '../explorer/treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 import { getConnectionEditorHtml } from './connectionEditorTemplate';
 
 export class ConnectionEditor {
@@ -24,7 +25,7 @@ export class ConnectionEditor {
                 case 'cancel':
                     this._panel.dispose();
                     break;
-                case 'delete':
+                case 'delete': {
                     const answer = await vscode.window.showWarningMessage(`Are you sure you want to delete database connection '${message.connection.name}'?`, { modal: true }, 'Yes');
                     if (answer === 'Yes') {
                          if (this.deleteCallback) {
@@ -33,6 +34,7 @@ export class ConnectionEditor {
                          this._panel.dispose();
                     }
                     break;
+                }
             }
         }, null, this._disposables);
     }

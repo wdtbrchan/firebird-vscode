@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 import { MetadataService, TableColumn, TableIndex, TableDependency, TablePermission } from '../services/metadataService';
 
 export class TableInfoPanel {

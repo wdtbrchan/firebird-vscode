@@ -1,6 +1,6 @@
 
 import { Database } from '../database';
-import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 import { MetadataQueries } from './metadataQueries';
 
 export interface TableColumn {
@@ -92,7 +92,7 @@ export class MetadataService {
             const inactive = row.RDB$TRIGGER_INACTIVE === 1;
             const type = row.RDB$TRIGGER_TYPE || 0;
             
-            let typeStr = this.decodeTriggerType(type);
+            const typeStr = this.decodeTriggerType(type);
 
             return `CREATE TRIGGER ${name} FOR ${relation} ${inactive ? 'INACTIVE' : 'ACTIVE'}\n${typeStr} POSITION ${seq}\n${source}`;
         }
@@ -421,9 +421,8 @@ export class MetadataService {
         const queryIdx = MetadataQueries.getIndexInfo(indexName);
         const querySeg = MetadataQueries.getIndexSegments(indexName);
 
-        try {
-            const idxRows = await Database.runMetaQuery(connection, queryIdx);
-            if (idxRows.length === 0) throw new Error(`Index ${indexName} not found`);
+        const idxRows = await Database.runMetaQuery(connection, queryIdx);
+        if (idxRows.length === 0) throw new Error(`Index ${indexName} not found`);
 
             const idx = idxRows[0];
             const relation = idx.RDB$RELATION_NAME.trim();
@@ -433,7 +432,7 @@ export class MetadataService {
             const statistics = idx.RDB$STATISTICS;
             const expression = idx.RDB$EXPRESSION_SOURCE;
 
-            let definition = '';
+            let definition: string;
             if (expression) {
                 definition = `COMPUTED BY (${expression.trim()})`;
             } else {
@@ -450,8 +449,5 @@ export class MetadataService {
                 statistics,
                 definition
             };
-        } catch (err) {
-             throw err;
-        }
     }
 }

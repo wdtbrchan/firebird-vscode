@@ -1,10 +1,11 @@
-import * as vscode from 'vscode';
+﻿import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { MetadataService } from '../services/metadataService';
 import { ScriptService } from '../services/scriptService';
 
-import { DatabaseConnection, ConnectionGroup, FolderItem, ObjectItem, FilterItem } from './treeItems/databaseItems';
+import { ConnectionGroup, FolderItem, ObjectItem, FilterItem } from './treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 import { FavoriteItem, FavoritesRootItem, FavoriteFolderItem, FavoriteScriptItem, FavoriteIndexItem } from './treeItems/favoritesItems';
 import { ScriptItem, ScriptFolderItem } from './treeItems/scriptItems';
 import { TriggerGroupItem, TableTriggersItem, TriggerItem, TriggerOperationItem, TriggerFolderItem } from './treeItems/triggerItems';
@@ -14,7 +15,7 @@ import { PaddingItem } from './treeItems/common';
 import { getGroupedTriggers, getTriggerList } from './triggerRendering';
 
 /**
- * Context interface – the tree rendering functions need access to these
+ * Context interface â€“ the tree rendering functions need access to these
  * methods from DatabaseTreeDataProvider without a circular dependency.
  */
 export interface TreeRenderingContext {
@@ -179,7 +180,7 @@ export async function getTreeChildren(
             const filter = ctx.getFilter(element.connection.id, 'triggers');
             const resultItems: (ObjectItem | TriggerGroupItem | FilterItem | TriggerItem)[] = [];
             
-            // @ts-ignore - Validated type
+            
             resultItems.push(new FilterItem(element.connection, 'triggers', filter));
 
             if (element.viewMode === 'list') {
@@ -232,7 +233,7 @@ export async function getTreeChildren(
                 const filter = ctx.getFilter(element.connection.id, element.type);
                 const resultItems: (ObjectItem | TriggerGroupItem | FilterItem)[] = [];
                 
-                // @ts-ignore - Validated type above
+                
                 resultItems.push(new FilterItem(element.connection, element.type, filter));
 
                 switch (element.type) {
@@ -240,13 +241,14 @@ export async function getTreeChildren(
                         return loadObjectList(element.connection, 'table', MetadataService.getTables.bind(MetadataService), filter, ctx);
                     case 'views':
                         return loadObjectList(element.connection, 'view', MetadataService.getViews.bind(MetadataService), filter, ctx);
-                    case 'triggers':
+                    case 'triggers': {
                         // This case is for generic FolderItem, which might serve as a fallback or for other contexts.
                         // However, the main "Triggers" folder in the root list should now be a TriggerFolderItem.
                         // If we encounter a generic FolderItem('triggers'), we treat it as grouped by default.
                         const groups = await getGroupedTriggers(element.connection, ctx, 'main', undefined, filter, !!filter);
                         resultItems.push(...groups);
                         break;
+                    }
                     case 'procedures':
                         return loadObjectList(element.connection, 'procedure', MetadataService.getProcedures.bind(MetadataService), filter, ctx);
                     case 'generators':
@@ -299,19 +301,10 @@ export async function getTreeChildren(
                 const pb = b.sequence || 0;
                 return pa - pb;
             });
-            
             return sorted.map(t => {
                  const isFav = !!ctx.getFavorite(element.connection.id, t.name, 'trigger');
                  return new TriggerItem(element.connection, t.name, t.sequence, t.inactive, isFav);
             });
-        } else if (element instanceof TriggerFolderItem) {
-             if (element.viewMode === 'list') {
-                 // Flat list
-                 return getTriggerList(element.connection, ctx);
-             } else {
-                 // Grouped
-                 return getGroupedTriggers(element.connection, ctx, 'main', undefined, undefined, false);
-             }
         } else if (element instanceof TriggerItem) {
              const ops: (TriggerOperationItem | OperationItem)[] = [];
              ops.push(new OperationItem('DDL Script', 'alter', new ObjectItem(element.triggerName, 'trigger', element.connection)));

@@ -1,7 +1,7 @@
 
 import * as vscode from 'vscode';
 import { DatabaseTreeDataProvider } from './databaseTreeDataProvider';
-import { DatabaseConnection } from './treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 import { FavoritesRootItem, FavoriteFolderItem, FavoriteScriptItem, FavoriteItem } from './treeItems/favoritesItems';
 import { ScriptItem, ScriptFolderItem } from './treeItems/scriptItems';
 import { ObjectItem, FolderItem } from './treeItems/databaseItems';
@@ -109,7 +109,7 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
                     const targetConn = target as DatabaseConnection;
                     const targetGroupId = targetConn.groupId;
                     const groupConns = this.provider.connectionManager.getConnectionsInGroup(targetGroupId);
-                    let targetIndex = groupConns.findIndex((c: DatabaseConnection) => c.id === targetConn.id);
+                    const targetIndex = groupConns.findIndex((c: DatabaseConnection) => c.id === targetConn.id);
                     this.provider.connectionManager.moveConnection(droppedConnection, targetGroupId, targetIndex >= 0 ? targetIndex : undefined);
                 } else if (this.isGroupItem(target)) {
                     this.provider.connectionManager.moveConnection(droppedConnection, target.id);
@@ -124,7 +124,7 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
                 if (this.isGroupItem(target)) {
                     if (droppedItem.id === target.id) return;
                     const allGroups = this.provider.groupManager.getGroups();
-                    let targetIndex = allGroups.findIndex(g => g.id === target.id);
+                    const targetIndex = allGroups.findIndex(g => g.id === target.id);
                     if (targetIndex >= 0) {
                         this.provider.groupManager.moveGroup(droppedItem.id, targetIndex);
                     }

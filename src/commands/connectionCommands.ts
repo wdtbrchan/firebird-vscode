@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Database } from '../database';
 import { DatabaseTreeDataProvider } from '../explorer/databaseTreeDataProvider';
-import { DatabaseConnection } from '../explorer/treeItems/databaseItems';
+import { DatabaseConnection } from '../database/types';
 
 export function registerConnectionCommands(
     context: vscode.ExtensionContext,
