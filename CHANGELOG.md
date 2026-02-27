@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.3.3]
 ### Features
 - **Query Results**: Added a dropdown arrow (chevron) to each column header that opens a menu to **Copy Column** data directly. The arrow is only visible on hover for a cleaner look.
 ### Refactoring
