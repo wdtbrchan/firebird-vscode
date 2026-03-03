@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.4.0]
 ### Features
 - **Settings**: Added `firebird.queryResultPanelLocation` setting to control whether the query results panel opens on the `side` (default) or at the `bottom` of the editor.
 
