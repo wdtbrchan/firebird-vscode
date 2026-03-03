@@ -1,0 +1,40 @@
+/* Loading Styles */
+.loading-body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: transparent;
+    color: #fff;
+    overflow: hidden;
+}
+.executing-bar {
+    width: 100%;
+    box-sizing: border-box;
+    background-color: #333; /* Dark gray */
+    color: #fff;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;                   
+    flex-shrink: 0;
+    min-height: 60px;
+}
+.executing-bar > div { margin-left: 15px; }
+.executing-bar > span { margin-right: 15px; }
+.spinner {
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top: 2px solid #ffffff;
+    width: 14px;
+    height: 14px;
+    animation: spin 1s linear infinite;
+    margin-right: 10px;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* Theme overrides */
+body.vscode-light .executing-bar { background-color: #e0e0e0; color: #333; }
+body.vscode-light .spinner { border: 2px solid rgba(0, 0, 0, 0.1); border-top: 2px solid #333; }

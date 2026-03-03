@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{tableName}}</title>
+    <style>{{cssContent}}</style>
+</head>
+<body>
+    <h1>{{tableName}}</h1>
+    
+    <div class="section" {{sectionStyleColumns}}>
+        <h2>Columns</h2>
+        {{columnsTable}}
+    </div>
+
+    <div class="section" {{sectionStyleIndexes}}>
+        <h2>Indexes</h2>
+        {{indexesTable}}
+    </div>
+
+    <div class="section" {{sectionStyleTriggers}}>
+        <h2>Triggers</h2>
+        {{triggersTable}}
+    </div>
+
+    <div class="section" {{sectionStyleDependencies}}>
+        <h2>Dependencies (Views)</h2>
+        {{dependenciesTable}}
+    </div>
+
+    <div class="section" {{sectionStylePermissions}}>
+        <h2>Permissions</h2>
+        {{permissionsTable}}
+    </div>
+</body>
+</html>

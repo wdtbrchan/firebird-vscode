@@ -11,6 +11,7 @@ import { DatabaseConnection } from '../database/types';
 export class ResultsPanel {
     public static currentPanel: ResultsPanel | undefined;
     private readonly _panel: vscode.WebviewPanel;
+    private readonly _extensionUri: vscode.Uri;
     private _disposables: vscode.Disposable[] = [];
     private _lastResults: any[] = [];
     private _lastMessage: string | undefined;
@@ -32,6 +33,7 @@ export class ResultsPanel {
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
         this._panel = panel;
+        this._extensionUri = extensionUri;
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         
         // Expose view state change
@@ -117,7 +119,7 @@ export class ResultsPanel {
         const contextTitle = this._currentContext || 'Unknown Database';
         const headerHtml = getHeaderHtml(contextTitle, connectionColor);
 
-        this._panel.webview.html = getLoadingHtml(headerHtml, this._startTime);
+        this._panel.webview.html = getLoadingHtml(this._extensionUri, headerHtml, this._startTime!);
     }
 
     public showSuccess(message: string, hasTransaction: boolean, context?: string) {
@@ -212,7 +214,7 @@ export class ResultsPanel {
         const config = vscode.workspace.getConfiguration('firebird');
         const locale = this._currentConnection?.resultLocale || config.get<string>('resultLocale', 'en-US');
 
-        return getResultsPageHtml({
+        return getResultsPageHtml(this._extensionUri, {
             results,
             message,
             showButtons,

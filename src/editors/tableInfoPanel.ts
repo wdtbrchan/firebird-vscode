@@ -4,10 +4,12 @@ import { MetadataService, TableColumn, TableIndex, TableDependency, TablePermiss
 
 export class TableInfoPanel {
     private readonly _panel: vscode.WebviewPanel;
+    private readonly _extensionUri: vscode.Uri;
     private _disposables: vscode.Disposable[] = [];
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
         this._panel = panel;
+        this._extensionUri = extensionUri;
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
     }
 
@@ -144,33 +146,7 @@ export class TableInfoPanel {
         permissions: TablePermission[],
         section?: 'triggers' | 'indexes'
     ): string {
-        
-        const style = `
-            body { 
-                font-family: var(--vscode-font-family); 
-                padding: 20px;
-                color: var(--vscode-editor-foreground);
-                background-color: var(--vscode-editor-background); 
-            }
-            h1 { font-size: 1.5em; margin-bottom: 20px; border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 10px; }
-            h2 { font-size: 1.2em; margin-top: 30px; margin-bottom: 10px; color: var(--vscode-textLink-activeForeground); }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 0.9em; }
-            th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--vscode-panel-border); }
-            th { background-color: var(--vscode-editor-lineHighlightBackground); font-weight: 600; }
-            tr:hover { background-color: var(--vscode-list-hoverBackground); }
-            .type-cell { color: var(--vscode-symbolIcon-classForeground); }
-            .null-cell { color: var(--vscode-descriptionForeground); font-style: italic; }
-            .tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-right: 5px; }
-            .tag-pk { background-color: var(--vscode-charts-blue); color: #fff; }
-            .tag-fk { background-color: var(--vscode-charts-purple); color: #fff; cursor: help; }
-            .tag-active { background-color: var(--vscode-testing-iconPassed); color: #fff; }
-            .tag-inactive { background-color: var(--vscode-testing-iconFailed); color: #fff; }
-            .section { margin-bottom: 30px; }
-            .tag-index { display: inline-block; font-size: 0.8em; color: var(--vscode-textLink-foreground); margin-right: 5px; cursor: help; }
-            .index-grid { width: 100%; border-collapse: collapse; border: none; }
-            .index-grid td { border: none; padding: 2px; width: 50%; vertical-align: top; }
-            .pk-separator { border-bottom: 3px solid var(--vscode-panel-border); }
-        `;
+
 
         const renderColumns = () => {
             if (columns.length === 0) return '<p>No columns found.</p>';
@@ -310,42 +286,37 @@ export class TableInfoPanel {
              return html;
         };
 
-        return `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>${tableName}</title>
-            <style>${style}</style>
-        </head>
-        <body>
-            <h1>${tableName}</h1>
-            
-            <div class="section" ${section ? 'style="display:none"' : ''}>
-                <h2>Columns</h2>
-                ${renderColumns()}
-            </div>
+        const fs = require('fs');
+        const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'editors', 'tableInfo.html').fsPath;
+        const cssPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'editors', 'tableInfo.css').fsPath;
+        
+        let htmlContent = '';
+        let cssContent = '';
+        try {
+            htmlContent = fs.readFileSync(htmlPath, 'utf8');
+            cssContent = fs.readFileSync(cssPath, 'utf8');
+        } catch (e) {
+            console.error('Failed to load tableInfo templates', e);
+        }
 
-            <div class="section" ${section && section !== 'indexes' ? 'style="display:none"' : ''}>
-                <h2>Indexes</h2>
-                ${renderIndexes()}
-            </div>
+        htmlContent = htmlContent.replace(/{{tableName}}/g, tableName);
+        htmlContent = htmlContent.replace('{{cssContent}}', cssContent);
 
-            <div class="section" ${section && section !== 'triggers' ? 'style="display:none"' : ''}>
-                <h2>Triggers</h2>
-                ${renderTriggers()}
-            </div>
+        htmlContent = htmlContent.replace('{{sectionStyleColumns}}', section ? 'style="display:none"' : '');
+        htmlContent = htmlContent.replace('{{columnsTable}}', renderColumns());
 
-            <div class="section" ${section ? 'style="display:none"' : ''}>
-                <h2>Dependencies (Views)</h2>
-                ${renderDependencies()}
-            </div>
+        htmlContent = htmlContent.replace('{{sectionStyleIndexes}}', (section && section !== 'indexes') ? 'style="display:none"' : '');
+        htmlContent = htmlContent.replace('{{indexesTable}}', renderIndexes());
 
-            <div class="section" ${section ? 'style="display:none"' : ''}>
-                <h2>Permissions</h2>
-                ${renderPermissions()}
-            </div>
-        </body>
-        </html>`;
+        htmlContent = htmlContent.replace('{{sectionStyleTriggers}}', (section && section !== 'triggers') ? 'style="display:none"' : '');
+        htmlContent = htmlContent.replace('{{triggersTable}}', renderTriggers());
+
+        htmlContent = htmlContent.replace('{{sectionStyleDependencies}}', section ? 'style="display:none"' : '');
+        htmlContent = htmlContent.replace('{{dependenciesTable}}', renderDependencies());
+
+        htmlContent = htmlContent.replace('{{sectionStylePermissions}}', section ? 'style="display:none"' : '');
+        htmlContent = htmlContent.replace('{{permissionsTable}}', renderPermissions());
+
+        return htmlContent;
     }
 }

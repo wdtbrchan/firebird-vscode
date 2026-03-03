@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebird Connection</title>
+    <link href="{{codiconUri}}" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" >
+    <link href="{{cssUri}}" rel="stylesheet" />
+</head>
+<body>
+    <h2 id="formTitle">New Connection</h2>
+    <div class="form-grid">
+        <div class="form-group full-width">
+            <label>Name (Alias)</label>
+            <input type="text" id="name" placeholder="My Database">
+        </div>
+        <div class="form-group">
+            <label>Folder / Group</label>
+            <select id="groupId"></select>
+        </div>
+        <div class="form-group">
+            <label>Shortcut Slot</label>
+            <select id="shortcutSlot"></select>
+        </div>
+        <div class="form-group">
+            <label>Host</label>
+            <input type="text" id="host">
+        </div>
+        <div class="form-group">
+            <label>Port</label>
+            <input type="number" id="port">
+        </div>
+        <div class="form-group full-width">
+            <label>Database Path (.fdb)</label>
+            <input type="text" id="database"> 
+        </div>
+        <div class="form-group">
+            <label>User</label>
+            <input type="text" id="user">
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="password">
+        </div>
+        <div class="form-group">
+            <label>Role</label>
+            <input type="text" id="role">
+        </div>
+        <div class="form-group">
+            <label>Charset</label>
+            <div class="autocomplete">
+                 <input type="text" id="charset" placeholder="UTF8">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Result Locale (Format)</label>
+            <div class="autocomplete">
+                <input type="text" id="resultLocale" placeholder="en-US">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Connection Color / Environment</label>
+            <select id="color">
+                <option value="">None</option>
+                <option value="blue">🟦 Blue</option>
+                <option value="green">🟩 Green (Development)</option>
+                <option value="orange">🟧 Orange</option>
+                <option value="purple">🟪 Purple</option>
+                <option value="red">🟥 Red (Production)</option>
+                <option value="yellow">🟨 Yellow</option>
+            </select>
+        </div>
+    </div>
+    <div class="actions">
+        <button class="danger" id="deleteBtn" style="display:none;" onclick="deleteConnection()">
+            <i class="fa-solid fa-trash-can"></i> Delete
+        </button>
+        <div class="spacer" id="deleteSpacer"></div>
+        <button class="secondary" onclick="cancel()">
+            <i class="fa-solid fa-xmark"></i> Cancel
+        </button>
+        <button class="save" onclick="save()">
+            <i class="fa-solid fa-floppy-disk"></i> Save
+        </button>
+    </div>
+    
+    <!-- DATA_INJECTION -->
+    <script src="{{jsUri}}"></script>
+</body>
+</html>

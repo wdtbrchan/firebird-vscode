@@ -1,0 +1,19 @@
+body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-foreground); background-color: var(--vscode-editor-background); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.full-width { grid-column: span 2; }
+.form-group { margin-bottom: 5px; position: relative; }
+label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9em; }
+input, select { width: 100%; padding: 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); box-sizing: border-box; }
+.autocomplete-items { position: absolute; border: 1px solid var(--vscode-input-border); border-bottom: none; border-top: none; z-index: 99; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background-color: var(--vscode-dropdown-background); }
+.autocomplete-items div { padding: 8px; cursor: pointer; border-bottom: 1px solid var(--vscode-input-border); color: var(--vscode-dropdown-foreground); }
+.autocomplete-items div:hover { background-color: var(--vscode-list-hoverBackground); }
+.autocomplete-active { background-color: var(--vscode-list-activeSelectionBackground) !important; color: var(--vscode-list-activeSelectionForeground) !important; }
+.actions { margin-top: 30px; display: flex; gap: 10px; justify-content: flex-end; align-items: center; border-top: 1px solid var(--vscode-panel-border); padding-top: 20px; }
+button { padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
+button:hover { background: var(--vscode-button-hoverBackground); }
+button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+button.save { background: #1e7e34; color: white; }
+button.save:hover { background: #155d25; }
+button.danger { background: var(--vscode-charts-red); color: white; margin-right: auto; }
+button.danger:hover { opacity: 0.9; }
+.spacer { flex-grow: 1; }

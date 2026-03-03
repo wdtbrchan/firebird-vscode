@@ -2,11 +2,12 @@
  * Main results page template - assembles all sub-templates into a full HTML page.
  */
 
-import { getMainStyles } from './styles';
-import { getWebviewScripts } from './scripts';
+import * as fs from 'fs';
+import * as vscode from 'vscode';
 import { getHeaderHtml, resolveConnectionColor } from './headerTemplate';
 import { getInfoBarHtml, InfoBarParams } from './infoBarTemplate';
 import { getErrorHtml, getNoResultsHtml, getResultsTableHtml } from './contentTemplates';
+import { iconCommit, iconRollback } from './icons';
 
 export interface ResultsPageParams {
     results: any[];
@@ -37,7 +38,7 @@ function extractTableName(query: string | undefined): string | undefined {
 /**
  * Assembles the full HTML page for the results webview.
  */
-export function getResultsPageHtml(params: ResultsPageParams): string {
+export function getResultsPageHtml(extensionUri: vscode.Uri, params: ResultsPageParams): string {
     // --- Connection color ---
     const connectionColor = resolveConnectionColor(params.currentConnection?.color);
     const contextTitle = params.context || 'Unknown Database';
@@ -78,17 +79,37 @@ export function getResultsPageHtml(params: ResultsPageParams): string {
         contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction, encoding, tableName);
     }
 
-    // --- Scripts ---
-    const scripts = getWebviewScripts(params.autoRollbackAt);
+    // --- Static Files ---
+    const cssPath = vscode.Uri.joinPath(extensionUri, 'src', 'resultsPanel', 'templates', 'styles.css').fsPath;
+    const jsPath = vscode.Uri.joinPath(extensionUri, 'src', 'resultsPanel', 'templates', 'scripts.js').fsPath;
 
-    // --- Styles ---
-    const styles = getMainStyles(connectionColor);
+    let styles = '';
+    let scripts = '';
+    try {
+        styles = fs.readFileSync(cssPath, 'utf8');
+        scripts = fs.readFileSync(jsPath, 'utf8');
+    } catch (e) {
+        console.error('Failed to load result template files', e);
+    }
+    
+    // Inject dynamic connection color
+    if (connectionColor) {
+        styles += `\n#loadMoreBtn { background-color: ${connectionColor}; }\n`;
+        styles += `#loadMoreBtn:hover { filter: brightness(85%); }\n`;
+    }
+
+    const initialData = {
+        autoRollbackAt: params.autoRollbackAt,
+        iconCommit: iconCommit,
+        iconRollback: iconRollback
+    };
 
     return `<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
             <style>${styles}</style>
+            <script>window.INITIAL_DATA = ${JSON.stringify(initialData)};</script>
             <script>${scripts}</script>
         </head>
         <body class="${params.showButtons ? 'has-transaction' : ''}">

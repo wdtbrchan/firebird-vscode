@@ -1,3 +1,7 @@
+## [ upcoming ]
+### Refactoring
+- **Webviews**: Extracted inline HTML, CSS, and JS strings from `connectionEditor`, `resultsPanel`, and `tableInfoPanel` templates into separate static files loaded via Node's `fs`, significantly reducing the size of large TypeScript modules and improving maintainability.
+
 ## [1.3.3]
 ### Features
 - **Query Results**: Added a dropdown arrow (chevron) to each column header that opens a menu to **Copy Column** data directly. The arrow is only visible on hover for a cleaner look.
