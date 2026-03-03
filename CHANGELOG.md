@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.3.4]
 ### Refactoring
 - **Backend Services**: Refactored monolithic `metadataService.ts` and `queryExecutor.ts` into smaller, domain-specific modules.
 - **Commands**: Split `objectCommands.ts` into specific command handler files.
