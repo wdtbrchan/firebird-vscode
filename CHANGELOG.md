@@ -1,4 +1,6 @@
 ## [ upcoming ]
+
+## [1.3.5]
 ### Features
 - **SQL Execution**: Supported "Run Query" (CTRL+ENTER) for `SET TERM` blocks. The extension now automatically strips `SET TERM` wrappers before execution to ensure compatibility with the Firebird engine.
 - **Script Parsing**: Improved `SET TERM` detection to correctly ignore preceding comments and whitespace.
