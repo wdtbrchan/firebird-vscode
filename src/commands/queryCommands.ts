@@ -43,7 +43,7 @@ export function registerQueryCommands(
             const activeDetails = databaseTreeDataProvider.connectionManager.getActiveConnectionDetails();
             const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
             
-            ResultsPanel.createOrShow(context.extensionUri);
+            await ResultsPanel.createOrShow(context.extensionUri);
             
             if (ResultsPanel.currentPanel) {
                 const config = vscode.workspace.getConfiguration('firebird');
@@ -154,7 +154,7 @@ export function registerQueryCommands(
             const activeDetails = databaseTreeDataProvider.connectionManager.getActiveConnectionDetails();
             const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
             
-            ResultsPanel.createOrShow(context.extensionUri);
+            await ResultsPanel.createOrShow(context.extensionUri);
 
             cleanQuery = ParameterInjector.inject(cleanQuery);
 

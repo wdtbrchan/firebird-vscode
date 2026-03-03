@@ -58,6 +58,12 @@
           "default": false,
           "description": "Treat empty lines (two or more newlines) as SQL statement separators."
         },
+        "firebird.queryResultPanelLocation": {
+          "type": "string",
+          "enum": ["side", "bottom"],
+          "default": "side",
+          "description": "Where to open the query results panel (side or bottom)."
+        },
         "firebird.enableCodeLens": {
           "type": "boolean",
           "default": true,

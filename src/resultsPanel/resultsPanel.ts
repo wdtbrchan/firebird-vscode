@@ -88,27 +88,46 @@ export class ResultsPanel {
         this._updateContentForTable([], false);
     }
 
-    public static createOrShow(extensionUri: vscode.Uri) {
-        const column = vscode.window.activeTextEditor
-            ? vscode.ViewColumn.Beside
-            : undefined;
-
+    public static async createOrShow(extensionUri: vscode.Uri) {
         if (ResultsPanel.currentPanel) {
-            ResultsPanel.currentPanel._panel.reveal(column, true);
+            ResultsPanel.currentPanel._panel.reveal(undefined, true);
             return;
         }
 
-        const panel = vscode.window.createWebviewPanel(
-            'firebirdResults',
-            'Query Results',
-            { viewColumn: column || vscode.ViewColumn.Two, preserveFocus: true },
-            {
-                enableScripts: true,
-                localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]
-            }
-        );
+        const config = vscode.workspace.getConfiguration('firebird');
+        const panelLocation = config.get<string>('queryResultPanelLocation', 'side');
 
-        ResultsPanel.currentPanel = new ResultsPanel(panel, extensionUri);
+        let column = vscode.window.activeTextEditor ? vscode.ViewColumn.Beside : undefined;
+
+        let originalDirection: string | undefined;
+        let workbenchConfig: vscode.WorkspaceConfiguration | undefined;
+
+        if (vscode.window.activeTextEditor && panelLocation === 'bottom') {
+             workbenchConfig = vscode.workspace.getConfiguration('workbench.editor');
+             originalDirection = workbenchConfig.get('openSideBySideDirection');
+             if (originalDirection !== 'down') {
+                 await workbenchConfig.update('openSideBySideDirection', 'down', vscode.ConfigurationTarget.Global);
+             }
+        }
+
+        try {
+            const panel = vscode.window.createWebviewPanel(
+                'firebirdResults',
+                'Query Results',
+                { viewColumn: column || vscode.ViewColumn.Two, preserveFocus: true },
+                {
+                    enableScripts: true,
+                    localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]
+                }
+            );
+
+            ResultsPanel.currentPanel = new ResultsPanel(panel, extensionUri);
+        } finally {
+            if (workbenchConfig && originalDirection !== 'down') {
+                 // Restore the original setting
+                 await workbenchConfig.update('openSideBySideDirection', originalDirection, vscode.ConfigurationTarget.Global);
+            }
+        }
     }
 
     public showLoading() {
