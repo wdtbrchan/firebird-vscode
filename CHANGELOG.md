@@ -1,3 +1,11 @@
+## [ upcoming ]
+### Features
+- **SQL Execution**: Supported "Run Query" (CTRL+ENTER) for `SET TERM` blocks. The extension now automatically strips `SET TERM` wrappers before execution to ensure compatibility with the Firebird engine.
+- **Script Parsing**: Improved `SET TERM` detection to correctly ignore preceding comments and whitespace.
+
+### Testing
+- **Unit Tests**: Added coverage for `SET TERM` block extraction and parsing with comments.
+
 ## [1.3.4]
 ### Refactoring
 - **Backend Services**: Refactored monolithic `metadataService.ts` and `queryExecutor.ts` into smaller, domain-specific modules.

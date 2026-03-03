@@ -137,17 +137,8 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
 
             // 2. Run Action CodeLens (Second)
             if (endRange) {
-                // If it is a SET TERM block, add "Run Script"
-                if (result && result.type === 'SET_TERM') {
-                     const runScriptCommand: vscode.Command = {
-                        title: `$(run-all) Run Script`,
-                        command: 'firebird.executeScript',
-                        arguments: []
-                    };
-                    lenses.push(new vscode.CodeLens(startRange, runScriptCommand));
-                }
-                // If it is a standard Query, add "Run Query"
-                else if (result && result.type === 'QUERY') {
+                // Both standard QUERY and SET_TERM get "Run Query" 
+                if (result && (result.type === 'QUERY' || result.type === 'SET_TERM')) {
                      const runQueryCommand: vscode.Command = {
                         title: `$(play) Run Query`,
                         command: 'firebird.runQuery',
@@ -155,9 +146,6 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
                     };
                     lenses.push(new vscode.CodeLens(startRange, runQueryCommand));
                 }
-            }
-
-            if (endRange && result?.type !== 'SET_TERM') {
                 const endCommand: vscode.Command = {
                     title: `↑`,
                     command: 'firebird.selectDatabase',

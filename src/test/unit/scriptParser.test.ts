@@ -68,6 +68,25 @@ SELECT 1 FROM RDB$DATABASE;`;
         assert.strictEqual(result[1], 'SELECT 1 FROM RDB$DATABASE');
     });
 
+    test('Strip SET TERM from single block (Run Query integration)', () => {
+        const text = `-- testovaci blok
+SET TERM ^ ;
+EXECUTE BLOCK
+AS
+DECLARE VARIABLE datum_servisu DATE;
+BEGIN
+
+    datum_servisu = NULL;
+
+END
+^
+SET TERM ; ^`;
+        const result = ScriptParser.split(text, false);
+        assert.strictEqual(result.length, 1);
+        assert.ok(result[0].includes('EXECUTE BLOCK'));
+        assert.ok(!result[0].includes('SET TERM'));
+    });
+
     test('Empty line inside custom terminator block should not split script', () => {
         const text = `SET TERM ^ ;
 CREATE OR ALTER PROCEDURE SKUPINY_USERS () AS

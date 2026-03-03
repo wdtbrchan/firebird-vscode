@@ -119,6 +119,15 @@ export function registerQueryCommands(
         // --- Query Cleanup ---
         let cleanQuery = query.trim();
         
+        // Strip out SET TERM blocks using the ScriptParser so that Firebird engine
+        // can execute the raw blocks directly
+        if (/^\s*SET\s+TERM\s+/i.test(cleanQuery)) {
+            const parsed = ScriptParser.split(cleanQuery, false);
+            if (parsed.length > 0) {
+                cleanQuery = parsed[0];
+            }
+        }
+
         if (cleanQuery.endsWith(';')) cleanQuery = cleanQuery.slice(0, -1).trim();
 
         if (editor.document.languageId !== 'sql') {

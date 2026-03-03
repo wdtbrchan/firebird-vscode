@@ -90,8 +90,9 @@ export class ScriptParser {
 
             // Check for SET TERM command
             // We need to look ahead for "SET TERM" if we are at start of line or buffer is "clean"
-            // Simplified: if buffer trims to empty, check if we are starting SET TERM
-            if (!inString && buffer.trim() === '' && (char === 'S' || char === 's')) {
+            // Buffer is clean if it contains only whitespace and comments
+            const isBufferClean = buffer.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--.*$/gm, '').trim() === '';
+            if (!inString && isBufferClean && (char === 'S' || char === 's')) {
                 const rest = script.substring(i);
                 const match = /^\s*SET\s+TERM\s+(\S+)/i.exec(rest);
                 if (match) {
@@ -107,27 +108,15 @@ export class ScriptParser {
                      
                      // Skip the whole line/command. 
                      // We assume SET TERM ends with newline or is just a directive.
-                     
-                     // NOTE: SET TERM line often has the *old* delimiter at the end too?
-                     // e.g. "SET TERM ^ ;" -> changing to ^, old was ;
-                     // or "SET TERM ; ^" -> changing to ;, old was ^
-                     
-                     // The match[1] detects the first token after TERM.
-                     // If user writes "SET TERM ^ ;", match[1] is "^".
-                     
-                     // We need to advance i past this command.
-                     // Find the end of line or next whitespace?
-                     
-                     // Let's consume until newline.
                      const lineEnd = script.indexOf('\n', i);
                      const jump = lineEnd === -1 ? script.length : lineEnd + 1;
                      
-                     // Also check if the delimiter token matches what we found.
-                     // If line is "SET TERM ^ ;", parts are SET, TERM, ^, ;
-                     // Our regex captured ^.
-                     
                      i = jump;
-                     continue; // Don't add SET TERM to buffer
+                     
+                     // Reset buffer to clear out any preceding comments that were attached
+                     // to this SET TERM command, since they are not part of a real query.
+                     buffer = '';
+                     continue;
                 }
             }
 
