@@ -1,5 +1,7 @@
 ## [ upcoming ]
 ### Refactoring
+- **Backend Services**: Refactored monolithic `metadataService.ts` and `queryExecutor.ts` into smaller, domain-specific modules.
+- **Commands**: Split `objectCommands.ts` into specific command handler files.
 - **Webviews**: Extracted inline HTML, CSS, and JS strings from `connectionEditor`, `resultsPanel`, and `tableInfoPanel` templates into separate static files loaded via Node's `fs`, significantly reducing the size of large TypeScript modules and improving maintainability.
 
 ## [1.3.3]
