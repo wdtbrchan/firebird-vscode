@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.4.1]
 ### Fixes
 - **Query Results**: All cell values and column names in query results and results view are now properly HTML-escaped to prevent rendering raw HTML.
 
