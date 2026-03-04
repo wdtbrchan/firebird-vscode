@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { escapeHtml } from './resultsPanel/templates/contentTemplates';
 
 export class ResultsViewProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'firebird.resultsView';
@@ -48,7 +49,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 
         // Generate table headers
         const columns = Object.keys(results[0]);
-        const headerRow = columns.map(col => `<th>${col}</th>`).join('');
+        const headerRow = columns.map(col => `<th>${escapeHtml(col)}</th>`).join('');
 
         // Generate rows
         const rows = results.map(row => {
@@ -56,10 +57,14 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                 let val = row[col];
                 if (val instanceof Uint8Array) {
                     val = '[Blob]'; // Simplified for now
-                } else if (typeof val === 'object' && val !== null) {
+                } else if (val === null || val === undefined) {
+                    val = '';
+                } else if (typeof val === 'object') {
                     val = JSON.stringify(val);
+                } else {
+                    val = String(val);
                 }
-                return `<td>${val}</td>`;
+                return `<td>${escapeHtml(val)}</td>`;
             }).join('');
             return `<tr>${cells}</tr>`;
         }).join('');

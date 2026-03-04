@@ -3,25 +3,46 @@
  */
 
 /**
+ * Escapes HTML characters to prevent rendering them as HTML.
+ */
+export function escapeHtml(unsafe: string): string {
+    if (unsafe === null || unsafe === undefined) {
+        return '';
+    }
+    return String(unsafe)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+/**
  * Formats a cell value for display in the results table.
  */
 export function formatCellValue(val: any, locale: string): string {
     if (val === null) {
         return '<span class="null-value">[NULL]</span>';
-    } else if (val instanceof Uint8Array) {
-        return '[Blob]';
+    }
+    
+    let result = '';
+    if (val instanceof Uint8Array) {
+        result = '[Blob]';
     } else if (typeof val === 'number') {
         if (!Number.isInteger(val)) {
-            try { return val.toLocaleString(locale); } catch (e) { return val.toString(); }
+            try { result = val.toLocaleString(locale); } catch (e) { result = val.toString(); }
         } else {
-            return val.toString();
+            result = val.toString();
         }
     } else if (val instanceof Date) {
-        try { return val.toLocaleString(locale); } catch (e) { return val.toString(); }
+        try { result = val.toLocaleString(locale); } catch (e) { result = val.toString(); }
     } else if (typeof val === 'object' && val !== null) {
-        return JSON.stringify(val);
+        result = JSON.stringify(val);
+    } else {
+        result = String(val);
     }
-    return String(val);
+    
+    return escapeHtml(result);
 }
 
 /**
@@ -68,7 +89,7 @@ export function getResultsTableHtml(results: any[], locale: string, hasMore: boo
     const headerRow = '<th></th>' + columns.map((col, idx) => `
         <th data-col-index="${idx + 1}">
             <div class="col-header-content">
-                <span class="col-name">${col}</span>
+                <span class="col-name">${escapeHtml(col)}</span>
                 <span class="col-dropdown-trigger" onclick="showColumnMenu(event, this, ${idx + 1})">${iconChevronDown}</span>
             </div>
         </th>`).join('');
