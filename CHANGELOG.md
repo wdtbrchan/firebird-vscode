@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.4.2]
 ### Fixes
 - **Explorer**: Fixed `databaseTreeDataProvider.getFilter is not a function` error when clicking "Click to filter" in database object groups.
 
