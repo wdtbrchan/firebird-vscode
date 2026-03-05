@@ -8,7 +8,7 @@ export function registerFilterCommands(
 ): void {
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.editFilter', async (connection: DatabaseConnection, type: string) => {
-        const currentFilter = (databaseTreeDataProvider as any).getFilter(connection.id, type);
+        const currentFilter = databaseTreeDataProvider.filterManager.getFilter(connection.id, type);
         
         const inputBox = vscode.window.createInputBox();
         inputBox.value = currentFilter;
@@ -16,7 +16,7 @@ export function registerFilterCommands(
         inputBox.title = `Filter ${type}`;
         
         inputBox.onDidChangeValue(value => {
-            (databaseTreeDataProvider as any).setFilter(connection.id, type, value);
+            databaseTreeDataProvider.filterManager.setFilter(connection.id, type, value);
             databaseTreeDataProvider.refreshItem(connection);
         });
 
@@ -31,7 +31,7 @@ export function registerFilterCommands(
         if (item && item.command && item.command.arguments && item.command.arguments.length >= 2) {
              const connection = item.command.arguments[0];
              const type = item.command.arguments[1];
-             (databaseTreeDataProvider as any).setFilter(connection.id, type, '');
+             databaseTreeDataProvider.filterManager.setFilter(connection.id, type, '');
              databaseTreeDataProvider.refreshItem(connection);
         }
     }));

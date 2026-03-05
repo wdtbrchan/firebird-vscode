@@ -1,3 +1,7 @@
+## [ upcoming ]
+### Fixes
+- **Explorer**: Fixed `databaseTreeDataProvider.getFilter is not a function` error when clicking "Click to filter" in database object groups.
+
 ## [1.4.1]
 ### Fixes
 - **Query Results**: All cell values and column names in query results and results view are now properly HTML-escaped to prevent rendering raw HTML.
