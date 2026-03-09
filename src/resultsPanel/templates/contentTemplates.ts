@@ -96,8 +96,21 @@ export function getResultsTableHtml(results: any[], locale: string, hasMore: boo
     
     const rowsHtml = results.map((row, index) => {
         const cells = columns.map(col => {
-            const val = formatCellValue(row[col], locale);
-            return `<td>${val}</td>`;
+            const rowVal = row[col];
+            const val = formatCellValue(rowVal, locale);
+            let attributes = '';
+            if (rowVal === null) {
+                attributes = ` data-null="true"`;
+            } else if (typeof rowVal === 'number') {
+                attributes = ` data-isnum="true" data-raw="${rowVal.toString()}"`;
+            } else if (rowVal instanceof Date) {
+                const pad = (n: number) => n.toString().padStart(2, '0');
+                const rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())} ${pad(rowVal.getHours())}:${pad(rowVal.getMinutes())}:${pad(rowVal.getSeconds())}`;
+                attributes = ` data-raw="${escapeHtml(rawDate)}"`;
+            } else {
+                attributes = ` data-raw="${escapeHtml(String(rowVal))}"`;
+            }
+            return `<td${attributes}>${val}</td>`;
         }).join('');
         return `<tr><td class="row-index">${index + 1}</td>${cells}</tr>`;
     }).join('');
@@ -177,8 +190,21 @@ export function generateRowsHtml(rows: any[], startIndex: number, locale: string
     return rows.map((row, idx) => {
         const rowIndex = startIndex + idx + 1;
         const cells = columns.map(col => {
-            const val = formatCellValue(row[col], locale);
-            return `<td>${val}</td>`;
+            const rowVal = row[col];
+            const val = formatCellValue(rowVal, locale);
+            let attributes = '';
+            if (rowVal === null) {
+                attributes = ` data-null="true"`;
+            } else if (typeof rowVal === 'number') {
+                attributes = ` data-isnum="true" data-raw="${rowVal.toString()}"`;
+            } else if (rowVal instanceof Date) {
+                const pad = (n: number) => n.toString().padStart(2, '0');
+                const rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())} ${pad(rowVal.getHours())}:${pad(rowVal.getMinutes())}:${pad(rowVal.getSeconds())}`;
+                attributes = ` data-raw="${escapeHtml(rawDate)}"`;
+            } else {
+                attributes = ` data-raw="${escapeHtml(String(rowVal))}"`;
+            }
+            return `<td${attributes}>${val}</td>`;
         }).join('');
         return `<tr><td class="row-index">${rowIndex}</td>${cells}</tr>`;
     }).join('');

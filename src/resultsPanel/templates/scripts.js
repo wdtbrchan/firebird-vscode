@@ -142,6 +142,7 @@ function updateTimer() {
         contextMenu.innerHTML = `
             <div class="context-menu-item" id="cm-copy-val">Copy Value</div>
             <div class="context-menu-item" id="cm-copy-col">Copy Column '...'</div>
+            <div class="context-menu-item" id="cm-copy-col-list">Copy Column as list</div>
             <div class="context-menu-separator"></div>
             <div class="context-menu-item" id="cm-copy-table">Copy All</div>
         `;
@@ -154,6 +155,11 @@ function updateTimer() {
 
         contextMenu.querySelector('#cm-copy-col').addEventListener('click', () => {
            if(currentTargetCell) copyColumn(currentTargetCell.cellIndex);
+           hideContextMenu();
+        });
+
+        contextMenu.querySelector('#cm-copy-col-list').addEventListener('click', () => {
+           if(currentTargetCell) copyColumnAsList(currentTargetCell.cellIndex);
            hideContextMenu();
         });
 
@@ -173,8 +179,10 @@ function updateTimer() {
         
         const copyValItem = document.getElementById('cm-copy-val');
         const copyColItem = document.getElementById('cm-copy-col');
+        const copyColListItem = document.getElementById('cm-copy-col-list');
         
         if (copyColItem) copyColItem.innerText = `Copy Column '${colName}'`;
+        if (copyColListItem) copyColListItem.innerText = `Copy Column '${colName}' as list`;
         if (copyValItem) {
             copyValItem.style.display = (currentTargetCell && currentTargetCell.tagName === 'TD') ? 'block' : 'none';
         }
@@ -274,6 +282,40 @@ function updateTimer() {
              const row = table.rows[i];
              if (row.cells.length > colIndex) {
                  text += row.cells[colIndex].innerText + '\n';
+             }
+         }
+         copyToClipboard(text);
+    }
+
+    function copyColumnAsList(colIndex) {
+         const table = document.querySelector('table');
+         if (!table) return;
+         let values = [];
+         for (let i = 1; i < table.rows.length; i++) {
+             const row = table.rows[i];
+             if (row.cells.length > colIndex) {
+                 const cell = row.cells[colIndex];
+                 let val = cell.dataset.raw !== undefined ? cell.dataset.raw : cell.innerText.trim();
+                 
+                 if (cell.dataset.null === 'true') {
+                     values.push('NULL');
+                 } else if (cell.dataset.isnum === 'true') {
+                     values.push(val);
+                 } else {
+                     val = val.replace(/'/g, "''");
+                     values.push(`'${val}'`);
+                 }
+             }
+         }
+         
+         let text = '';
+         for (let i = 0; i < values.length; i++) {
+             text += values[i];
+             if (i < values.length - 1) {
+                 text += ', ';
+                 if ((i + 1) % 5 === 0) {
+                     text += '\n';
+                 }
              }
          }
          copyToClipboard(text);

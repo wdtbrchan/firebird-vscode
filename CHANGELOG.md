@@ -1,3 +1,8 @@
+## [ upcoming ]
+### Features
+- **Query Results**: Added **Copy Column as list** to the context menu. Values are exported as a comma-separated list, with automatic line breaks every 5 values.
+- **Query Results**: Modified data copying to use raw, unformatted values for numbers and dates (`YYYY-MM-DD HH:MM:SS`) instead of localized display strings.
+
 ## [1.4.3]
 ### Features
 - **CSV Export**: Added a setting to choose between dot (`.`) and comma (`,`) as the decimal separator. The chosen setting is remembered for future exports.
