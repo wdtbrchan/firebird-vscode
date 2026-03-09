@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.4.3]
 ### Features
 - **CSV Export**: Added a setting to choose between dot (`.`) and comma (`,`) as the decimal separator. The chosen setting is remembered for future exports.
 
