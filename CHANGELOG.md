@@ -2,6 +2,9 @@
 ### Features
 - **CSV Export**: Added a setting to choose between dot (`.`) and comma (`,`) as the decimal separator. The chosen setting is remembered for future exports.
 
+### Fixes
+- **CSV Export**: Fixed an issue where date values were exported with extra double quotes and formatted them to `YYYY-MM-DD HH:MM:SS` (ISO-like) format.
+
 ## [1.4.2]
 ### Fixes
 - **Explorer**: Fixed `databaseTreeDataProvider.getFilter is not a function` error when clicking "Click to filter" in database object groups.

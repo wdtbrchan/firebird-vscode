@@ -128,7 +128,13 @@ export class ExportService {
             const escapeValue = (val: any): string => {
                 if (val === null || val === undefined) return '';
                 if (val instanceof Uint8Array) return '[Blob]';
-                let str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                let str: string;
+                if (val instanceof Date) {
+                    const pad = (n: number) => n.toString().padStart(2, '0');
+                    str = `${val.getFullYear()}-${pad(val.getMonth() + 1)}-${pad(val.getDate())} ${pad(val.getHours())}:${pad(val.getMinutes())}:${pad(val.getSeconds())}`;
+                } else {
+                    str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                }
                 if (typeof val === 'number' && decimalSeparator === ',') {
                     str = str.replace('.', ',');
                 }
