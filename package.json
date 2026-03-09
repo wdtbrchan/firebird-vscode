@@ -76,6 +76,15 @@
           "type": "boolean",
           "default": false,
           "description": "Enable CodeLens in non-SQL files (requires the language to be in 'firebird.allowedLanguages')."
+        },
+        "firebird.csvDecimalSeparator": {
+          "type": "string",
+          "enum": [
+            ".",
+            ","
+          ],
+          "default": ".",
+          "description": "Decimal separator to use when exporting numbers to CSV."
         }
       }
     },

@@ -76,7 +76,9 @@ export function getResultsPageHtml(extensionUri: vscode.Uri, params: ResultsPage
     } else {
         const encoding = params.currentConnection?.charset || 'UTF8';
         const tableName = extractTableName(params.currentQuery);
-        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction, encoding, tableName);
+        const config = vscode.workspace.getConfiguration('firebird');
+        const decimalSeparator = config.get<string>('csvDecimalSeparator', '.');
+        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction, encoding, tableName, decimalSeparator);
     }
 
     // --- Static Files ---

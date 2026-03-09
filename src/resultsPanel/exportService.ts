@@ -15,6 +15,7 @@ export class ExportService {
         const qualifier: string = message.qualifier || '"';
         const encoding: string = message.encoding || 'UTF8';
         const filename: string = message.filename || 'export.csv';
+        const decimalSeparator: string = message.decimalSeparator || '.';
 
         if (!currentQuery || !currentConnection) {
             vscode.window.showWarningMessage('No query to export.');
@@ -23,6 +24,7 @@ export class ExportService {
 
         const connection = currentConnection;
         const config = vscode.workspace.getConfiguration('firebird');
+        config.update('csvDecimalSeparator', decimalSeparator, true);
         const encodingConf = connection.charset || config.get<string>('charset', 'UTF8');
 
         // Notify webview: Executing query
@@ -126,7 +128,10 @@ export class ExportService {
             const escapeValue = (val: any): string => {
                 if (val === null || val === undefined) return '';
                 if (val instanceof Uint8Array) return '[Blob]';
-                const str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                let str = typeof val === 'object' ? JSON.stringify(val) : String(val);
+                if (typeof val === 'number' && decimalSeparator === ',') {
+                    str = str.replace('.', ',');
+                }
                 const escaped = str.replace(new RegExp(qualifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), qualifier + qualifier);
                 return `${qualifier}${escaped}${qualifier}`;
             };

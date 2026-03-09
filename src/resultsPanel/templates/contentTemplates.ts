@@ -84,7 +84,7 @@ import { iconChevronDown } from './icons';
 /**
  * Returns the HTML for the results data table.
  */
-export function getResultsTableHtml(results: any[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string, encoding?: string, tableName?: string): string {
+export function getResultsTableHtml(results: any[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string, encoding?: string, tableName?: string, decimalSeparator?: string): string {
     const columns = Object.keys(results[0]);
     const headerRow = '<th></th>' + columns.map((col, idx) => `
         <th data-col-index="${idx + 1}">
@@ -117,6 +117,7 @@ export function getResultsTableHtml(results: any[], locale: string, hasMore: boo
 
     const defaultFilename = (tableName || 'export') + '.csv';
     const defaultEncoding = encoding || 'UTF8';
+    const defaultDecimalSeparator = decimalSeparator || '.';
 
     return `
         <div class="export-bar">
@@ -141,6 +142,13 @@ export function getResultsTableHtml(results: any[], locale: string, hasMore: boo
                 <div class="csv-modal-field">
                     <label for="csvQualifier">String Qualifier</label>
                     <input type="text" id="csvQualifier" value="&quot;" maxlength="5" />
+                </div>
+                <div class="csv-modal-field">
+                    <label for="csvDecimalSeparator">Decimal Separator</label>
+                    <select id="csvDecimalSeparator">
+                        <option value="." ${defaultDecimalSeparator === '.' ? 'selected' : ''}>Dot (.)</option>
+                        <option value="," ${defaultDecimalSeparator === ',' ? 'selected' : ''}>Comma (,)</option>
+                    </select>
                 </div>
                 <div class="csv-modal-field">
                     <label for="csvEncoding">Encoding</label>

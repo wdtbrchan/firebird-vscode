@@ -1,3 +1,7 @@
+## [ upcoming ]
+### Features
+- **CSV Export**: Added a setting to choose between dot (`.`) and comma (`,`) as the decimal separator. The chosen setting is remembered for future exports.
+
 ## [1.4.2]
 ### Fixes
 - **Explorer**: Fixed `databaseTreeDataProvider.getFilter is not a function` error when clicking "Click to filter" in database object groups.

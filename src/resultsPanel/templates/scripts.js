@@ -319,13 +319,15 @@ window.exportCsv = function() {
     const qualifier = document.getElementById('csvQualifier').value || '"';
     const encoding = document.getElementById('csvEncoding').value || 'UTF8';
     const filename = document.getElementById('csvFilename').value || 'export.csv';
+    const decimalSeparator = document.getElementById('csvDecimalSeparator').value || '.';
     window.hideCsvModal();
     vscode.postMessage({ 
         command: 'exportCsv',
         delimiter: delimiter,
         qualifier: qualifier,
         encoding: encoding,
-        filename: filename
+        filename: filename,
+        decimalSeparator: decimalSeparator
     });
 }
 // Close modal on overlay click
