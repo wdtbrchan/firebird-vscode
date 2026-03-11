@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.6.0]
 - Added "Explain Query Plan" feature (`CTRL+SHIFT+ENTER`) to view Firebird execution plans without fetching data.
 
 ## [1.5.0]
