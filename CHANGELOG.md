@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.5.0]
 - Audio notification for long-running queries with configurable threshold.
 - Custom OS command for audio playback support.
 - Configurable option to enable/disable audio notifications.
