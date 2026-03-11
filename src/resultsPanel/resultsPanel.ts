@@ -68,6 +68,13 @@ export class ResultsPanel {
         execService.onMessage(e => this._panel.webview.postMessage({ command: 'message', text: e.text }), this, this._disposables);
         execService.onError(e => this.showError(e.message, e.hasTransaction), this, this._disposables);
         execService.onSuccessMessage(e => this.showSuccess(e.message, e.hasTransaction), this, this._disposables);
+        execService.onPlan(e => {
+            this._currentQuery = e.query;
+            this._currentContext = e.context;
+            this._currentConnection = e.connection;
+            this._lastExecutionTime = e.executionTime;
+            this.showPlan(e.plan, e.context);
+        }, this, this._disposables);
         execService.onData(e => {
             this._currentQuery = e.query;
             this._displayQuery = e.displayQuery;
@@ -159,6 +166,15 @@ export class ResultsPanel {
         this._panel.webview.html = this._getHtmlForWebview([], message, hasTransaction, true, this._lastContext);
     }
 
+    public showPlan(planText: string, context?: string) {
+        this._isLoading = false;
+        this._lastIsError = false;
+        this._lastMessage = planText;
+        this._showButtons = Database.hasActiveTransaction;
+        this._lastContext = context || this._currentContext;
+        this._panel.webview.html = this._getHtmlForWebview([], planText, this._showButtons, false, this._lastContext, false, undefined, undefined, true);
+    }
+
 
 
     private _appendRowsToWebview(newRows: any[], startIndex: number, hasMore: boolean, affectedRows?: number) {
@@ -227,7 +243,7 @@ export class ResultsPanel {
         });
     }
 
-    private _getHtmlForWebview(results: any[], message: string | undefined, showButtons: boolean, isError: boolean, context: string | undefined, hasMore?: boolean, transactionAction?: string, affectedRows?: number): string {
+    private _getHtmlForWebview(results: any[], message: string | undefined, showButtons: boolean, isError: boolean, context: string | undefined, hasMore?: boolean, transactionAction?: string, affectedRows?: number, isPlan: boolean = false): string {
         this._hasMore = hasMore || false;
 
         const config = vscode.workspace.getConfiguration('firebird');
@@ -238,6 +254,7 @@ export class ResultsPanel {
             message,
             showButtons,
             isError,
+            isPlan,
             context,
             hasMore: this._hasMore,
             transactionAction,

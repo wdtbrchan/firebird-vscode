@@ -225,6 +225,98 @@ export class QueryExecutor {
     }
 
     /**
+     * Executes a query to fetch the execution plan against the Firebird database without fetching rows.
+     */
+    public static async getPlan(query: string, connection?: DatabaseConnection): Promise<string> {
+        const config = vscode.workspace.getConfiguration('firebird');
+        
+        const cleanQuery = query.trim().replace(/;$/, '');
+        const finalQuery = cleanQuery;
+        
+        const encodingConf = connection?.charset || config.get<string>('charset', 'UTF8');
+        const options: Firebird.Options = {
+            host: connection?.host || config.get<string>('host', '127.0.0.1'),
+            port: connection?.port || config.get<number>('port', 3050),
+            database: connection?.database || config.get<string>('database', ''),
+            user: connection?.user || config.get<string>('user', 'SYSDBA'),
+            password: connection?.password || config.get<string>('password', 'masterkey'),
+            role: connection?.role || config.get<string>('role', ''),
+            encoding: 'NONE', 
+            lowercase_keys: false
+        } as any;
+
+        if (!options.database) {
+            throw new Error('Database path is not configured. Please select a database in the explorer or set "firebird.database" in settings.');
+        }
+
+        if (TransactionManager.db && TransactionManager.currentOptions) {
+            if (TransactionManager.currentOptions.host !== options.host ||
+                TransactionManager.currentOptions.database !== options.database) {
+                 await TransactionManager.rollback(); 
+            }
+        }
+
+        TransactionManager.currentOptions = options;
+        
+        // Stop auto-rollback while executing
+        if (TransactionManager.autoRollbackTimer) clearTimeout(TransactionManager.autoRollbackTimer);
+        TransactionManager.autoRollbackDeadline = undefined;
+
+        return new Promise((resolve, reject) => {
+            const wrapResolve = (plan: string) => {
+                TransactionManager.resetAutoRollback();
+                resolve(plan);
+            };
+            const wrapReject = (err: any) => {
+                TransactionManager.resetAutoRollback();
+                reject(err);
+            };
+
+            const runGetPlan = (tr: Firebird.Transaction) => {
+                const trAny = tr as any;
+                const queryString = prepareQueryBuffer(finalQuery, encodingConf);
+
+                if (TransactionManager.activeStatement) {
+                    try { TransactionManager.activeStatement.close(); } catch (e) { /* ignore */ }
+                    TransactionManager.activeStatement = undefined;
+                }
+                
+                trAny.connection.prepare(tr, queryString, true, (err: any, statement: any) => {
+                    if (err) return wrapReject(err);
+                    const planResult = statement.plan || 'No plan available';
+                    statement.drop(); // Release the statement immediately
+                    wrapResolve(planResult);
+                });
+            };
+
+            if (TransactionManager.transaction) {
+                runGetPlan(TransactionManager.transaction);
+            } else {
+                const doAttach = (cb: (db: Firebird.Database) => void) => {
+                    if (TransactionManager.db) {
+                        cb(TransactionManager.db);
+                    } else {
+                        Firebird.attach(options, (err, db) => {
+                            if (err) return wrapReject(err);
+                            TransactionManager.db = db;
+                            cb(db);
+                        });
+                    }
+                };
+
+                doAttach((db) => {
+                    db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err, tr) => {
+                        if (err) return wrapReject(err);
+                        TransactionManager.transaction = tr;
+                        TransactionManager.notifyStateChange(); 
+                        runGetPlan(tr);
+                    });
+                });
+            }
+        });
+    }
+
+    /**
      * Tests that a connection can be established.
      */
     public static async checkConnection(connection: DatabaseConnection): Promise<void> {

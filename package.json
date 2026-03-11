@@ -111,6 +111,12 @@
         "icon": "$(play)"
       },
       {
+        "command": "firebird.getPlan",
+        "title": "Explain Query Plan",
+        "category": "Firebird",
+        "icon": "$(symbol-string)"
+      },
+      {
         "command": "firebird.executeScript",
         "title": "Run Script",
         "category": "Firebird",
@@ -352,6 +358,12 @@
         "when": "editorTextFocus && firebird:queryExecutionEnabled"
       },
       {
+        "command": "firebird.getPlan",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorTextFocus && firebird:queryExecutionEnabled"
+      },
+      {
         "command": "firebird.executeScript",
         "key": "ctrl+alt+enter",
         "mac": "cmd+alt+enter",
@@ -481,6 +493,11 @@
       "editor/title": [
         {
           "command": "firebird.runQuery",
+          "when": "editorLangId == sql",
+          "group": "navigation"
+        },
+        {
+          "command": "firebird.getPlan",
           "when": "editorLangId == sql",
           "group": "navigation"
         },

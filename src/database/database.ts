@@ -24,6 +24,10 @@ export class Database {
         return QueryExecutor.runMetaQuery(connection, query);
     }
 
+    public static async getPlan(query: string, connection?: DatabaseConnection): Promise<string> {
+        return QueryExecutor.getPlan(query, connection);
+    }
+
     // --- Transaction management ---
     public static async commit(): Promise<void> {
         return TransactionManager.commit();

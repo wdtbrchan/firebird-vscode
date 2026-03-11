@@ -6,7 +6,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { getHeaderHtml, resolveConnectionColor } from './headerTemplate';
 import { getInfoBarHtml, InfoBarParams } from './infoBarTemplate';
-import { getErrorHtml, getNoResultsHtml, getResultsTableHtml } from './contentTemplates';
+import { getErrorHtml, getNoResultsHtml, getResultsTableHtml, escapeHtml } from './contentTemplates';
 import { iconCommit, iconRollback } from './icons';
 
 export interface ResultsPageParams {
@@ -14,6 +14,7 @@ export interface ResultsPageParams {
     message: string | undefined;
     showButtons: boolean;
     isError: boolean;
+    isPlan?: boolean;
     context: string | undefined;
     hasMore: boolean;
     transactionAction: string | undefined;
@@ -71,6 +72,8 @@ export function getResultsPageHtml(extensionUri: vscode.Uri, params: ResultsPage
     let contentHtml: string;
     if (params.isError && params.message) {
         contentHtml = getErrorHtml(params.message);
+    } else if (params.isPlan && params.message) {
+        contentHtml = `<div style="padding: 15px; font-family: monospace; white-space: pre-wrap; word-wrap: break-word; color: var(--vscode-editor-foreground);">${escapeHtml(params.message)}</div>`;
     } else if (!params.results || params.results.length === 0) {
         contentHtml = getNoResultsHtml(params.affectedRows);
     } else {

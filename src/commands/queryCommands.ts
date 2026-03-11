@@ -75,130 +75,146 @@ export function registerQueryCommands(
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.runQuery', async () => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            vscode.window.showErrorMessage('No active text editor');
-            return;
+        await handleQueryExecution(context, databaseTreeDataProvider, false);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.getPlan', async () => {
+        await handleQueryExecution(context, databaseTreeDataProvider, true);
+    }));
+}
+
+async function handleQueryExecution(
+    context: vscode.ExtensionContext,
+    databaseTreeDataProvider: DatabaseTreeDataProvider,
+    isPlan: boolean
+) {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showErrorMessage('No active text editor');
+        return;
+    }
+
+    const config = vscode.workspace.getConfiguration('firebird');
+    const allowedLanguages = config.get<string[]>('allowedLanguages', ['sql']);
+    if (!allowedLanguages.includes(editor.document.languageId)) {
+        vscode.window.showInformationMessage(`Firebird: Execution not enabled for language '${editor.document.languageId}'. Check 'firebird.allowedLanguages' setting.`);
+        return;
+    }
+
+    const selection = editor.selection;
+    let query = '';
+    let queryStartLine = 0;
+    let queryStartChar = 0;
+
+    const useEmptyLineAsSeparator = config.get<boolean>('useEmptyLineAsSeparator', false);
+
+    if (selection.isEmpty) {
+         const offset = editor.document.offsetAt(selection.active);
+         const result = QueryExtractor.extract(editor.document.getText(), offset, editor.document.languageId, useEmptyLineAsSeparator);
+         
+         if (result) {
+             query = result.text;
+             const startPos = editor.document.positionAt(result.startOffset);
+             queryStartLine = startPos.line;
+             queryStartChar = startPos.character;
+         }
+    } else {
+         query = editor.document.getText(selection);
+         queryStartLine = selection.start.line;
+         queryStartChar = selection.start.character;
+    }
+
+    if (!query || !query.trim()) {
+         vscode.window.showWarningMessage('No query selected or found.');
+         return;
+    }
+
+    // --- Query Cleanup ---
+    let cleanQuery = query.trim();
+    
+    // Strip out SET TERM blocks using the ScriptParser so that Firebird engine
+    // can execute the raw blocks directly
+    if (/^\s*SET\s+TERM\s+/i.test(cleanQuery)) {
+        const parsed = ScriptParser.split(cleanQuery, false);
+        if (parsed.length > 0) {
+            cleanQuery = parsed[0];
         }
+    }
 
-        const config = vscode.workspace.getConfiguration('firebird');
-        const allowedLanguages = config.get<string[]>('allowedLanguages', ['sql']);
-        if (!allowedLanguages.includes(editor.document.languageId)) {
-            vscode.window.showInformationMessage(`Firebird: Execution not enabled for language '${editor.document.languageId}'. Check 'firebird.allowedLanguages' setting.`);
-            return;
+    if (cleanQuery.endsWith(';')) cleanQuery = cleanQuery.slice(0, -1).trim();
+
+    if (editor.document.languageId !== 'sql') {
+         const assignmentMatch = /^\$[\w\d_]+\s*=\s*/.exec(cleanQuery);
+         if (assignmentMatch) {
+             cleanQuery = cleanQuery.substring(assignmentMatch[0].length).trim();
+         }
+         
+         if ((cleanQuery.startsWith('"') && cleanQuery.endsWith('"')) || 
+             (cleanQuery.startsWith("'") && cleanQuery.endsWith("'"))) {
+             cleanQuery = cleanQuery.substring(1, cleanQuery.length - 1);
         }
+    }
+    // --- End Query Cleanup ---
 
-        const selection = editor.selection;
-        let query = '';
-        let queryStartLine = 0;
-        let queryStartChar = 0;
-
-        const useEmptyLineAsSeparator = config.get<boolean>('useEmptyLineAsSeparator', false);
-
-        if (selection.isEmpty) {
-             const offset = editor.document.offsetAt(selection.active);
-             const result = QueryExtractor.extract(editor.document.getText(), offset, editor.document.languageId, useEmptyLineAsSeparator);
-             
-             if (result) {
-                 query = result.text;
-                 const startPos = editor.document.positionAt(result.startOffset);
-                 queryStartLine = startPos.line;
-                 queryStartChar = startPos.character;
-             }
-        } else {
-             query = editor.document.getText(selection);
-             queryStartLine = selection.start.line;
-             queryStartChar = selection.start.character;
-        }
-
-        if (!query || !query.trim()) {
-             vscode.window.showWarningMessage('No query selected or found.');
-             return;
-        }
-
-        // --- Query Cleanup ---
-        let cleanQuery = query.trim();
+    try {
+        const activeConn = databaseTreeDataProvider.connectionManager.getActiveConnection();
         
-        // Strip out SET TERM blocks using the ScriptParser so that Firebird engine
-        // can execute the raw blocks directly
-        if (/^\s*SET\s+TERM\s+/i.test(cleanQuery)) {
-            const parsed = ScriptParser.split(cleanQuery, false);
-            if (parsed.length > 0) {
-                cleanQuery = parsed[0];
-            }
+        if (!activeConn) {
+            vscode.window.showWarningMessage('No active database connection selected. Please select a database.');
+            return;
         }
 
-        if (cleanQuery.endsWith(';')) cleanQuery = cleanQuery.slice(0, -1).trim();
+        const activeDetails = databaseTreeDataProvider.connectionManager.getActiveConnectionDetails();
+        const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
+        
+        await ResultsPanel.createOrShow(context.extensionUri);
 
-        if (editor.document.languageId !== 'sql') {
-             const assignmentMatch = /^\$[\w\d_]+\s*=\s*/.exec(cleanQuery);
-             if (assignmentMatch) {
-                 cleanQuery = cleanQuery.substring(assignmentMatch[0].length).trim();
-             }
-             
-             if ((cleanQuery.startsWith('"') && cleanQuery.endsWith('"')) || 
-                 (cleanQuery.startsWith("'") && cleanQuery.endsWith("'"))) {
-                 cleanQuery = cleanQuery.substring(1, cleanQuery.length - 1);
-            }
-        }
-        // --- End Query Cleanup ---
+        cleanQuery = ParameterInjector.inject(cleanQuery);
 
-        try {
-            const activeConn = databaseTreeDataProvider.connectionManager.getActiveConnection();
-            
-            if (!activeConn) {
-                vscode.window.showWarningMessage('No active database connection selected. Please select a database.');
-                return;
-            }
-
-            const activeDetails = databaseTreeDataProvider.connectionManager.getActiveConnectionDetails();
-            const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
-            
-            await ResultsPanel.createOrShow(context.extensionUri);
-
-            cleanQuery = ParameterInjector.inject(cleanQuery);
-
-            if (ResultsPanel.currentPanel) {
+        if (ResultsPanel.currentPanel) {
+            if (isPlan) {
+                await ExecutionService.getInstance().explainQuery(cleanQuery, activeConn, contextTitle);
+            } else {
                 await ExecutionService.getInstance().executeNewQuery(cleanQuery, activeConn, contextTitle);
             }
-
-            if (ScriptParser.isDDL(cleanQuery)) {
-                databaseTreeDataProvider.refreshItem(activeConn);
-            }
-
-            vscode.window.showTextDocument(editor.document, editor.viewColumn, true);
-            
-        } catch (err: any) {
-             const hasTransaction = Database.hasActiveTransaction;
-             
-             const match = /line\s+(\d+),\s+column\s+(\d+)/i.exec(err.message);
-             if (match && editor) {
-                 try {
-                    const errorLineRel = parseInt(match[1], 10);
-                    const errorColRel = parseInt(match[2], 10);
-                    
-                    const absLine = queryStartLine + (errorLineRel - 1);
-                    
-                    let absCol = errorColRel - 1;
-                    if (errorLineRel === 1) {
-                        absCol += queryStartChar;
-                    }
-                    
-                    const pos = new vscode.Position(absLine, absCol);
-                    editor.selection = new vscode.Selection(pos, pos);
-                    editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-                    
-                    vscode.window.showTextDocument(editor.document, editor.viewColumn);
-                 } catch (e) {
-                     console.error('Failed to move cursor to error', e);
-                 }
-             }
-
-             if (ResultsPanel.currentPanel) {
-                 ResultsPanel.currentPanel.showError(err.message, hasTransaction);
-             } else {
-                 vscode.window.showErrorMessage('Error executing query: ' + err.message);
-             }
         }
-    }));
+
+        if (ScriptParser.isDDL(cleanQuery) && !isPlan) {
+            databaseTreeDataProvider.refreshItem(activeConn);
+        }
+
+        vscode.window.showTextDocument(editor.document, editor.viewColumn, true);
+        
+    } catch (err: any) {
+         const hasTransaction = Database.hasActiveTransaction;
+         
+         const match = /line\s+(\d+),\s+column\s+(\d+)/i.exec(err.message);
+         if (match && editor) {
+             try {
+                const errorLineRel = parseInt(match[1], 10);
+                const errorColRel = parseInt(match[2], 10);
+                
+                const absLine = queryStartLine + (errorLineRel - 1);
+                
+                let absCol = errorColRel - 1;
+                if (errorLineRel === 1) {
+                    absCol += queryStartChar;
+                }
+                
+                const pos = new vscode.Position(absLine, absCol);
+                editor.selection = new vscode.Selection(pos, pos);
+                editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+                
+                vscode.window.showTextDocument(editor.document, editor.viewColumn);
+             } catch (e) {
+                 console.error('Failed to move cursor to error', e);
+             }
+         }
+
+         if (ResultsPanel.currentPanel) {
+             ResultsPanel.currentPanel.showError(err.message, hasTransaction);
+         } else {
+             vscode.window.showErrorMessage('Error executing query: ' + err.message);
+         }
+    }
 }

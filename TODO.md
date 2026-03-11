@@ -54,3 +54,4 @@
 - [ ] Diff between SQL in the editor and actual DDL in database
 - [ ] Copy data between two databases
 - [x] Audio notifications for long running queries
+- [x] Explain Query Plan feature (CTRL+SHIFT+ENTER)

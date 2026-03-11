@@ -38,6 +38,9 @@ export class ExecutionService {
     private readonly _onMessage = new vscode.EventEmitter<{ text: string }>();
     public readonly onMessage = this._onMessage.event;
 
+    private readonly _onPlan = new vscode.EventEmitter<{ plan: string, context?: string, query?: string, connection?: DatabaseConnection, executionTime?: number }>();
+    public readonly onPlan = this._onPlan.event;
+
     // State
     private _currentConnection: DatabaseConnection | undefined;
     private _currentContext: string | undefined;
@@ -79,6 +82,36 @@ export class ExecutionService {
         const start = performance.now();
         try {
             await this._fetchAndEmit(false);
+        } finally {
+            const end = performance.now();
+            this._checkAndPlayAudioCue((end - start) / 1000);
+        }
+    }
+
+    public async explainQuery(query: string, connection: DatabaseConnection, context?: string) {
+        this._currentQuery = query;
+        this._displayQuery = query;
+        this._currentConnection = connection;
+        this._currentContext = context;
+        this._lastExecutionTime = undefined;
+
+        this._onStart.fire();
+        const start = performance.now();
+        try {
+            const plan = await Database.getPlan(query, connection);
+            const end = performance.now();
+            this._lastExecutionTime = (end - start) / 1000;
+            
+            this._onPlan.fire({
+                plan,
+                context,
+                query,
+                connection: this._currentConnection,
+                executionTime: this._lastExecutionTime
+            });
+        } catch (err: any) {
+            const hasTransaction = Database.hasActiveTransaction;
+            this._onError.fire({ message: err.message, hasTransaction });
         } finally {
             const end = performance.now();
             this._checkAndPlayAudioCue((end - start) / 1000);

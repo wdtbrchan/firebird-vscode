@@ -1,3 +1,6 @@
+## [ upcoming ]
+- Added "Explain Query Plan" feature (`CTRL+SHIFT+ENTER`) to view Firebird execution plans without fetching data.
+
 ## [1.5.0]
 - Audio notification for long-running queries with configurable threshold.
 - Custom OS command for audio playback support.
@@ -297,14 +300,18 @@
 
 ## [0.5.0]
 ### Features
-- **SQL Execution in Other Files**:
-  - Execute SQL queries from non-SQL files (e.g., PHP) using `Ctrl+Enter`.
+- **SQL Execution**: Run queries (`CTRL+Enter`) and scripts (`CTRL+ALT+Enter`). Supports **Explain Query Plan** (`CTRL+SHIFT+ENTER`) to retrieve Firebird execution plans. Supports SQL from other files (e.g. PHP) with parameter injection.
   - Configurable via `firebird.allowedLanguages` setting.
   - **Parameter Injection**: Support for injecting parameter values using comments (e.g., `--@val=1` or `/*@val='text'*/`).
 - **Improved Explorer**:
   - Added **Create new...** actions for Tables, Views, Triggers, Procedures, and Generators to easily create new objects from templates.
 - **General**:
   - Added "Run Query" and "Run Script" commands to the "Firebird" category in the Command Palette.
+- **Query Shortcuts**:
+- `CTRL+Enter`: Run query
+- `CTRL+ALT+Enter`: Run script
+- `CTRL+SHIFT+ENTER`: Explain Query Plan
+- `CTRL+SHIFT+Backspace`: Close query results panel.
 
 ## [0.4.0]
 ### Features
