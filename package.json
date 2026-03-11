@@ -85,6 +85,21 @@
           ],
           "default": ".",
           "description": "Decimal separator to use when exporting numbers to CSV."
+        },
+        "firebird.queryAudioNotificationEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Play an audio notification when a long-running query completes."
+        },
+        "firebird.queryAudioNotificationThreshold": {
+          "type": "integer",
+          "default": 5,
+          "description": "Time threshold in seconds a query must take to trigger the audio notification."
+        },
+        "firebird.queryAudioNotificationCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Custom OS command to execute for playing the audio notification (e.g. 'paplay /path/to/sound.ogg'). If left empty, a default system sound is played."
         }
       }
     },

@@ -52,3 +52,4 @@
 - [ ] Support multiple simultaneous active database connections
 - [ ] Diff between SQL in the editor and actual DDL in database
 - [ ] Copy data between two databases
+- [x] Audio notifications for long running queries

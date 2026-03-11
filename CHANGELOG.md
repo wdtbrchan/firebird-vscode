@@ -1,3 +1,8 @@
+## [ upcoming ]
+- Audio notification for long-running queries with configurable threshold.
+- Custom OS command for audio playback support.
+- Configurable option to enable/disable audio notifications.
+
 ## [1.4.4]
 ### Features
 - **Query Results**: Added **Copy Column as list** to the context menu. Values are exported as a comma-separated list, with automatic line breaks every 5 values.
@@ -243,8 +248,6 @@
 ### Fixes
 - **Explorer**: Fixed alignment glitch for the last database connection in a folder by adding a dummy padding item.
 
-## [0.9.0]
-### Features
 - **Favorites**:
   - Added a favorites list for objects (tables, views, triggers, etc.) and scripts.
 
@@ -353,7 +356,7 @@
   - Added loading state indicators to the connection tree.
   - Swapped transaction button positions for better ergonomics.
 
-## [0.1.1 - 0.1.5]
+## [0.1.5]
 ### Features
 - **Database Management**:
   - Added the ability to rename database groups.

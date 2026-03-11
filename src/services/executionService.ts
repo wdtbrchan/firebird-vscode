@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as cp from 'child_process';
+import * as os from 'os';
 import { Database } from '../database';
 import { DatabaseConnection } from '../database/types';
 
@@ -74,7 +76,13 @@ export class ExecutionService {
         this._lastExecutionTime = undefined;
 
         this._onStart.fire();
-        await this._fetchAndEmit(false);
+        const start = performance.now();
+        try {
+            await this._fetchAndEmit(false);
+        } finally {
+            const end = performance.now();
+            this._checkAndPlayAudioCue((end - start) / 1000);
+        }
     }
 
     public async executeScript(statements: string[], connection: DatabaseConnection, context?: string) {
@@ -102,6 +110,7 @@ export class ExecutionService {
         }
 
         let executedCount = 0;
+        const start = performance.now();
 
         try {
             for (let i = 0; i < total; i++) {
@@ -119,6 +128,9 @@ export class ExecutionService {
         } catch (err: any) {
             const hasTransaction = Database.hasActiveTransaction;
             this._onError.fire({ message: `Script error at statement ${executedCount + 1}: ${err.message}`, hasTransaction });
+        } finally {
+            const end = performance.now();
+            this._checkAndPlayAudioCue((end - start) / 1000);
         }
     }
 
@@ -178,6 +190,38 @@ export class ExecutionService {
             const hasTransaction = Database.hasActiveTransaction;
             this._onError.fire({ message: err.message, hasTransaction });
             throw err;
+        }
+    }
+
+    private _checkAndPlayAudioCue(executionTimeSeconds: number) {
+        const config = vscode.workspace.getConfiguration('firebird');
+        const audioEnabled = config.get<boolean>('queryAudioNotificationEnabled', true);
+        if (!audioEnabled) return;
+
+        const threshold = config.get<number>('queryAudioNotificationThreshold', 5);
+        if (executionTimeSeconds >= threshold) {
+            this._playSound();
+        }
+    }
+
+    private _playSound() {
+        const config = vscode.workspace.getConfiguration('firebird');
+        const customCommand = config.get<string>('queryAudioNotificationCommand', '').trim();
+
+        if (customCommand) {
+             cp.exec(customCommand).on('error', (err) => {
+                 console.error('Failed to execute custom audio command:', err);
+             });
+             return;
+        }
+
+        const platform = os.platform();
+        if (platform === 'win32') {
+            cp.exec('powershell -c "(New-Object Media.SoundPlayer \'C:\\Windows\\Media\\notify.wav\').PlaySync();"').on('error', () => {});
+        } else if (platform === 'darwin') {
+            cp.exec('afplay /System/Library/Sounds/Glass.aiff').on('error', () => {});
+        } else {
+            cp.exec('paplay /usr/share/sounds/freedesktop/stereo/complete.oga || aplay /usr/share/sounds/alsa/Front_Center.wav').on('error', () => {});
         }
     }
 }
