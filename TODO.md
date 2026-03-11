@@ -48,6 +48,7 @@
 - [x] Add permisions in procedure DDL
 - [x] Export results to CSV
 - [x] HTML escaping of query result cell values and column names
+- [ ] Add sum of affected rows count to query result in script execution
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
 - [ ] Support multiple simultaneous active database connections
 - [ ] Diff between SQL in the editor and actual DDL in database
