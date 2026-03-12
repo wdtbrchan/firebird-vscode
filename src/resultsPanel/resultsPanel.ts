@@ -72,7 +72,11 @@ export class ResultsPanel {
         );
 
         const execService = ExecutionService.getInstance(this._id);
-        execService.onStart(() => this.showLoading(), this, this._disposables);
+        execService.onStart(e => {
+            this._currentConnection = e.connection;
+            this._currentContext = e.context;
+            this.showLoading();
+        }, this, this._disposables);
         execService.onMessage(e => this._panel.webview.postMessage({ command: 'message', text: e.text }), this, this._disposables);
         execService.onError(e => this.showError(e.message, e.hasTransaction), this, this._disposables);
         execService.onSuccessMessage(e => this.showSuccess(e.message, e.hasTransaction), this, this._disposables);

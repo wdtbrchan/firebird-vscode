@@ -24,7 +24,7 @@ export class ExecutionService {
     public static instances: Map<string, ExecutionService> = new Map();
 
     // Events
-    private readonly _onStart = new vscode.EventEmitter<void>();
+    private readonly _onStart = new vscode.EventEmitter<{ connection: DatabaseConnection, context?: string }>();
     public readonly onStart = this._onStart.event;
 
     private readonly _onError = new vscode.EventEmitter<{ message: string, hasTransaction: boolean }>();
@@ -94,7 +94,7 @@ export class ExecutionService {
         this._allResults = [];
         this._lastExecutionTime = undefined;
 
-        this._onStart.fire();
+        this._onStart.fire({ connection, context });
         const start = performance.now();
         try {
             await this._fetchAndEmit(false);
@@ -118,7 +118,7 @@ export class ExecutionService {
         this._currentContext = context;
         this._lastExecutionTime = undefined;
 
-        this._onStart.fire();
+        this._onStart.fire({ connection, context });
         const start = performance.now();
         try {
             const plan = await Database.getPlan(this.id, query, connection);
@@ -154,7 +154,7 @@ export class ExecutionService {
         this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
         this._allResults = [];
 
-        this._onStart.fire();
+        this._onStart.fire({ connection, context });
         this._onMessage.fire({ text: 'Executing script...' });
 
         const total = statements.length;

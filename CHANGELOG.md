@@ -1,5 +1,6 @@
 ## [ upcoming ]
 - **Query Results**: Added horizontal scrollbar.
+- **Query Results**: Fixed "Unknown database" display during query execution.
 
 ## [1.7.0]
 - **Concurrency**: Enabled support for concurrent query execution across different editors. Each editor now maintains its own transaction and connection lifecycle.
