@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.7.1]
 - **Query Results**: Added horizontal scrollbar.
 - **Query Results**: Fixed "Unknown database" display during query execution.
 
