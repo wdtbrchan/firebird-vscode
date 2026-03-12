@@ -9,7 +9,9 @@ export function registerConnectionCommands(
 ): void {
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.selectDatabase', async (conn: DatabaseConnection) => {
-        await Database.rollback();
+        const editor = vscode.window.activeTextEditor;
+        const id = editor ? editor.document.uri.toString() : 'global';
+        await Database.rollback(id);
         databaseTreeDataProvider.connectionManager.setActive(conn);
     }));
 
@@ -38,7 +40,9 @@ export function registerConnectionCommands(
         context.subscriptions.push(vscode.commands.registerCommand(`firebird.connectSlot${i}`, async () => {
             const conn = databaseTreeDataProvider.connectionManager.getConnectionBySlot(i);
             if (conn) {
-                await Database.rollback();
+                const editor = vscode.window.activeTextEditor;
+                const id = editor ? editor.document.uri.toString() : 'global';
+                await Database.rollback(id);
                 databaseTreeDataProvider.connectionManager.setActive(conn);
                 vscode.window.showInformationMessage(`Switched to connection: ${conn.name || conn.database}`);
             } else {

@@ -12,7 +12,7 @@ export class PermissionService extends BaseMetadataService {
     public static async getObjectPermissions(connection: DatabaseConnection, objectName: string, objectType: number): Promise<TablePermission[]> {
         const query = MetadataQueries.getObjectPermissions(objectName, objectType);
         try {
-            const rows = await Database.runMetaQuery(connection, query);
+            const rows = await Database.runMetaQuery('metadata', connection, query);
             return rows.map(row => ({
                 user: row.RDB$USER.trim(),
                 privilege: this.decodePrivilege(row.RDB$PRIVILEGE.trim()),

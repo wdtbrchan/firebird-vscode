@@ -50,8 +50,10 @@
 - [x] HTML escaping of query result cell values and column names
 - [ ] Add sum of affected rows count to query result in script execution
 - [ ] Edit records in results (with automatic primary key detection or manual selection)
-- [ ] Support multiple simultaneous active database connections
+- [x] Support multiple simultaneous active database connections (concurrent queries)
 - [ ] Diff between SQL in the editor and actual DDL in database
 - [ ] Copy data between two databases
 - [x] Audio notifications for long running queries
 - [x] Explain Query Plan feature (CTRL+SHIFT+ENTER)
+- [x] Query cancellation and forceful "Kill Process" support
+- [x] Prevent concurrent execution in the same editor

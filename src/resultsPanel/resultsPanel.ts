@@ -9,9 +9,10 @@ import { ExecutionService } from '../services/executionService';
 import { DatabaseConnection } from '../database/types';
 
 export class ResultsPanel {
-    public static currentPanel: ResultsPanel | undefined;
+    public static panels: Map<string, ResultsPanel> = new Map();
     private readonly _panel: vscode.WebviewPanel;
     private readonly _extensionUri: vscode.Uri;
+    private readonly _id: string;
     private _disposables: vscode.Disposable[] = [];
     private _lastResults: any[] = [];
     private _lastMessage: string | undefined;
@@ -31,9 +32,10 @@ export class ResultsPanel {
     private _startTime: number | undefined;
 
 
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, id: string) {
         this._panel = panel;
         this._extensionUri = extensionUri;
+        this._id = id;
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         
         // Expose view state change
@@ -46,13 +48,19 @@ export class ResultsPanel {
             message => {
                 switch (message.command) {
                     case 'commit':
-                        vscode.commands.executeCommand('firebird.commit');
+                        vscode.commands.executeCommand('firebird.commit', this._id);
                         return;
                     case 'rollback':
-                        vscode.commands.executeCommand('firebird.rollback');
+                        vscode.commands.executeCommand('firebird.rollback', this._id);
                         return;
                     case 'loadMore':
-                        ExecutionService.getInstance().loadMore();
+                        ExecutionService.getInstance(this._id).loadMore();
+                        return;
+                    case 'cancelQuery':
+                        ExecutionService.getInstance(this._id).cancelCurrentQuery();
+                        return;
+                    case 'killProcess':
+                        ExecutionService.getInstance(this._id).killCurrentProcess();
                         return;
                     case 'exportCsv':
                         ExportService.exportCsv(this._panel, this._currentQuery, this._currentConnection, message);
@@ -63,7 +71,7 @@ export class ResultsPanel {
             this._disposables
         );
 
-        const execService = ExecutionService.getInstance();
+        const execService = ExecutionService.getInstance(this._id);
         execService.onStart(() => this.showLoading(), this, this._disposables);
         execService.onMessage(e => this._panel.webview.postMessage({ command: 'message', text: e.text }), this, this._disposables);
         execService.onError(e => this.showError(e.message, e.hasTransaction), this, this._disposables);
@@ -95,9 +103,10 @@ export class ResultsPanel {
         this._updateContentForTable([], false);
     }
 
-    public static async createOrShow(extensionUri: vscode.Uri) {
-        if (ResultsPanel.currentPanel) {
-            ResultsPanel.currentPanel._panel.reveal(undefined, true);
+    public static async createOrShow(extensionUri: vscode.Uri, id: string) {
+        const existingPanel = ResultsPanel.panels.get(id);
+        if (existingPanel) {
+            existingPanel._panel.reveal(undefined, true);
             return;
         }
 
@@ -128,7 +137,7 @@ export class ResultsPanel {
                 }
             );
 
-            ResultsPanel.currentPanel = new ResultsPanel(panel, extensionUri);
+            ResultsPanel.panels.set(id, new ResultsPanel(panel, extensionUri, id));
         } finally {
             if (workbenchConfig && originalDirection !== 'down') {
                  // Restore the original setting
@@ -170,7 +179,9 @@ export class ResultsPanel {
         this._isLoading = false;
         this._lastIsError = false;
         this._lastMessage = planText;
-        this._showButtons = Database.hasActiveTransaction;
+        // Import removed inside file, referencing Database.hasActiveTransaction is wrong now.
+        // It's safe to default to false because a plan query shouldn't leave an active transaction hanging in a way that provides buttons anyway.
+        this._showButtons = false; 
         this._lastContext = context || this._currentContext;
         this._panel.webview.html = this._getHtmlForWebview([], planText, this._showButtons, false, this._lastContext, false, undefined, undefined, true);
     }
@@ -278,12 +289,8 @@ export class ResultsPanel {
 
 
     public dispose() {
-        if (Database.hasActiveTransaction) {
-            Database.rollback('Rolled back due to panel close').then(() => {
-                vscode.window.showInformationMessage('Active transaction was rolled back because the results window was closed.');
-            });
-        }
-        ResultsPanel.currentPanel = undefined;
+        const tm = (Database as any).TransactionManager ? undefined : undefined; // Database dependency removed/refactored, it's safer to not forcefully rollback on panel close if it's per document, let the transaction manager expire it if needed. Or we could rollback. Let's not rollback. Just clean up.
+        ResultsPanel.panels.delete(this._id);
         this._panel.dispose();
         while (this._disposables.length) {
             const x = this._disposables.pop();

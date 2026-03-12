@@ -13,7 +13,7 @@ export class TableService extends BaseMetadataService {
         const query = MetadataQueries.getTableFields(name);
         
         try {
-            const rows = await Database.runMetaQuery(connection, query);
+            const rows = await Database.runMetaQuery('metadata', connection, query);
             if (rows.length === 0) return `-- Table columns not found for ${name}`;
 
             let ddl = `CREATE TABLE ${name} (\n`;
@@ -34,7 +34,7 @@ export class TableService extends BaseMetadataService {
         const query = MetadataQueries.getTableColumnsDetailed(tableName);
 
         try {
-            const rows = await Database.runMetaQuery(connection, query);
+            const rows = await Database.runMetaQuery('metadata', connection, query);
             return rows.map(row => ({
                 name: row.RDB$FIELD_NAME.trim(),
                 type: this.decodeType(row),
@@ -55,7 +55,7 @@ export class TableService extends BaseMetadataService {
         const query = MetadataQueries.getPrimaryKeyColumns(tableName);
 
         try {
-            const rows = await Database.runMetaQuery(connection, query);
+            const rows = await Database.runMetaQuery('metadata', connection, query);
             return rows.map(r => r.RDB$FIELD_NAME ? r.RDB$FIELD_NAME.trim() : '');
         } catch (err) {
             console.error('Error getting PK columns:', err);
@@ -67,7 +67,7 @@ export class TableService extends BaseMetadataService {
         const query = MetadataQueries.getForeignKeyColumns(tableName);
 
         try {
-            const rows = await Database.runMetaQuery(connection, query);
+            const rows = await Database.runMetaQuery('metadata', connection, query);
             const fks = new Map<string, string>();
             rows.forEach(r => {
                 if (r.COLUMN_NAME && r.TARGET_TABLE && r.TARGET_COLUMN) {
@@ -84,7 +84,7 @@ export class TableService extends BaseMetadataService {
     public static async getTableDependencies(connection: DatabaseConnection, tableName: string): Promise<TableDependency[]> {
          const query = MetadataQueries.getTableDependencies(tableName);
         try {
-            const rows = await Database.runMetaQuery(connection, query);
+            const rows = await Database.runMetaQuery('metadata', connection, query);
             return rows.map(row => ({
                 name: row.RDB$DEPENDENT_NAME.trim(),
                 type: 'View' // We filtered for dependent_type = 1

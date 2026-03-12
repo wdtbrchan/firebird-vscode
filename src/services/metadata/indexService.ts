@@ -9,7 +9,7 @@ export class IndexService extends BaseMetadataService {
         const query = MetadataQueries.getIndexes(tableName);
         
         try {
-            const rows = await Database.runMetaQuery(connection, query);
+            const rows = await Database.runMetaQuery('metadata', connection, query);
             const indexes = new Map<string, TableIndex>();
 
             for (const row of rows) {
@@ -56,7 +56,7 @@ export class IndexService extends BaseMetadataService {
         const queryIdx = MetadataQueries.getIndexInfo(indexName);
         const querySeg = MetadataQueries.getIndexSegments(indexName);
 
-        const idxRows = await Database.runMetaQuery(connection, queryIdx);
+        const idxRows = await Database.runMetaQuery('metadata', connection, queryIdx);
         if (idxRows.length === 0) throw new Error(`Index ${indexName} not found`);
 
         const idx = idxRows[0];
@@ -71,7 +71,7 @@ export class IndexService extends BaseMetadataService {
         if (expression) {
             definition = `COMPUTED BY (${expression.trim()})`;
         } else {
-            const segRows = await Database.runMetaQuery(connection, querySeg);
+            const segRows = await Database.runMetaQuery('metadata', connection, querySeg);
             const columns = segRows.map(r => r.RDB$FIELD_NAME.trim()).join(', ');
             definition = columns;
         }

@@ -14,7 +14,7 @@ export class QueryExecutor {
     /**
      * Runs a simple metadata query using a one-shot connection (no transaction reuse).
      */
-    public static async runMetaQuery(connection: DatabaseConnection, query: string): Promise<any[]> {
+    public static async runMetaQuery(id: string, connection: DatabaseConnection, query: string): Promise<any[]> {
         const config = vscode.workspace.getConfiguration('firebird');
         const encodingConf = connection.charset || config.get<string>('charset', 'UTF8');
 
@@ -58,7 +58,7 @@ export class QueryExecutor {
      * Executes a query against the Firebird database.
      * Handles SELECT pagination, DML affected rows, transaction reuse, and encoding.
      */
-    public static async executeQuery(query: string, connection?: DatabaseConnection, queryOptions?: QueryOptions): Promise<QueryResult> {
+    public static async executeQuery(id: string, query: string, connection?: DatabaseConnection, queryOptions?: QueryOptions): Promise<QueryResult> {
         const config = vscode.workspace.getConfiguration('firebird');
         
         const cleanQuery = query.trim().replace(/;$/, '');
@@ -82,28 +82,32 @@ export class QueryExecutor {
             throw new Error('Database path is not configured. Please select a database in the explorer or set "firebird.database" in settings.');
         }
 
-        if (TransactionManager.db && TransactionManager.currentOptions) {
-            if (TransactionManager.currentOptions.host !== options.host ||
-                TransactionManager.currentOptions.database !== options.database) {
-                 await TransactionManager.rollback(); 
+        if (TransactionManager.getInstance(id).db && TransactionManager.getInstance(id).currentOptions) {
+            if (TransactionManager.getInstance(id).currentOptions!.host !== options.host ||
+                TransactionManager.getInstance(id).currentOptions!.database !== options.database) {
+                 await TransactionManager.getInstance(id).rollback(); 
             }
         }
 
-        TransactionManager.currentOptions = options;
+        TransactionManager.getInstance(id).currentOptions = options;
         
         // Stop auto-rollback while executing
-        if (TransactionManager.autoRollbackTimer) clearTimeout(TransactionManager.autoRollbackTimer);
-        TransactionManager.autoRollbackDeadline = undefined;
+        if (TransactionManager.getInstance(id).autoRollbackTimer) clearTimeout(TransactionManager.getInstance(id).autoRollbackTimer);
+        TransactionManager.getInstance(id).autoRollbackDeadline = undefined;
 
         return new Promise((resolve, reject) => {
             const wrapResolve = (res: QueryResult) => {
-                TransactionManager.resetAutoRollback();
+                TransactionManager.getInstance(id).currentReject = undefined;
+                TransactionManager.getInstance(id).resetAutoRollback();
                 resolve(res);
             };
             const wrapReject = (err: any) => {
-                TransactionManager.resetAutoRollback();
+                TransactionManager.getInstance(id).currentReject = undefined;
+                TransactionManager.getInstance(id).resetAutoRollback();
                 reject(err);
             };
+
+            TransactionManager.getInstance(id).currentReject = wrapReject;
 
             const runQuery = (tr: Firebird.Transaction) => {
                 const trAny = tr as any; // Access internal methods
@@ -121,15 +125,15 @@ export class QueryExecutor {
                         }
 
                         if (isSelect) {
-                            TransactionManager.activeStatement = stmt;
-                            TransactionManager.activeQuery = finalQuery;
-                            TransactionManager.activeConnectionInfo = connectionInfo;
+                            TransactionManager.getInstance(id).activeStatement = stmt;
+                            TransactionManager.getInstance(id).activeQuery = finalQuery;
+                            TransactionManager.getInstance(id).activeConnectionInfo = connectionInfo;
 
                             const columnNames = getUniqueColumnNames(stmt.output);
                             stmt.fetch(tr, limit, async (err: any, ret: any) => {
                                 if (err) {
                                     stmt.close();
-                                    TransactionManager.activeStatement = undefined;
+                                    TransactionManager.getInstance(id).activeStatement = undefined;
                                     return wrapReject(err);
                                 }
                                 
@@ -151,7 +155,7 @@ export class QueryExecutor {
                             } catch (e) { /* ignore */ }
 
                             stmt.close(); 
-                            TransactionManager.activeStatement = undefined;
+                            TransactionManager.getInstance(id).activeStatement = undefined;
                             wrapResolve({ rows: [], affectedRows });
                         }
                     }, { asObject: false });
@@ -162,7 +166,7 @@ export class QueryExecutor {
                     stmt.fetch(tr, limit, async (err: any, ret: any) => {
                         if (err) {
                             stmt.close();
-                            TransactionManager.activeStatement = undefined;
+                            TransactionManager.getInstance(id).activeStatement = undefined;
                             return wrapReject(err);
                         }
                         
@@ -179,15 +183,15 @@ export class QueryExecutor {
                 };
 
                 // Logic for reusing statement
-                if (offset > 0 && TransactionManager.activeStatement && 
-                    TransactionManager.activeQuery === finalQuery && 
-                    TransactionManager.activeConnectionInfo === connectionInfo) {
-                    fetchMore(TransactionManager.activeStatement);
+                if (offset > 0 && TransactionManager.getInstance(id).activeStatement && 
+                    TransactionManager.getInstance(id).activeQuery === finalQuery && 
+                    TransactionManager.getInstance(id).activeConnectionInfo === connectionInfo) {
+                    fetchMore(TransactionManager.getInstance(id).activeStatement);
                 } else {
                     // Start new query
-                    if (TransactionManager.activeStatement) {
-                        try { TransactionManager.activeStatement.close(); } catch (e) { /* ignore */ }
-                        TransactionManager.activeStatement = undefined;
+                    if (TransactionManager.getInstance(id).activeStatement) {
+                        try { TransactionManager.getInstance(id).activeStatement.close(); } catch (e) { /* ignore */ }
+                        TransactionManager.getInstance(id).activeStatement = undefined;
                     }
                     
                     trAny.newStatement(queryString, (err: any, statement: any) => {
@@ -197,16 +201,16 @@ export class QueryExecutor {
                 }
             };
 
-            if (TransactionManager.transaction) {
-                runQuery(TransactionManager.transaction);
+            if (TransactionManager.getInstance(id).transaction) {
+                runQuery(TransactionManager.getInstance(id).transaction!);
             } else {
                 const doAttach = (cb: (db: Firebird.Database) => void) => {
-                    if (TransactionManager.db) {
-                        cb(TransactionManager.db);
+                    if (TransactionManager.getInstance(id).db) {
+                        cb(TransactionManager.getInstance(id).db!);
                     } else {
                         Firebird.attach(options, (err, db) => {
                             if (err) return wrapReject(err);
-                            TransactionManager.db = db;
+                            TransactionManager.getInstance(id).db = db;
                             cb(db);
                         });
                     }
@@ -215,8 +219,8 @@ export class QueryExecutor {
                 doAttach((db) => {
                     db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err, tr) => {
                         if (err) return wrapReject(err);
-                        TransactionManager.transaction = tr;
-                        TransactionManager.notifyStateChange(); 
+                        TransactionManager.getInstance(id).transaction = tr;
+                        TransactionManager.getInstance(id).notifyStateChange(); 
                         runQuery(tr);
                     });
                 });
@@ -227,7 +231,7 @@ export class QueryExecutor {
     /**
      * Executes a query to fetch the execution plan against the Firebird database without fetching rows.
      */
-    public static async getPlan(query: string, connection?: DatabaseConnection): Promise<string> {
+    public static async getPlan(id: string, query: string, connection?: DatabaseConnection): Promise<string> {
         const config = vscode.workspace.getConfiguration('firebird');
         
         const cleanQuery = query.trim().replace(/;$/, '');
@@ -249,36 +253,40 @@ export class QueryExecutor {
             throw new Error('Database path is not configured. Please select a database in the explorer or set "firebird.database" in settings.');
         }
 
-        if (TransactionManager.db && TransactionManager.currentOptions) {
-            if (TransactionManager.currentOptions.host !== options.host ||
-                TransactionManager.currentOptions.database !== options.database) {
-                 await TransactionManager.rollback(); 
+        if (TransactionManager.getInstance(id).db && TransactionManager.getInstance(id).currentOptions) {
+            if (TransactionManager.getInstance(id).currentOptions!.host !== options.host ||
+                TransactionManager.getInstance(id).currentOptions!.database !== options.database) {
+                 await TransactionManager.getInstance(id).rollback(); 
             }
         }
 
-        TransactionManager.currentOptions = options;
+        TransactionManager.getInstance(id).currentOptions = options;
         
         // Stop auto-rollback while executing
-        if (TransactionManager.autoRollbackTimer) clearTimeout(TransactionManager.autoRollbackTimer);
-        TransactionManager.autoRollbackDeadline = undefined;
+        if (TransactionManager.getInstance(id).autoRollbackTimer) clearTimeout(TransactionManager.getInstance(id).autoRollbackTimer);
+        TransactionManager.getInstance(id).autoRollbackDeadline = undefined;
 
         return new Promise((resolve, reject) => {
             const wrapResolve = (plan: string) => {
-                TransactionManager.resetAutoRollback();
+                TransactionManager.getInstance(id).currentReject = undefined;
+                TransactionManager.getInstance(id).resetAutoRollback();
                 resolve(plan);
             };
             const wrapReject = (err: any) => {
-                TransactionManager.resetAutoRollback();
+                TransactionManager.getInstance(id).currentReject = undefined;
+                TransactionManager.getInstance(id).resetAutoRollback();
                 reject(err);
             };
+
+            TransactionManager.getInstance(id).currentReject = wrapReject;
 
             const runGetPlan = (tr: Firebird.Transaction) => {
                 const trAny = tr as any;
                 const queryString = prepareQueryBuffer(finalQuery, encodingConf);
 
-                if (TransactionManager.activeStatement) {
-                    try { TransactionManager.activeStatement.close(); } catch (e) { /* ignore */ }
-                    TransactionManager.activeStatement = undefined;
+                if (TransactionManager.getInstance(id).activeStatement) {
+                    try { TransactionManager.getInstance(id).activeStatement.close(); } catch (e) { /* ignore */ }
+                    TransactionManager.getInstance(id).activeStatement = undefined;
                 }
                 
                 trAny.connection.prepare(tr, queryString, true, (err: any, statement: any) => {
@@ -289,16 +297,16 @@ export class QueryExecutor {
                 });
             };
 
-            if (TransactionManager.transaction) {
-                runGetPlan(TransactionManager.transaction);
+            if (TransactionManager.getInstance(id).transaction) {
+                runGetPlan(TransactionManager.getInstance(id).transaction!);
             } else {
                 const doAttach = (cb: (db: Firebird.Database) => void) => {
-                    if (TransactionManager.db) {
-                        cb(TransactionManager.db);
+                    if (TransactionManager.getInstance(id).db) {
+                        cb(TransactionManager.getInstance(id).db!);
                     } else {
                         Firebird.attach(options, (err, db) => {
                             if (err) return wrapReject(err);
-                            TransactionManager.db = db;
+                            TransactionManager.getInstance(id).db = db;
                             cb(db);
                         });
                     }
@@ -307,8 +315,8 @@ export class QueryExecutor {
                 doAttach((db) => {
                     db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err, tr) => {
                         if (err) return wrapReject(err);
-                        TransactionManager.transaction = tr;
-                        TransactionManager.notifyStateChange(); 
+                        TransactionManager.getInstance(id).transaction = tr;
+                        TransactionManager.getInstance(id).notifyStateChange(); 
                         runGetPlan(tr);
                     });
                 });

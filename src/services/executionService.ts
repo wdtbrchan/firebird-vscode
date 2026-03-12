@@ -3,6 +3,7 @@ import * as cp from 'child_process';
 import * as os from 'os';
 import { Database } from '../database';
 import { DatabaseConnection } from '../database/types';
+import { TransactionManager } from '../database/transactionManager';
 
 export interface ExecutionDataEvent {
     results: any[];
@@ -20,7 +21,7 @@ export interface ExecutionDataEvent {
 }
 
 export class ExecutionService {
-    private static _instance: ExecutionService;
+    public static instances: Map<string, ExecutionService> = new Map();
 
     // Events
     private readonly _onStart = new vscode.EventEmitter<void>();
@@ -50,14 +51,23 @@ export class ExecutionService {
     private _limit: number = 1000;
     private _allResults: any[] = [];
     private _lastExecutionTime: number | undefined;
+    private _isExecuting: boolean = false;
 
-    private constructor() { }
+    private constructor(private id: string) { }
 
-    public static getInstance(): ExecutionService {
-        if (!ExecutionService._instance) {
-            ExecutionService._instance = new ExecutionService();
+    public static getInstance(id: string): ExecutionService {
+        if (!ExecutionService.instances.has(id)) {
+            ExecutionService.instances.set(id, new ExecutionService(id));
         }
-        return ExecutionService._instance;
+        return ExecutionService.instances.get(id)!;
+    }
+
+    public cancelCurrentQuery() {
+        TransactionManager.getInstance(this.id).cancelConnection();
+    }
+
+    public killCurrentProcess() {
+        TransactionManager.getInstance(this.id).killConnection();
     }
 
     public get currentQuery(): string | undefined {
@@ -69,6 +79,12 @@ export class ExecutionService {
     }
 
     public async executeNewQuery(query: string, connection: DatabaseConnection, context?: string) {
+        if (this._isExecuting) {
+            vscode.window.showWarningMessage('A query is already running in this editor. Please wait or cancel the current execution.');
+            return;
+        }
+        
+        this._isExecuting = true;
         this._currentQuery = query;
         this._displayQuery = query;
         this._currentConnection = connection;
@@ -83,12 +99,19 @@ export class ExecutionService {
         try {
             await this._fetchAndEmit(false);
         } finally {
+            this._isExecuting = false;
             const end = performance.now();
             this._checkAndPlayAudioCue((end - start) / 1000);
         }
     }
 
     public async explainQuery(query: string, connection: DatabaseConnection, context?: string) {
+        if (this._isExecuting) {
+            vscode.window.showWarningMessage('A query is already running in this editor. Please wait or cancel the current execution.');
+            return;
+        }
+
+        this._isExecuting = true;
         this._currentQuery = query;
         this._displayQuery = query;
         this._currentConnection = connection;
@@ -98,7 +121,7 @@ export class ExecutionService {
         this._onStart.fire();
         const start = performance.now();
         try {
-            const plan = await Database.getPlan(query, connection);
+            const plan = await Database.getPlan(this.id, query, connection);
             const end = performance.now();
             this._lastExecutionTime = (end - start) / 1000;
             
@@ -110,15 +133,22 @@ export class ExecutionService {
                 executionTime: this._lastExecutionTime
             });
         } catch (err: any) {
-            const hasTransaction = Database.hasActiveTransaction;
+            const hasTransaction = Database.hasActiveTransaction(this.id);
             this._onError.fire({ message: err.message, hasTransaction });
         } finally {
+            this._isExecuting = false;
             const end = performance.now();
             this._checkAndPlayAudioCue((end - start) / 1000);
         }
     }
 
     public async executeScript(statements: string[], connection: DatabaseConnection, context?: string) {
+        if (this._isExecuting) {
+            vscode.window.showWarningMessage('A script or query is already running in this editor. Please wait or cancel the current execution.');
+            return;
+        }
+
+        this._isExecuting = true;
         this._currentConnection = connection;
         this._currentContext = context;
         this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
@@ -154,14 +184,15 @@ export class ExecutionService {
                     this._currentOffset = 0;
                     await this._fetchAndEmit(false);
                 } else {
-                    await Database.executeQuery(stmt, connection, { limit: 1000, offset: 0 });
+                    await Database.executeQuery(this.id, stmt, connection, { limit: 1000, offset: 0 });
                 }
                 executedCount++;
             }
         } catch (err: any) {
-            const hasTransaction = Database.hasActiveTransaction;
+            const hasTransaction = Database.hasActiveTransaction(this.id);
             this._onError.fire({ message: `Script error at statement ${executedCount + 1}: ${err.message}`, hasTransaction });
         } finally {
+            this._isExecuting = false;
             const end = performance.now();
             this._checkAndPlayAudioCue((end - start) / 1000);
         }
@@ -182,7 +213,7 @@ export class ExecutionService {
 
         const start = performance.now();
         try {
-            const queryResult = await Database.executeQuery(this._currentQuery, this._currentConnection, {
+            const queryResult = await Database.executeQuery(this.id, this._currentQuery, this._currentConnection, {
                 limit: this._limit,
                 offset: this._currentOffset
             });
@@ -194,7 +225,7 @@ export class ExecutionService {
             const results = queryResult.rows;
             const affectedRows = queryResult.affectedRows;
             const hasMore = queryResult.hasMore || false;
-            const hasTransaction = Database.hasActiveTransaction;
+            const hasTransaction = Database.hasActiveTransaction(this.id);
 
             if (append) {
                 this._allResults = [...this._allResults, ...results];
@@ -220,7 +251,7 @@ export class ExecutionService {
             if (!append) {
                 this._lastExecutionTime = (end - start) / 1000;
             }
-            const hasTransaction = Database.hasActiveTransaction;
+            const hasTransaction = Database.hasActiveTransaction(this.id);
             this._onError.fire({ message: err.message, hasTransaction });
             throw err;
         }

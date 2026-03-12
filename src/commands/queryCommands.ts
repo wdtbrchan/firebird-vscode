@@ -13,8 +13,11 @@ export function registerQueryCommands(
 ): void {
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.closeResults', () => {
-        if (ResultsPanel.currentPanel) {
-            ResultsPanel.currentPanel.dispose();
+        const editor = vscode.window.activeTextEditor;
+        const id = editor ? editor.document.uri.toString() : 'global';
+        const panel = ResultsPanel.panels.get(id);
+        if (panel) {
+            panel.dispose();
         }
     }));
 
@@ -43,9 +46,11 @@ export function registerQueryCommands(
             const activeDetails = databaseTreeDataProvider.connectionManager.getActiveConnectionDetails();
             const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
             
-            await ResultsPanel.createOrShow(context.extensionUri);
+            const id = editor ? editor.document.uri.toString() : 'global';
+            await ResultsPanel.createOrShow(context.extensionUri, id);
             
-            if (ResultsPanel.currentPanel) {
+            const panel = ResultsPanel.panels.get(id);
+            if (panel) {
                 const config = vscode.workspace.getConfiguration('firebird');
                 const useEmptyLineAsSeparator = config.get<boolean>('useEmptyLineAsSeparator', false);
                 const statements = ScriptParser.split(query, useEmptyLineAsSeparator);
@@ -53,7 +58,7 @@ export function registerQueryCommands(
                     vscode.window.showWarningMessage('No valid SQL statements found in script.');
                     return;
                 }
-                await ExecutionService.getInstance().executeScript(statements, activeConn, contextTitle);
+                await ExecutionService.getInstance(id).executeScript(statements, activeConn, contextTitle);
 
                 if (statements.some(stmt => ScriptParser.isDDL(stmt))) {
                     databaseTreeDataProvider.refreshItem(activeConn);
@@ -65,9 +70,11 @@ export function registerQueryCommands(
             }
             
         } catch (err: any) {
-             const hasTransaction = Database.hasActiveTransaction;
-             if (ResultsPanel.currentPanel) {
-                 ResultsPanel.currentPanel.showError(err.message, hasTransaction);
+             const id = editor ? editor.document.uri.toString() : 'global';
+             const hasTransaction = Database.hasActiveTransaction(id);
+             const panel = ResultsPanel.panels.get(id);
+             if (panel) {
+                 panel.showError(err.message, hasTransaction);
              } else {
                  vscode.window.showErrorMessage('Error executing script: ' + err.message);
              }
@@ -167,15 +174,17 @@ async function handleQueryExecution(
         const activeDetails = databaseTreeDataProvider.connectionManager.getActiveConnectionDetails();
         const contextTitle = activeDetails ? `${activeDetails.group} / ${activeDetails.name}` : 'Unknown';
         
-        await ResultsPanel.createOrShow(context.extensionUri);
+        const id = editor.document.uri.toString();
+        await ResultsPanel.createOrShow(context.extensionUri, id);
 
         cleanQuery = ParameterInjector.inject(cleanQuery);
 
-        if (ResultsPanel.currentPanel) {
+        const panel = ResultsPanel.panels.get(id);
+        if (panel) {
             if (isPlan) {
-                await ExecutionService.getInstance().explainQuery(cleanQuery, activeConn, contextTitle);
+                await ExecutionService.getInstance(id).explainQuery(cleanQuery, activeConn, contextTitle);
             } else {
-                await ExecutionService.getInstance().executeNewQuery(cleanQuery, activeConn, contextTitle);
+                await ExecutionService.getInstance(id).executeNewQuery(cleanQuery, activeConn, contextTitle);
             }
         }
 
@@ -186,7 +195,8 @@ async function handleQueryExecution(
         vscode.window.showTextDocument(editor.document, editor.viewColumn, true);
         
     } catch (err: any) {
-         const hasTransaction = Database.hasActiveTransaction;
+         const id = editor.document.uri.toString();
+         const hasTransaction = Database.hasActiveTransaction(id);
          
          const match = /line\s+(\d+),\s+column\s+(\d+)/i.exec(err.message);
          if (match && editor) {
@@ -211,8 +221,9 @@ async function handleQueryExecution(
              }
          }
 
-         if (ResultsPanel.currentPanel) {
-             ResultsPanel.currentPanel.showError(err.message, hasTransaction);
+         const panel = ResultsPanel.panels.get(id);
+         if (panel) {
+             panel.showError(err.message, hasTransaction);
          } else {
              vscode.window.showErrorMessage('Error executing query: ' + err.message);
          }

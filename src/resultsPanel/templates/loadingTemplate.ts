@@ -35,7 +35,11 @@ export function getLoadingHtml(extensionUri: vscode.Uri, headerHtml: string, sta
                     <div class="spinner"></div>
                     <span>Executing...</span>
                 </div>
-                <span id="executing-timer">0.0s</span>
+                <div style="display: flex; align-items: center; margin-right: 15px;">
+                    <span id="executing-timer" style="margin-right: 15px;">0.0s</span>
+                    <button id="cancel-query-btn" style="background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 4px 10px; cursor: pointer; border-radius: 2px;">Cancel Query</button>
+                    <button id="kill-query-btn" style="background: var(--vscode-errorForeground); color: var(--vscode-button-foreground); border: none; padding: 4px 10px; cursor: pointer; border-radius: 2px; margin-left: 10px; display: none;">Kill Process</button>
+                </div>
             </div>
             <div style="flex-grow: 1;"></div>
             <script>window.INITIAL_DATA = { startTime: ${startTime} };</script>

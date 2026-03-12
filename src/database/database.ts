@@ -11,38 +11,38 @@ import { QueryOptions, QueryResult } from './types';
 export class Database {
 
     // --- Transaction events ---
-    public static onTransactionChange(handler: (hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) => void) {
-        TransactionManager.onTransactionChange(handler);
+    public static onTransactionChange(handler: (id: string, hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) => void) {
+        TransactionManager.onGlobalTransactionChange(handler);
     }
 
     // --- Query execution ---
-    public static async executeQuery(query: string, connection?: DatabaseConnection, queryOptions?: QueryOptions): Promise<QueryResult> {
-        return QueryExecutor.executeQuery(query, connection, queryOptions);
+    public static async executeQuery(id: string, query: string, connection?: DatabaseConnection, queryOptions?: QueryOptions): Promise<QueryResult> {
+        return QueryExecutor.executeQuery(id, query, connection, queryOptions);
     }
 
-    public static async runMetaQuery(connection: DatabaseConnection, query: string): Promise<any[]> {
-        return QueryExecutor.runMetaQuery(connection, query);
+    public static async runMetaQuery(id: string, connection: DatabaseConnection, query: string): Promise<any[]> {
+        return QueryExecutor.runMetaQuery(id, connection, query);
     }
 
-    public static async getPlan(query: string, connection?: DatabaseConnection): Promise<string> {
-        return QueryExecutor.getPlan(query, connection);
+    public static async getPlan(id: string, query: string, connection?: DatabaseConnection): Promise<string> {
+        return QueryExecutor.getPlan(id, query, connection);
     }
 
     // --- Transaction management ---
-    public static async commit(): Promise<void> {
-        return TransactionManager.commit();
+    public static async commit(id: string): Promise<void> {
+        return TransactionManager.getInstance(id).commit();
     }
 
-    public static async rollback(reason: string = 'Rolled back'): Promise<void> {
-        return TransactionManager.rollback(reason);
+    public static async rollback(id: string, reason: string = 'Rolled back'): Promise<void> {
+        return TransactionManager.getInstance(id).rollback(reason);
     }
 
-    public static detach() {
-        TransactionManager.rollback();
+    public static detachAll() {
+        TransactionManager.cleanupAll();
     }
 
-    public static get hasActiveTransaction(): boolean {
-        return TransactionManager.hasActiveTransaction;
+    public static hasActiveTransaction(id: string): boolean {
+        return TransactionManager.getInstance(id).hasActiveTransaction;
     }
 
     // --- Connection check ---

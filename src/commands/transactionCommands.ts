@@ -9,7 +9,9 @@ export function registerTransactionCommands(
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.commit', async () => {
         try {
-            await Database.commit();
+            const editor = vscode.window.activeTextEditor;
+            const id = editor ? editor.document.uri.toString() : 'global';
+            await Database.commit(id);
             
             const activeConn = databaseTreeDataProvider.connectionManager.getActiveConnection();
             if (activeConn) {
@@ -24,7 +26,9 @@ export function registerTransactionCommands(
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.rollback', async () => {
         try {
-            await Database.rollback();
+            const editor = vscode.window.activeTextEditor;
+            const id = editor ? editor.document.uri.toString() : 'global';
+            await Database.rollback(id);
             vscode.window.setStatusBarMessage('Firebird: Transaction Rolled Back', 3000);
         } catch (err: any) {
              vscode.window.showErrorMessage('Rollback failed: ' + err.message);

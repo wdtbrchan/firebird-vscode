@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { Database } from './database';
+import { TransactionManager } from './database/transactionManager';
 import { ResultsPanel } from './resultsPanel';
 import { DatabaseTreeDataProvider } from './explorer/databaseTreeDataProvider';
 import { DatabaseDragAndDropController } from './explorer/databaseDragAndDropController';
@@ -44,16 +45,40 @@ export function activate(context: vscode.ExtensionContext) {
         // --- Transaction State Listener ---
         const statusBarController = createStatusBar(context, databaseTreeDataProvider);
 
-        Database.onTransactionChange((hasTransaction, autoRollbackAt, lastAction) => {
-            vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', hasTransaction);
-            ResultsPanel.currentPanel?.setTransactionStatus(hasTransaction, autoRollbackAt, lastAction);
-            
-            if (hasTransaction && autoRollbackAt) {
-                statusBarController.activeAutoRollbackAt = autoRollbackAt;
-                statusBarController.startStatusBarTimer();
+        // Update status bar when the active editor changes
+        vscode.window.onDidChangeActiveTextEditor(editor => {
+            if (editor) {
+                const id = editor.document.uri.toString();
+                const tm = (TransactionManager as any).instances?.get(id) || TransactionManager.getInstance(id);
+                statusBarController.activeAutoRollbackAt = tm.autoRollbackDeadline;
+                if (tm.hasActiveTransaction && tm.autoRollbackDeadline) {
+                    statusBarController.startStatusBarTimer();
+                } else {
+                    statusBarController.updateStatusBar();
+                }
             } else {
                 statusBarController.activeAutoRollbackAt = undefined;
                 statusBarController.updateStatusBar();
+            }
+        });
+
+        Database.onTransactionChange((id, hasTransaction, autoRollbackAt, lastAction) => {
+            const editor = vscode.window.activeTextEditor;
+            if (editor && editor.document.uri.toString() === id) {
+                vscode.commands.executeCommand('setContext', 'firebird.hasActiveTransaction', hasTransaction);
+                
+                if (hasTransaction && autoRollbackAt) {
+                    statusBarController.activeAutoRollbackAt = autoRollbackAt;
+                    statusBarController.startStatusBarTimer();
+                } else {
+                    statusBarController.activeAutoRollbackAt = undefined;
+                    statusBarController.updateStatusBar();
+                }
+            }
+            // Update the panel if it exists for this id
+            const panel = ResultsPanel.panels.get(id);
+            if (panel) {
+                panel.setTransactionStatus(hasTransaction, autoRollbackAt, lastAction);
             }
         });
 
@@ -71,5 +96,5 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-    Database.detach();
+    Database.detachAll();
 }

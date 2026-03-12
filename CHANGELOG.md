@@ -1,3 +1,8 @@
+## [ upcoming ]
+- **Concurrency**: Enabled support for concurrent query execution across different editors. Each editor now maintains its own transaction and connection lifecycle.
+- **Query Cancellation**: Added "Cancel Query" button to the loading screen to allow graceful termination of long-running queries.
+- **Safety**: Added protection against starting multiple concurrent queries within the same editor.
+
 ## [1.6.0]
 - Added "Explain Query Plan" feature (`CTRL+SHIFT+ENTER`) to view Firebird execution plans without fetching data.
 

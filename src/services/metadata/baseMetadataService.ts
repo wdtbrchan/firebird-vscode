@@ -3,7 +3,7 @@ import { DatabaseConnection } from '../../database/types';
 
 export class BaseMetadataService {
     protected static async fetchNames(connection: DatabaseConnection, query: string, fieldName: string): Promise<string[]> {
-        const rows = await Database.runMetaQuery(connection, query);
+        const rows = await Database.runMetaQuery('metadata', connection, query);
         return rows.map(row => row[fieldName].trim());
     }
 

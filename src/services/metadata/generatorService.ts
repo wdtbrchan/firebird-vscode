@@ -15,7 +15,7 @@ export class GeneratorService extends BaseMetadataService {
     public static async getGeneratorValue(connection: DatabaseConnection, name: string): Promise<string> {
         const query = MetadataQueries.getGeneratorValue(name);
         try {
-            const rows = await Database.runMetaQuery(connection, query);
+            const rows = await Database.runMetaQuery('metadata', connection, query);
             if (rows.length > 0) {
                 return rows[0].CUR_VAL !== undefined ? rows[0].CUR_VAL.toString() : 'Unknown';
             }

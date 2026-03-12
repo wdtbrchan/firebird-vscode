@@ -12,7 +12,7 @@ export class ProcedureService extends BaseMetadataService {
         const query = MetadataQueries.getProcedureSource(name);
         
         try {
-            const rows = await Database.runMetaQuery(connection, query);
+            const rows = await Database.runMetaQuery('metadata', connection, query);
             let source = '';
             if (rows.length > 0 && rows[0].RDB$PROCEDURE_SOURCE) {
                 source = rows[0].RDB$PROCEDURE_SOURCE.trim();
@@ -57,7 +57,7 @@ export class ProcedureService extends BaseMetadataService {
         const query = MetadataQueries.getProcedureParameters(procName, type);
         
         try {
-            const rows = await Database.runMetaQuery(connection, query);
+            const rows = await Database.runMetaQuery('metadata', connection, query);
             return rows.map(row => {
                 const paramName = row.RDB$PARAMETER_NAME.trim();
                 const typeStr = this.decodeType(row);

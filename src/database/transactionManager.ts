@@ -8,27 +8,50 @@ type StateChangeHandler = (hasTransaction: boolean, autoRollbackAt?: number, las
  * All members are static – singleton pattern matching the original Database class.
  */
 export class TransactionManager {
-    static db: Firebird.Database | undefined;
-    static transaction: Firebird.Transaction | undefined;
-    static autoRollbackTimer: NodeJS.Timeout | undefined;
-    static autoRollbackDeadline: number | undefined;
-    static currentOptions: Firebird.Options | undefined;
-    static activeStatement: any | undefined;
-    static activeQuery: string | undefined;
-    static activeConnectionInfo: string | undefined;
+    public static instances: Map<string, TransactionManager> = new Map();
+    private static globalStateChangeHandlers: ((id: string, hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) => void)[] = [];
 
-    private static onStateChangeHandlers: StateChangeHandler[] = [];
+    public static onGlobalTransactionChange(handler: (id: string, hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) => void) {
+        this.globalStateChangeHandlers.push(handler);
+    }
 
-    public static onTransactionChange(handler: StateChangeHandler) {
+    public static getInstance(id: string): TransactionManager {
+        if (!this.instances.has(id)) {
+            this.instances.set(id, new TransactionManager(id));
+        }
+        return this.instances.get(id)!;
+    }
+
+    public static cleanupAll() {
+        this.instances.forEach(instance => instance.cleanupConnection());
+        this.instances.clear();
+    }
+
+    public db: Firebird.Database | undefined;
+    public transaction: Firebird.Transaction | undefined;
+    public autoRollbackTimer: NodeJS.Timeout | undefined;
+    public autoRollbackDeadline: number | undefined;
+    public currentOptions: Firebird.Options | undefined;
+    public activeStatement: any | undefined;
+    public activeQuery: string | undefined;
+    public activeConnectionInfo: string | undefined;
+    public currentReject: ((err: Error) => void) | undefined;
+
+    private onStateChangeHandlers: StateChangeHandler[] = [];
+    
+    private constructor(private id: string) {}
+
+    public onTransactionChange(handler: StateChangeHandler) {
         this.onStateChangeHandlers.push(handler);
     }
 
-    public static notifyStateChange(lastAction?: string) {
+    public notifyStateChange(lastAction?: string) {
         const isActive = this.hasActiveTransaction;
         this.onStateChangeHandlers.forEach(h => h(isActive, this.autoRollbackDeadline, lastAction));
+        TransactionManager.globalStateChangeHandlers.forEach(h => h(this.id, isActive, this.autoRollbackDeadline, lastAction));
     }
 
-    public static async commit(): Promise<void> {
+    public async commit(): Promise<void> {
         return new Promise((resolve, reject) => {
             if (this.transaction) {
                 this.transaction.commit((err) => {
@@ -44,7 +67,7 @@ export class TransactionManager {
         });
     }
 
-    public static async rollback(reason: string = 'Rolled back'): Promise<void> {
+    public async rollback(reason: string = 'Rolled back'): Promise<void> {
         return new Promise((resolve, reject) => {
             if (this.transaction) {
                 this.transaction.rollback((err) => {
@@ -61,7 +84,7 @@ export class TransactionManager {
         });
     }
 
-    public static cleanupConnection() {
+    public cleanupConnection() {
         if (this.autoRollbackTimer) {
             clearTimeout(this.autoRollbackTimer);
             this.autoRollbackTimer = undefined;
@@ -82,7 +105,70 @@ export class TransactionManager {
         this.autoRollbackDeadline = undefined;
     }
 
-    public static resetAutoRollback() {
+    public cancelConnection() {
+        if (this.autoRollbackTimer) {
+            clearTimeout(this.autoRollbackTimer);
+            this.autoRollbackTimer = undefined;
+        }
+        this.autoRollbackDeadline = undefined;
+        
+        // This will kill the running query immediately and break the connection
+        if (this.db) {
+            try {
+                this.db.detach();
+            } catch (e) { /* ignore */ }
+            this.db = undefined;
+        }
+        this.transaction = undefined;
+        this.currentOptions = undefined;
+        this.activeStatement = undefined;
+        
+        if (this.currentReject) {
+            this.currentReject(new Error('Cancelled by user'));
+            this.currentReject = undefined;
+        }
+
+        this.notifyStateChange('Cancelled');
+    }
+
+    public killConnection() {
+        if (this.autoRollbackTimer) {
+            clearTimeout(this.autoRollbackTimer);
+            this.autoRollbackTimer = undefined;
+        }
+        this.autoRollbackDeadline = undefined;
+
+        if (this.db) {
+            try {
+                // Forcefully destroy the socket connection if available in node-firebird
+                const dbAny = this.db as any;
+                if (dbAny.connection && dbAny.connection._socket && typeof dbAny.connection._socket.destroy === 'function') {
+                    dbAny.connection._socket.destroy();
+                } else if (dbAny.connection && typeof dbAny.connection.destroy === 'function') {
+                    dbAny.connection.destroy();
+                } else if (typeof dbAny.destroy === 'function') {
+                    dbAny.destroy();
+                } else {
+                    this.db.detach();
+                }
+            } catch (e) {
+                console.error('Error forcefully killing connection', e);
+            }
+            this.db = undefined;
+        }
+        this.transaction = undefined;
+        this.currentOptions = undefined;
+        this.activeStatement = undefined;
+
+        if (this.currentReject) {
+            this.currentReject(new Error('Killed by user'));
+            this.currentReject = undefined;
+        }
+
+        this.notifyStateChange('Killed');
+    }
+
+    public resetAutoRollback() {
         if (this.autoRollbackTimer) {
             clearTimeout(this.autoRollbackTimer);
         }
@@ -113,7 +199,7 @@ export class TransactionManager {
         }
     }
 
-    public static get hasActiveTransaction(): boolean {
+    public get hasActiveTransaction(): boolean {
         return !!this.transaction;
     }
 }

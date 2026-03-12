@@ -7,7 +7,7 @@ export class TriggerService extends BaseMetadataService {
     public static async getTriggers(connection: DatabaseConnection, tableName?: string): Promise<any[]> {
         const query = MetadataQueries.getTriggers(tableName);
 
-        const rows = await Database.runMetaQuery(connection, query);
+        const rows = await Database.runMetaQuery('metadata', connection, query);
         return rows.map(row => ({
             name: row.RDB$TRIGGER_NAME.trim(),
             relation: row.RDB$RELATION_NAME ? row.RDB$RELATION_NAME.trim() : '',
@@ -19,7 +19,7 @@ export class TriggerService extends BaseMetadataService {
 
     public static async getTriggerSource(connection: DatabaseConnection, name: string): Promise<string> {
         const query = MetadataQueries.getTriggerSource(name);
-        const rows = await Database.runMetaQuery(connection, query);
+        const rows = await Database.runMetaQuery('metadata', connection, query);
         if (rows.length > 0) {
             const row = rows[0];
             const source = row.RDB$TRIGGER_SOURCE ? row.RDB$TRIGGER_SOURCE.trim() : '';
