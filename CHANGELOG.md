@@ -1,3 +1,6 @@
+## [ upcoming ]
+- **Query Results**: Added horizontal scrollbar.
+
 ## [1.7.0]
 - **Concurrency**: Enabled support for concurrent query execution across different editors. Each editor now maintains its own transaction and connection lifecycle.
 - **Query Cancellation**: Added "Cancel Query" button to the loading screen to allow graceful termination of long-running queries.
