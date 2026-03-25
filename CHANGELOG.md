@@ -1,3 +1,6 @@
+## [ upcoming ]
+- **Transactions**: Fixed Commit/Rollback buttons sometimes not updating after transaction was confirmed when active editor didn't match the results panel.
+
 ## [1.7.1]
 - **Query Results**: Added horizontal scrollbar.
 - **Query Results**: Fixed "Unknown database" display during query execution.
