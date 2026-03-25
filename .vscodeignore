@@ -1,0 +1,9 @@
+.vscode/**
+src/**
+node_modules/**
+.agents/**
+.claude/**
+tsconfig.json
+esbuild.js
+**/*.map
+**/*.ts
