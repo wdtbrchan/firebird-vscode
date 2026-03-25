@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.7.2]
 - **Transactions**: Fixed Commit/Rollback buttons sometimes not updating after transaction was confirmed when active editor didn't match the results panel.
 
 ## [1.7.1]
