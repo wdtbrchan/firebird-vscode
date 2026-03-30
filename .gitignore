@@ -2,6 +2,7 @@
 node_modules
 out
 .agents
+.claude
 *.vsix
 .test.sql
 firebird-vscode.code-workspace
