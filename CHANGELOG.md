@@ -1,5 +1,6 @@
 ## [ upcoming ]
 - **DB Explorer**: Added "Info" as the first child item under each database object (table, view, trigger, procedure, function, generator) — opens the same info/source panel as the inline icon button.
+- **Table Info**: Columns are now displayed in database order by default. Added A-Z toggle button to switch to alphabetical sorting.
 
 ## [1.7.2]
 - **Transactions**: Fixed Commit/Rollback buttons sometimes not updating after transaction was confirmed when active editor didn't match the results panel.

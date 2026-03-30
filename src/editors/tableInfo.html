@@ -10,7 +10,10 @@
     <h1>{{tableName}}</h1>
     
     <div class="section" {{sectionStyleColumns}}>
-        <h2>Columns</h2>
+        <div class="section-header">
+            <h2>Columns</h2>
+            {{columnSortToggle}}
+        </div>
         {{columnsTable}}
     </div>
 

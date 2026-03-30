@@ -22,3 +22,16 @@ tr:hover { background-color: var(--vscode-list-hoverBackground); }
 .index-grid { width: 100%; border-collapse: collapse; border: none; }
 .index-grid td { border: none; padding: 2px; width: 50%; vertical-align: top; }
 .pk-separator { border-bottom: 3px solid var(--vscode-panel-border); }
+.section-header { display: flex; align-items: center; gap: 12px; }
+.section-header h2 { margin: 0; }
+.sort-toggle-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; font-size: 0.8em;
+    border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+    border-radius: 3px; cursor: pointer;
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    font-family: var(--vscode-font-family);
+}
+.sort-toggle-btn:hover { background-color: var(--vscode-button-secondaryHoverBackground); }
+.sort-toggle-btn.active-alpha { background-color: var(--vscode-button-background); color: var(--vscode-button-foreground); }

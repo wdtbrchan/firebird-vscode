@@ -148,61 +148,45 @@ export class TableInfoPanel {
     ): string {
 
 
-        const renderColumns = () => {
-            if (columns.length === 0) return '<p>No columns found.</p>';
-            
-            // Sort: PKs first (alphabetical), then others (alphabetical)
-            const sortedColumns = [...columns].sort((a, b) => {
-                if (a.pk && !b.pk) return -1;
-                if (!a.pk && b.pk) return 1;
-                return a.name.localeCompare(b.name);
-            });
-
+        const renderColumnTable = (cols: TableColumn[], withPkSeparator: boolean): string => {
             let html = `<table>
                 <thead><tr><th>Name</th><th>Type</th><th>Nullable</th><th>Default</th><th>Computed</th><th>Indexes</th></tr></thead>
                 <tbody>`;
-            
-            // Determine the last PK index to apply the separator
+
             let lastPkIndex = -1;
-            for (let i = sortedColumns.length - 1; i >= 0; i--) {
-                if (sortedColumns[i].pk) {
-                    lastPkIndex = i;
-                    break;
+            if (withPkSeparator) {
+                for (let i = cols.length - 1; i >= 0; i--) {
+                    if (cols[i].pk) { lastPkIndex = i; break; }
                 }
             }
 
-            sortedColumns.forEach((col, index) => {
+            cols.forEach((col, index) => {
                 const colIndexes = indexes.filter(idx => idx.columns.includes(col.name));
-                
+
                 let indexInfo = '';
                 if (colIndexes.length > 0) {
-                     indexInfo = '<table class="index-grid">';
-                     for (let i = 0; i < colIndexes.length; i += 2) {
-                         indexInfo += '<tr>';
-                         const idx1 = colIndexes[i];
-                         const type1 = idx1.unique ? 'Unique' : 'Index';
-                         indexInfo += `<td><div class="tag-index" title="${type1} (${idx1.columns.join(', ')})">${idx1.name}</div></td>`;
-                         
-                         if (i + 1 < colIndexes.length) {
-                             const idx2 = colIndexes[i+1];
-                              const type2 = idx2.unique ? 'Unique' : 'Index';
-                             indexInfo += `<td><div class="tag-index" title="${type2} (${idx2.columns.join(', ')})">${idx2.name}</div></td>`;
-                         } else {
-                             indexInfo += '<td></td>';
-                         }
-                         indexInfo += '</tr>';
-                     }
-                     indexInfo += '</table>';
+                    indexInfo = '<table class="index-grid">';
+                    for (let i = 0; i < colIndexes.length; i += 2) {
+                        indexInfo += '<tr>';
+                        const idx1 = colIndexes[i];
+                        const type1 = idx1.unique ? 'Unique' : 'Index';
+                        indexInfo += `<td><div class="tag-index" title="${type1} (${idx1.columns.join(', ')})">${idx1.name}</div></td>`;
+                        if (i + 1 < colIndexes.length) {
+                            const idx2 = colIndexes[i + 1];
+                            const type2 = idx2.unique ? 'Unique' : 'Index';
+                            indexInfo += `<td><div class="tag-index" title="${type2} (${idx2.columns.join(', ')})">${idx2.name}</div></td>`;
+                        } else {
+                            indexInfo += '<td></td>';
+                        }
+                        indexInfo += '</tr>';
+                    }
+                    indexInfo += '</table>';
                 }
 
-                const pkClass = (col.pk && index === lastPkIndex) ? 'pk-separator' : '';
+                const pkClass = (withPkSeparator && col.pk && index === lastPkIndex) ? 'pk-separator' : '';
                 let formatName = `<strong>${col.name}</strong>`;
-                if (col.pk) {
-                    formatName += ` <span class="tag tag-pk">PK</span>`;
-                }
-                if (col.fk) {
-                    formatName += ` <span class="tag tag-fk" title="-> ${col.fk}">FK</span>`;
-                }
+                if (col.pk) { formatName += ` <span class="tag tag-pk">PK</span>`; }
+                if (col.fk) { formatName += ` <span class="tag tag-fk" title="-> ${col.fk}">FK</span>`; }
 
                 html += `<tr class="${pkClass}">
                     <td>${formatName}</td>
@@ -215,6 +199,18 @@ export class TableInfoPanel {
             });
             html += '</tbody></table>';
             return html;
+        };
+
+        const renderColumns = () => {
+            if (columns.length === 0) return '<p>No columns found.</p>';
+
+            const dbOrderColumns = [...columns];
+            const alphaOrderColumns = [...columns].sort((a, b) => a.name.localeCompare(b.name));
+
+            return `
+                <div id="cols-db">${renderColumnTable(dbOrderColumns, false)}</div>
+                <div id="cols-alpha" style="display:none">${renderColumnTable(alphaOrderColumns, false)}</div>
+            `;
         };
 
         const renderTriggers = () => {
@@ -302,7 +298,22 @@ export class TableInfoPanel {
         htmlContent = htmlContent.replace(/{{tableName}}/g, tableName);
         htmlContent = htmlContent.replace('{{cssContent}}', cssContent);
 
+        const columnSortToggle = section ? '' : `<button class="sort-toggle-btn" id="btn-col-sort" title="Toggle column sort order" onclick="toggleColumnSort()">A-Z</button>
+        <script>
+            function toggleColumnSort() {
+                const dbDiv = document.getElementById('cols-db');
+                const alphaDiv = document.getElementById('cols-alpha');
+                const btn = document.getElementById('btn-col-sort');
+                const isAlpha = alphaDiv.style.display !== 'none';
+                dbDiv.style.display = isAlpha ? '' : 'none';
+                alphaDiv.style.display = isAlpha ? 'none' : '';
+                btn.classList.toggle('active-alpha', !isAlpha);
+                btn.title = isAlpha ? 'Toggle column sort order' : 'Sorted A-Z — click to restore DB order';
+            }
+        </script>`;
+
         htmlContent = htmlContent.replace('{{sectionStyleColumns}}', section ? 'style="display:none"' : '');
+        htmlContent = htmlContent.replace('{{columnSortToggle}}', columnSortToggle);
         htmlContent = htmlContent.replace('{{columnsTable}}', renderColumns());
 
         htmlContent = htmlContent.replace('{{sectionStyleIndexes}}', (section && section !== 'indexes') ? 'style="display:none"' : '');
