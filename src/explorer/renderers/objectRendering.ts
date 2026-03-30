@@ -10,14 +10,24 @@ export async function getObjectOperationChildren(element: ObjectItem, ctx: TreeR
     const ops: (OperationItem | TableTriggersItem | TableIndexesItem)[] = [];
     
     if (element.type === 'table') {
+        ops.push(new OperationItem('Info', 'info', element, {
+            command: 'firebird.openTableInfo',
+            title: 'Info',
+            arguments: [element]
+        }));
         ops.push(new OperationItem('Create Script', 'create', element));
         ops.push(new OperationItem('Alter Script', 'alter', element));
         ops.push(new OperationItem('Drop table', 'drop', element));
         ops.push(new TableIndexesItem(element.connection, element.objectName));
         ops.push(new TableTriggersItem(element.connection, element.objectName, ctx.getTriggerViewMode(element.connection.id, element.objectName)));
-    } else if (['view', 'trigger', 'procedure'].includes(element.type)) {
+    } else if (['view', 'trigger', 'procedure', 'function'].includes(element.type)) {
+        ops.push(new OperationItem('Info', 'info', element, {
+            command: 'firebird.openSourceInfo',
+            title: 'Info',
+            arguments: [element]
+        }));
         ops.push(new OperationItem('DDL Script', 'alter', element));
-        
+
         if (element.type === 'view') {
                 ops.push(new OperationItem('Recreate Script', 'recreate', element));
                 ops.push(new OperationItem('Drop view', 'drop', element));
@@ -30,6 +40,11 @@ export async function getObjectOperationChildren(element: ObjectItem, ctx: TreeR
     }
 
     if (element.type === 'generator') {
+            ops.push(new OperationItem('Info', 'info', element, {
+                command: 'firebird.openGeneratorInfo',
+                title: 'Info',
+                arguments: [element]
+            }));
             ops.push(new OperationItem('Drop generator', 'drop', element));
             try {
                 const val = await MetadataService.getGeneratorValue(element.connection, element.label);

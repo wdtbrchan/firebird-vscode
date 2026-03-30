@@ -7,7 +7,8 @@ export class OperationItem extends vscode.TreeItem {
     constructor(
         label: string,
         public readonly type: 'create' | 'alter' | 'recreate' | 'drop' | 'info',
-        public readonly parentObject: ObjectItem
+        public readonly parentObject: ObjectItem,
+        commandOverride?: vscode.Command
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
         
@@ -47,6 +48,9 @@ export class OperationItem extends vscode.TreeItem {
             // Info item (e.g. Current Value)
             this.iconPath = new vscode.ThemeIcon('info');
             this.contextValue = 'info-item';
+            if (commandOverride) {
+                this.command = commandOverride;
+            }
         }
     }
 }
