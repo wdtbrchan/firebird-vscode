@@ -1,6 +1,6 @@
 ## [ upcoming ]
 - **DB Explorer**: Added "Info" as the first child item under each database object (table, view, trigger, procedure, function, generator) — opens the same info/source panel as the inline icon button.
-- **Table Info**: Columns are now displayed in database order by default. Added A-Z toggle button to switch to alphabetical sorting.
+- **Table Info**: Columns are now displayed in database order by default. Added sort toggle button cycling through DB order → A-Z → by data type. Button always shows the current sort mode.
 - **Table Info**: Fixed column data type decoding — NUMERIC/DECIMAL now correctly display precision and scale (e.g. `NUMERIC(15,2)`) for all storage types, including Firebird dialect 1 columns stored internally as DOUBLE PRECISION.
 
 ## [1.7.2]

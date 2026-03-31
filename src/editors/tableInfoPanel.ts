@@ -206,10 +206,12 @@ export class TableInfoPanel {
 
             const dbOrderColumns = [...columns];
             const alphaOrderColumns = [...columns].sort((a, b) => a.name.localeCompare(b.name));
+            const typeOrderColumns = [...columns].sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
 
             return `
                 <div id="cols-db">${renderColumnTable(dbOrderColumns, false)}</div>
                 <div id="cols-alpha" style="display:none">${renderColumnTable(alphaOrderColumns, false)}</div>
+                <div id="cols-type" style="display:none">${renderColumnTable(typeOrderColumns, false)}</div>
             `;
         };
 
@@ -298,17 +300,39 @@ export class TableInfoPanel {
         htmlContent = htmlContent.replace(/{{tableName}}/g, tableName);
         htmlContent = htmlContent.replace('{{cssContent}}', cssContent);
 
-        const columnSortToggle = section ? '' : `<button class="sort-toggle-btn" id="btn-col-sort" title="Toggle column sort order" onclick="toggleColumnSort()">A-Z</button>
+        const columnSortToggle = section ? '' : `<button class="sort-toggle-btn" id="btn-col-sort" title="DB order" onclick="toggleColumnSort()">DB</button>
         <script>
+            var _colSortMode = 'db';
             function toggleColumnSort() {
                 const dbDiv = document.getElementById('cols-db');
                 const alphaDiv = document.getElementById('cols-alpha');
+                const typeDiv = document.getElementById('cols-type');
                 const btn = document.getElementById('btn-col-sort');
-                const isAlpha = alphaDiv.style.display !== 'none';
-                dbDiv.style.display = isAlpha ? '' : 'none';
-                alphaDiv.style.display = isAlpha ? 'none' : '';
-                btn.classList.toggle('active-alpha', !isAlpha);
-                btn.title = isAlpha ? 'Toggle column sort order' : 'Sorted A-Z — click to restore DB order';
+                if (_colSortMode === 'db') {
+                    _colSortMode = 'alpha';
+                    dbDiv.style.display = 'none';
+                    alphaDiv.style.display = '';
+                    typeDiv.style.display = 'none';
+                    btn.textContent = 'A-Z';
+                    btn.title = 'Sorted A-Z';
+                    btn.classList.add('active-alpha');
+                } else if (_colSortMode === 'alpha') {
+                    _colSortMode = 'type';
+                    dbDiv.style.display = 'none';
+                    alphaDiv.style.display = 'none';
+                    typeDiv.style.display = '';
+                    btn.textContent = 'Type';
+                    btn.title = 'Sorted by type';
+                    btn.classList.add('active-alpha');
+                } else {
+                    _colSortMode = 'db';
+                    dbDiv.style.display = '';
+                    alphaDiv.style.display = 'none';
+                    typeDiv.style.display = 'none';
+                    btn.textContent = 'DB';
+                    btn.title = 'DB order';
+                    btn.classList.remove('active-alpha');
+                }
             }
         </script>`;
 
