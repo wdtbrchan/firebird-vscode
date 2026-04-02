@@ -1,3 +1,7 @@
+## [ upcoming ]
+- **Query Results**: Fixed an issue where the transaction buttons (`Commit` / `Rollback`) caused a javascript error (`commit is not defined`) due to scoping in the webview.
+- **Results Panel**: Fixed an internal error caused by executing a non-existent `firebird.refreshThemeColors` command when the panel changed its state.
+
 ## [1.8.1]
 - **Extension**: Fixed missing runtime dependencies (`node-firebird`) in the packaged VSIX by removing `node_modules` from `.vscodeignore`.
 

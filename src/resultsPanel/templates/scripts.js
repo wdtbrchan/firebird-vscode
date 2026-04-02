@@ -9,16 +9,16 @@ function init() {
     if (window.rollbackDeadline > 0) setInterval(updateTimer, 1000);
 }
 
-function commit() { vscode.postMessage({ command: 'commit' }); }
-function rollback() { vscode.postMessage({ command: 'rollback' }); }
-function loadMore() { 
+window.commit = function() { vscode.postMessage({ command: 'commit' }); };
+window.rollback = function() { vscode.postMessage({ command: 'rollback' }); };
+window.loadMore = function() { 
     const btn = document.getElementById('loadMoreBtn');
     if(btn) {
         btn.innerText = 'Loading...';
         btn.disabled = true;
     }
     vscode.postMessage({ command: 'loadMore' }); 
-}
+};
 
 window.addEventListener('message', event => {
     const message = event.data;

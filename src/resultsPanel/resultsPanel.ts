@@ -38,10 +38,7 @@ export class ResultsPanel {
         this._id = id;
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
         
-        // Expose view state change
-        this._panel.onDidChangeViewState(e => {
-            vscode.commands.executeCommand('firebird.refreshThemeColors', this._panel.active);
-        }, null, this._disposables);
+        // Expose view state change listener removed as 'firebird.refreshThemeColors' does not exist
 
         // Handle messages from the webview
         this._panel.webview.onDidReceiveMessage(
