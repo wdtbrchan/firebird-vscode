@@ -1,5 +1,4 @@
 .vscode/**
-src/**
 .agents/**
 .claude/**
 tsconfig.json
