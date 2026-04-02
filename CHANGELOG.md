@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.8.2]
 - **Query Results**: Fixed an issue where the transaction buttons (`Commit` / `Rollback`) caused a javascript error (`commit is not defined`) due to scoping in the webview.
 - **Results Panel**: Fixed an internal error caused by executing a non-existent `firebird.refreshThemeColors` command when the panel changed its state.
 
