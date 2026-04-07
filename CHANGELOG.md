@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.8.4]
 - **Extension**: Optimized `.vscodeignore` to exclude development files (`.git`, `.github`, `eslint.config.mjs`, etc.), temporary scripts, and old `.vsix` packages, significantly reducing the extension bundle size.
 
 ## [1.8.3]
