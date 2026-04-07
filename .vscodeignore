@@ -1,7 +1,16 @@
 .vscode/**
 .agents/**
 .claude/**
+.git/**
+.github/**
+.gitignore
 tsconfig.json
-esbuild.js
 **/*.map
 **/*.ts
+*.vsix
+eslint.config.mjs
+build_extension.ps1
+firebird-vscode.code-workspace
+TODO.md
+.test.sql
+package-lock.json
