@@ -35,7 +35,16 @@ export function formatCellValue(val: any, locale: string): string {
             result = val.toString();
         }
     } else if (val instanceof Date) {
-        try { result = val.toLocaleString(locale); } catch (e) { result = val.toString(); }
+        const isDateOnly = val.getHours() === 0 && val.getMinutes() === 0 && val.getSeconds() === 0 && val.getMilliseconds() === 0;
+        try {
+            if (isDateOnly) {
+                result = val.toLocaleDateString(locale);
+            } else {
+                result = val.toLocaleString(locale);
+            }
+        } catch (e) {
+            result = val.toString();
+        }
     } else if (typeof val === 'object' && val !== null) {
         result = JSON.stringify(val);
     } else {
@@ -105,7 +114,13 @@ export function getResultsTableHtml(results: any[], locale: string, hasMore: boo
                 attributes = ` data-isnum="true" data-raw="${rowVal.toString()}"`;
             } else if (rowVal instanceof Date) {
                 const pad = (n: number) => n.toString().padStart(2, '0');
-                const rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())} ${pad(rowVal.getHours())}:${pad(rowVal.getMinutes())}:${pad(rowVal.getSeconds())}`;
+                const isDateOnly = rowVal.getHours() === 0 && rowVal.getMinutes() === 0 && rowVal.getSeconds() === 0 && rowVal.getMilliseconds() === 0;
+                let rawDate = '';
+                if (isDateOnly) {
+                    rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())}`;
+                } else {
+                    rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())} ${pad(rowVal.getHours())}:${pad(rowVal.getMinutes())}:${pad(rowVal.getSeconds())}`;
+                }
                 attributes = ` data-raw="${escapeHtml(rawDate)}"`;
             } else {
                 attributes = ` data-raw="${escapeHtml(String(rowVal))}"`;
@@ -199,7 +214,13 @@ export function generateRowsHtml(rows: any[], startIndex: number, locale: string
                 attributes = ` data-isnum="true" data-raw="${rowVal.toString()}"`;
             } else if (rowVal instanceof Date) {
                 const pad = (n: number) => n.toString().padStart(2, '0');
-                const rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())} ${pad(rowVal.getHours())}:${pad(rowVal.getMinutes())}:${pad(rowVal.getSeconds())}`;
+                const isDateOnly = rowVal.getHours() === 0 && rowVal.getMinutes() === 0 && rowVal.getSeconds() === 0 && rowVal.getMilliseconds() === 0;
+                let rawDate = '';
+                if (isDateOnly) {
+                    rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())}`;
+                } else {
+                    rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())} ${pad(rowVal.getHours())}:${pad(rowVal.getMinutes())}:${pad(rowVal.getSeconds())}`;
+                }
                 attributes = ` data-raw="${escapeHtml(rawDate)}"`;
             } else {
                 attributes = ` data-raw="${escapeHtml(String(rowVal))}"`;

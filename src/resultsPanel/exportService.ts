@@ -136,7 +136,12 @@ export class ExportService {
                 let str: string;
                 if (val instanceof Date) {
                     const pad = (n: number) => n.toString().padStart(2, '0');
-                    str = `${val.getFullYear()}-${pad(val.getMonth() + 1)}-${pad(val.getDate())} ${pad(val.getHours())}:${pad(val.getMinutes())}:${pad(val.getSeconds())}`;
+                    const isDateOnly = val.getHours() === 0 && val.getMinutes() === 0 && val.getSeconds() === 0 && val.getMilliseconds() === 0;
+                    if (isDateOnly) {
+                        str = `${val.getFullYear()}-${pad(val.getMonth() + 1)}-${pad(val.getDate())}`;
+                    } else {
+                        str = `${val.getFullYear()}-${pad(val.getMonth() + 1)}-${pad(val.getDate())} ${pad(val.getHours())}:${pad(val.getMinutes())}:${pad(val.getSeconds())}`;
+                    }
                 } else {
                     str = typeof val === 'object' ? JSON.stringify(val) : String(val);
                 }
