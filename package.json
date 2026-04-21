@@ -111,6 +111,12 @@
         "icon": "$(play)"
       },
       {
+        "command": "firebird.exportQueryToCsv",
+        "title": "Export Query to CSV",
+        "category": "Firebird",
+        "icon": "$(export)"
+      },
+      {
         "command": "firebird.getPlan",
         "title": "Explain Query Plan",
         "category": "Firebird",
@@ -361,6 +367,12 @@
         "command": "firebird.getPlan",
         "key": "ctrl+shift+enter",
         "mac": "cmd+shift+enter",
+        "when": "editorTextFocus && firebird:queryExecutionEnabled"
+      },
+      {
+        "command": "firebird.exportQueryToCsv",
+        "key": "ctrl+alt+shift+e",
+        "mac": "cmd+alt+shift+e",
         "when": "editorTextFocus && firebird:queryExecutionEnabled"
       },
       {

@@ -6,6 +6,8 @@ import { ScriptParser } from '../services/scriptParser';
 import { ParameterInjector } from '../services/parameterInjector';
 import { QueryExtractor } from '../services/queryExtractor';
 import { ExecutionService } from '../services/executionService';
+import { ExportService } from '../resultsPanel/exportService';
+import { ExportConfigPanel } from '../resultsPanel/exportConfigPanel';
 
 export function registerQueryCommands(
     context: vscode.ExtensionContext,
@@ -95,6 +97,10 @@ export function registerQueryCommands(
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.getPlan', async () => {
         await handleQueryExecution(context, databaseTreeDataProvider, true);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.exportQueryToCsv', async () => {
+        await handleExportQueryToCsv(context, databaseTreeDataProvider);
     }));
 }
 
@@ -245,3 +251,65 @@ async function handleQueryExecution(
          vscode.window.showErrorMessage('Error executing query: ' + err.message, { modal: true });
     }
 }
+
+async function handleExportQueryToCsv(
+    context: vscode.ExtensionContext,
+    databaseTreeDataProvider: DatabaseTreeDataProvider
+) {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+        vscode.window.showErrorMessage('No active text editor');
+        return;
+    }
+
+    const config = vscode.workspace.getConfiguration('firebird');
+    const allowedLanguages = config.get<string[]>('allowedLanguages', ['sql']);
+    if (!allowedLanguages.includes(editor.document.languageId)) {
+        vscode.window.showInformationMessage(`Firebird: Execution not enabled for language '${editor.document.languageId}'. Check 'firebird.allowedLanguages' setting.`);
+        return;
+    }
+
+    const selection = editor.selection;
+    let query = '';
+    const useEmptyLineAsSeparator = config.get<boolean>('useEmptyLineAsSeparator', false);
+
+    if (selection.isEmpty) {
+         const offset = editor.document.offsetAt(selection.active);
+         const result = QueryExtractor.extract(editor.document.getText(), offset, editor.document.languageId, useEmptyLineAsSeparator);
+         if (result) query = result.text;
+    } else {
+         query = editor.document.getText(selection);
+    }
+
+    if (!query || !query.trim()) {
+         vscode.window.showWarningMessage('No query selected or found.');
+         return;
+    }
+
+    let cleanQuery = query.trim();
+    if (/^\s*SET\s+TERM\s+/i.test(cleanQuery)) {
+        const parsed = ScriptParser.split(cleanQuery, false);
+        if (parsed.length > 0) cleanQuery = parsed[0];
+    }
+    if (cleanQuery.endsWith(';')) cleanQuery = cleanQuery.slice(0, -1).trim();
+
+    if (editor.document.languageId !== 'sql') {
+         const assignmentMatch = /^\$[\w\d_]+\s*=\s*/.exec(cleanQuery);
+         if (assignmentMatch) cleanQuery = cleanQuery.substring(assignmentMatch[0].length).trim();
+         if ((cleanQuery.startsWith('"') && cleanQuery.endsWith('"')) || 
+             (cleanQuery.startsWith("'") && cleanQuery.endsWith("'"))) {
+             cleanQuery = cleanQuery.substring(1, cleanQuery.length - 1);
+        }
+    }
+
+    cleanQuery = ParameterInjector.inject(cleanQuery);
+
+    const activeConn = databaseTreeDataProvider.connectionManager.getActiveConnection();
+    if (!activeConn) {
+        vscode.window.showWarningMessage('No active database connection selected. Please select a database.');
+        return;
+    }
+
+    ExportConfigPanel.show(context.extensionUri, cleanQuery, activeConn);
+}
+

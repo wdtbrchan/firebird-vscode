@@ -6,7 +6,7 @@ import { prepareQueryBuffer, processResultRows, getUniqueColumnNames } from '../
 
 export class ExportService {
     public static async exportCsv(
-        panel: vscode.WebviewPanel,
+        panel: vscode.WebviewPanel | undefined,
         currentQuery: string | undefined,
         currentConnection: DatabaseConnection | undefined,
         message: any
@@ -27,8 +27,16 @@ export class ExportService {
         config.update('csvDecimalSeparator', decimalSeparator, true);
         const encodingConf = connection.charset || config.get<string>('charset', 'UTF8');
 
+        const reportProgress = (status: string) => {
+            if (message.onProgress) {
+                message.onProgress(status);
+            } else if (panel) {
+                panel.webview.postMessage({ command: 'csvExportStatus', status });
+            }
+        };
+
         // Notify webview: Executing query
-        panel.webview.postMessage({ command: 'csvExportStatus', status: 'Executing query...' });
+        reportProgress('Executing query...');
 
         try {
             const options: Firebird.Options = {
@@ -91,10 +99,7 @@ export class ExportService {
                                             collected.push(...processed);
 
                                             // Report progress
-                                            panel.webview.postMessage({ 
-                                                command: 'csvExportStatus', 
-                                                status: `Fetching rows... ${collected.length}` 
-                                            });
+                                            reportProgress(`Fetching rows... ${collected.length}`);
 
                                             const hasMore = !ret.fetched && (ret.data?.length === batchSize);
                                             if (hasMore) {
@@ -118,7 +123,7 @@ export class ExportService {
             });
 
             if (allRows.length === 0) {
-                panel.webview.postMessage({ command: 'csvExportStatus', status: '' });
+                reportProgress('');
                 vscode.window.showWarningMessage('No data to export.');
                 return;
             }
@@ -148,8 +153,8 @@ export class ExportService {
             });
             const csvContent = [headerLine, ...dataLines].join('\n');
 
-            // Clear status
-            panel.webview.postMessage({ command: 'csvExportStatus', status: '' });
+            // Wait for file location
+            reportProgress('Select file save location...');
 
             // Show save dialog
             const uri = await vscode.window.showSaveDialog({
@@ -158,7 +163,10 @@ export class ExportService {
                 saveLabel: 'Export'
             });
 
-            if (!uri) return;
+            if (!uri) {
+                reportProgress(''); // Revert if cancelled
+                return;
+            }
 
             // Encode with iconv-lite
             let fileBuffer: Buffer;
@@ -172,7 +180,7 @@ export class ExportService {
             vscode.window.showInformationMessage(`CSV exported: ${allRows.length} rows → ${uri.fsPath}`);
 
         } catch (err: any) {
-            panel.webview.postMessage({ command: 'csvExportStatus', status: `Error: ${err.message}` });
+            reportProgress(`Error: ${err.message}`);
             vscode.window.showErrorMessage(`Export failed: ${err.message}`);
         }
     }

@@ -35,6 +35,7 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 - `CTRL+SHIFT+Backspace`: Close query result
 - `Ctrl+Alt+Shift+C`: Commit Transaction
 - `Ctrl+Alt+Shift+R`: Rollback Transaction
+- `Ctrl+Alt+Shift+E`: Export Query to CSV
 
 ## Basic Usage
 

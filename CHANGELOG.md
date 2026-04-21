@@ -1,4 +1,5 @@
 ## [ upcoming ]
+- **CSV Export**: Added the ability to export the current SQL query or selection directly to CSV from the editor using a new keyboard shortcut (`Ctrl+Alt+Shift+E`). This opens a dedicated configuration modal to adjust export settings (delimiter, encoding, etc.) before saving.
 - **Query Execution**: Fixed an issue where queries could hang indefinitely (infinite loading state) if a database network error or connection drop occurred in the background. The extension now properly catches these unhandled errors.
 - **Transactions**: Configured query and script executions to automatically rollback any active transaction upon encountering an error, while also displaying the error in a modal message.
 
