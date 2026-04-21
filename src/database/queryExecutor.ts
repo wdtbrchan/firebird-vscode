@@ -33,6 +33,11 @@ export class QueryExecutor {
             Firebird.attach(options, (err, db) => {
                 if (err) return reject(err);
 
+                (db as any).on('error', (dbErr: any) => {
+                    try { db.detach(); } catch (e) { /* ignore */ }
+                    reject(dbErr);
+                });
+
                 const finalQuery = prepareQueryBuffer(query, encodingConf);
 
                 db.query(finalQuery, [], async (err, result) => {
@@ -210,6 +215,13 @@ export class QueryExecutor {
                     } else {
                         Firebird.attach(options, (err, db) => {
                             if (err) return wrapReject(err);
+                            
+                            (db as any).on('error', (dbErr: any) => {
+                                if (TransactionManager.getInstance(id).currentReject) {
+                                    TransactionManager.getInstance(id).currentReject!(dbErr);
+                                }
+                            });
+                            
                             TransactionManager.getInstance(id).db = db;
                             cb(db);
                         });
@@ -306,6 +318,13 @@ export class QueryExecutor {
                     } else {
                         Firebird.attach(options, (err, db) => {
                             if (err) return wrapReject(err);
+                            
+                            (db as any).on('error', (dbErr: any) => {
+                                if (TransactionManager.getInstance(id).currentReject) {
+                                    TransactionManager.getInstance(id).currentReject!(dbErr);
+                                }
+                            });
+                            
                             TransactionManager.getInstance(id).db = db;
                             cb(db);
                         });

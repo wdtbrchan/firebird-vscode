@@ -53,6 +53,8 @@
 - [x] Support multiple simultaneous active database connections (concurrent queries)
 - [ ] Diff between SQL in the editor and actual DDL in database
 - [ ] Copy data between two databases
+- [ ] Run export to CSV in the editor
+- [ ] Handle date format correctly in CSV export (use the same format as in query results)
 - [x] Audio notifications for long running queries
 - [x] Explain Query Plan feature (CTRL+SHIFT+ENTER)
 - [x] Query cancellation and forceful "Kill Process" support

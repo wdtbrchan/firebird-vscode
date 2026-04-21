@@ -72,12 +72,20 @@ export function registerQueryCommands(
         } catch (err: any) {
              const id = editor ? editor.document.uri.toString() : 'global';
              const hasTransaction = Database.hasActiveTransaction(id);
+             
+             if (hasTransaction) {
+                 try {
+                     await Database.rollback(id, 'Error executing script');
+                 } catch (e) {
+                     console.error('Failed to rollback transaction on script error', e);
+                 }
+             }
+
              const panel = ResultsPanel.panels.get(id);
              if (panel) {
-                 panel.showError(err.message, hasTransaction);
-             } else {
-                 vscode.window.showErrorMessage('Error executing script: ' + err.message);
+                 panel.showError(err.message, false);
              }
+             vscode.window.showErrorMessage('Error executing script: ' + err.message, { modal: true });
         }
     }));
 
@@ -223,9 +231,17 @@ async function handleQueryExecution(
 
          const panel = ResultsPanel.panels.get(id);
          if (panel) {
-             panel.showError(err.message, hasTransaction);
-         } else {
-             vscode.window.showErrorMessage('Error executing query: ' + err.message);
+             panel.showError(err.message, false);
          }
+         
+         if (hasTransaction) {
+             try {
+                 await Database.rollback(id, 'Error executing query');
+             } catch (e) {
+                 console.error('Failed to rollback transaction on query error', e);
+             }
+         }
+         
+         vscode.window.showErrorMessage('Error executing query: ' + err.message, { modal: true });
     }
 }
