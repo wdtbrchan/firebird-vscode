@@ -30,7 +30,7 @@ export interface ResultsPageParams {
 /**
  * Extracts the table name from a SQL query (best-effort, parses FROM clause).
  */
-function extractTableName(query: string | undefined): string | undefined {
+export function extractTableName(query: string | undefined): string | undefined {
     if (!query) return undefined;
     const match = query.match(/\bFROM\s+([^\s,;()+]+)/i);
     return match ? match[1].replace(/['"]/g, '') : undefined;

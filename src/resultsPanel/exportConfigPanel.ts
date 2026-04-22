@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { DatabaseConnection } from '../database/types';
 import { ExportService } from './exportService';
+import { extractTableName } from './templates/resultsTemplate';
 
 export class ExportConfigPanel {
     public static async show(
@@ -12,7 +13,7 @@ export class ExportConfigPanel {
         const config = vscode.workspace.getConfiguration('firebird');
         const defaultEncoding = connection.charset || config.get<string>('charset', 'UTF8');
         const defaultDecimalSeparator = config.get<string>('csvDecimalSeparator', '.');
-        const defaultFilename = 'export.csv';
+        const defaultFilename = (extractTableName(query) || 'export') + '.csv';
 
         const panel = vscode.window.createWebviewPanel(
             'csvExportConfig',

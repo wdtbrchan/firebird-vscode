@@ -183,9 +183,10 @@ export class ExportService {
 
             await vscode.workspace.fs.writeFile(uri, fileBuffer);
             vscode.window.showInformationMessage(`CSV exported: ${allRows.length} rows → ${uri.fsPath}`);
+            reportProgress(''); // Close fetching info block
 
         } catch (err: any) {
-            reportProgress(`Error: ${err.message}`);
+            reportProgress(''); // Close fetching info block on error, rely on the error message box
             vscode.window.showErrorMessage(`Export failed: ${err.message}`);
         }
     }
