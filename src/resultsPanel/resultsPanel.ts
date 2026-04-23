@@ -85,12 +85,13 @@ export class ResultsPanel {
             this.showPlan(e.plan, e.context);
         }, this, this._disposables);
         execService.onData(e => {
+            console.log(`[FB] ResultsPanel.onData received | rows=${e.results.length} | append=${e.append} | hasMore=${e.hasMore}`);
             this._currentQuery = e.query;
             this._displayQuery = e.displayQuery;
             this._currentConnection = e.connection;
             this._currentContext = e.context;
             this._lastExecutionTime = e.executionTime;
-            
+
             if (e.append) {
                 this._appendRowsToWebview(e.results, this._lastResults.length, e.hasMore, e.affectedRows);
                 this._lastResults = [...this._lastResults, ...e.results];
@@ -99,6 +100,7 @@ export class ResultsPanel {
             } else {
                 this._updateContentForTable([], e.hasTransaction, e.context, false, undefined);
             }
+            console.log(`[FB] ResultsPanel webview HTML updated`);
         }, this, this._disposables);
 
         this._updateContentForTable([], false);

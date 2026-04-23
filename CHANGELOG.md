@@ -1,3 +1,6 @@
+## [ upcoming ]
+- **Diagnostics**: Added detailed `[FB]` prefixed console debug logging throughout the query execution pipeline (`executeNewQuery`, `_fetchAndEmit`, `Firebird.attach`, `db.transaction`, `newStatement`, `stmt.execute`, `stmt.fetch`) to help diagnose queries that appear to hang without producing output.
+
 ## [1.9.0]
 - **CSV Export**: Added the ability to export the current SQL query or selection directly to CSV from the editor using a new keyboard shortcut (`Ctrl+Alt+Shift+E`). This opens a dedicated configuration modal to adjust export settings (delimiter, encoding, etc.) before saving.
 - **CSV Export & Data Grid**: Fixed date formatting for DATE type columns to not include the time part (00:00:00). DATE and TIMESTAMP values are now formatted without locale artifacts during backend and frontend CSV export.

@@ -83,7 +83,7 @@ export class ExecutionService {
             vscode.window.showWarningMessage('A query is already running in this editor. Please wait or cancel the current execution.');
             return;
         }
-        
+
         this._isExecuting = true;
         this._currentQuery = query;
         this._displayQuery = query;
@@ -94,14 +94,19 @@ export class ExecutionService {
         this._allResults = [];
         this._lastExecutionTime = undefined;
 
+        const qPreview = query.trim().replace(/\s+/g, ' ').substring(0, 80);
+        console.log(`[FB] executeNewQuery START | id=${this.id} | db=${context || 'unknown'} | query="${qPreview}"`);
+
         this._onStart.fire({ connection, context });
+        console.log(`[FB] onStart fired`);
         const start = performance.now();
         try {
             await this._fetchAndEmit(false);
         } finally {
             this._isExecuting = false;
-            const end = performance.now();
-            this._checkAndPlayAudioCue((end - start) / 1000);
+            const elapsed = ((performance.now() - start) / 1000).toFixed(3);
+            console.log(`[FB] executeNewQuery END | id=${this.id} | total=${elapsed}s`);
+            this._checkAndPlayAudioCue(parseFloat(elapsed));
         }
     }
 
@@ -211,15 +216,19 @@ export class ExecutionService {
     private async _fetchAndEmit(append: boolean) {
         if (!this._currentQuery) return;
 
+        console.log(`[FB] _fetchAndEmit START | append=${append} | offset=${this._currentOffset} | limit=${this._limit}`);
         const start = performance.now();
         try {
+            console.log(`[FB] Database.executeQuery calling...`);
             const queryResult = await Database.executeQuery(this.id, this._currentQuery, this._currentConnection, {
                 limit: this._limit,
                 offset: this._currentOffset
             });
-            const end = performance.now();
+            const elapsed = ((performance.now() - start) / 1000).toFixed(3);
+            console.log(`[FB] Database.executeQuery returned | rows=${queryResult.rows.length} | affectedRows=${queryResult.affectedRows} | hasMore=${queryResult.hasMore} | elapsed=${elapsed}s`);
+
             if (!append) {
-                this._lastExecutionTime = (end - start) / 1000;
+                this._lastExecutionTime = parseFloat(elapsed);
             }
 
             const results = queryResult.rows;
@@ -233,6 +242,7 @@ export class ExecutionService {
                 this._allResults = results;
             }
 
+            console.log(`[FB] _onData firing | rows=${results.length} | hasTransaction=${hasTransaction}`);
             this._onData.fire({
                 results: append ? results : this._allResults,
                 affectedRows,
@@ -245,11 +255,13 @@ export class ExecutionService {
                 connection: this._currentConnection,
                 executionTime: this._lastExecutionTime
             });
+            console.log(`[FB] _onData fired`);
 
         } catch (err: any) {
-            const end = performance.now();
+            const elapsed = ((performance.now() - start) / 1000).toFixed(3);
+            console.log(`[FB] _fetchAndEmit ERROR | elapsed=${elapsed}s | message=${err.message}`);
             if (!append) {
-                this._lastExecutionTime = (end - start) / 1000;
+                this._lastExecutionTime = parseFloat(elapsed);
             }
             const hasTransaction = Database.hasActiveTransaction(this.id);
             this._onError.fire({ message: err.message, hasTransaction });

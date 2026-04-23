@@ -65,12 +65,13 @@ export class QueryExecutor {
      */
     public static async executeQuery(id: string, query: string, connection?: DatabaseConnection, queryOptions?: QueryOptions): Promise<QueryResult> {
         const config = vscode.workspace.getConfiguration('firebird');
-        
+
         const cleanQuery = query.trim().replace(/;$/, '');
-        
-        // Final query is just the clean query (pagination is handled via cursors)
         const finalQuery = cleanQuery;
-        
+        const qPreview = finalQuery.replace(/\s+/g, ' ').substring(0, 60);
+        const offset = queryOptions?.offset || 0;
+        console.log(`[FB] QueryExecutor.executeQuery START | id=${id} | offset=${offset} | query="${qPreview}"`);
+
         const encodingConf = connection?.charset || config.get<string>('charset', 'UTF8');
         const options: Firebird.Options = {
             host: connection?.host || config.get<string>('host', '127.0.0.1'),
@@ -101,33 +102,41 @@ export class QueryExecutor {
         TransactionManager.getInstance(id).autoRollbackDeadline = undefined;
 
         return new Promise((resolve, reject) => {
+            const t0 = performance.now();
             const wrapResolve = (res: QueryResult) => {
                 TransactionManager.getInstance(id).currentReject = undefined;
                 TransactionManager.getInstance(id).resetAutoRollback();
+                console.log(`[FB] QueryExecutor.executeQuery RESOLVE | rows=${res.rows.length} | affectedRows=${res.affectedRows} | elapsed=${((performance.now() - t0) / 1000).toFixed(3)}s`);
                 resolve(res);
             };
             const wrapReject = (err: any) => {
                 TransactionManager.getInstance(id).currentReject = undefined;
                 TransactionManager.getInstance(id).resetAutoRollback();
+                console.log(`[FB] QueryExecutor.executeQuery REJECT | elapsed=${((performance.now() - t0) / 1000).toFixed(3)}s | message=${err.message}`);
                 reject(err);
             };
 
             TransactionManager.getInstance(id).currentReject = wrapReject;
 
             const runQuery = (tr: Firebird.Transaction) => {
-                const trAny = tr as any; // Access internal methods
+                const trAny = tr as any;
                 const queryString = prepareQueryBuffer(finalQuery, encodingConf);
                 const limit = queryOptions?.limit || 1000;
                 const offset = queryOptions?.offset || 0;
                 const connectionInfo = `${options.host}:${options.database}`;
 
                 const executeOnStatement = (stmt: any) => {
+                    console.log(`[FB] stmt.execute calling...`);
                     stmt.execute(tr, [], async (err: any, result: any, output: any, isSelect: boolean) => {
-                        if (err) return wrapReject(err);
-                        
-                        if (isSelect === undefined) {
-                             isSelect = (stmt.type === 1); 
+                        if (err) {
+                            console.log(`[FB] stmt.execute ERROR | ${err.message}`);
+                            return wrapReject(err);
                         }
+
+                        if (isSelect === undefined) {
+                            isSelect = (stmt.type === 1);
+                        }
+                        console.log(`[FB] stmt.execute callback | isSelect=${isSelect}`);
 
                         if (isSelect) {
                             TransactionManager.getInstance(id).activeStatement = stmt;
@@ -135,17 +144,20 @@ export class QueryExecutor {
                             TransactionManager.getInstance(id).activeConnectionInfo = connectionInfo;
 
                             const columnNames = getUniqueColumnNames(stmt.output);
+                            console.log(`[FB] stmt.fetch calling | limit=${limit} | columns=${columnNames.length}`);
                             stmt.fetch(tr, limit, async (err: any, ret: any) => {
                                 if (err) {
+                                    console.log(`[FB] stmt.fetch ERROR | ${err.message}`);
                                     stmt.close();
                                     TransactionManager.getInstance(id).activeStatement = undefined;
                                     return wrapReject(err);
                                 }
-                                
+
+                                console.log(`[FB] stmt.fetch callback | rows=${ret.data?.length ?? 0} | fetched=${ret.fetched}`);
                                 try {
                                     const processed = await processResultRows(ret.data || [], encodingConf, columnNames);
-                                    wrapResolve({ 
-                                        rows: processed, 
+                                    wrapResolve({
+                                        rows: processed,
                                         hasMore: !ret.fetched && (ret.data?.length === limit)
                                     });
                                 } catch (readErr) {
@@ -159,7 +171,7 @@ export class QueryExecutor {
                                 affectedRows = await RowCounter.getAffectedRows(stmt, tr, dmlType);
                             } catch (e) { /* ignore */ }
 
-                            stmt.close(); 
+                            stmt.close();
                             TransactionManager.getInstance(id).activeStatement = undefined;
                             wrapResolve({ rows: [], affectedRows });
                         }
@@ -168,17 +180,20 @@ export class QueryExecutor {
 
                 const fetchMore = (stmt: any) => {
                     const columnNames = getUniqueColumnNames(stmt.output);
+                    console.log(`[FB] fetchMore (reuse stmt) calling | limit=${limit} | offset=${offset}`);
                     stmt.fetch(tr, limit, async (err: any, ret: any) => {
                         if (err) {
+                            console.log(`[FB] fetchMore ERROR | ${err.message}`);
                             stmt.close();
                             TransactionManager.getInstance(id).activeStatement = undefined;
                             return wrapReject(err);
                         }
-                        
+
+                        console.log(`[FB] fetchMore callback | rows=${ret.data?.length ?? 0} | fetched=${ret.fetched}`);
                         try {
                             const processed = await processResultRows(ret.data || [], encodingConf, columnNames);
-                            wrapResolve({ 
-                                rows: processed, 
+                            wrapResolve({
+                                rows: processed,
                                 hasMore: !ret.fetched && (ret.data?.length === limit)
                             });
                         } catch (readErr) {
@@ -187,41 +202,52 @@ export class QueryExecutor {
                     });
                 };
 
-                // Logic for reusing statement
-                if (offset > 0 && TransactionManager.getInstance(id).activeStatement && 
-                    TransactionManager.getInstance(id).activeQuery === finalQuery && 
+                if (offset > 0 && TransactionManager.getInstance(id).activeStatement &&
+                    TransactionManager.getInstance(id).activeQuery === finalQuery &&
                     TransactionManager.getInstance(id).activeConnectionInfo === connectionInfo) {
                     fetchMore(TransactionManager.getInstance(id).activeStatement);
                 } else {
-                    // Start new query
                     if (TransactionManager.getInstance(id).activeStatement) {
                         try { TransactionManager.getInstance(id).activeStatement.close(); } catch (e) { /* ignore */ }
                         TransactionManager.getInstance(id).activeStatement = undefined;
                     }
-                    
+
+                    console.log(`[FB] newStatement calling...`);
                     trAny.newStatement(queryString, (err: any, statement: any) => {
-                        if (err) return wrapReject(err);
+                        if (err) {
+                            console.log(`[FB] newStatement ERROR | ${err.message}`);
+                            return wrapReject(err);
+                        }
+                        console.log(`[FB] newStatement callback OK`);
                         executeOnStatement(statement);
                     });
                 }
             };
 
             if (TransactionManager.getInstance(id).transaction) {
+                console.log(`[FB] reusing existing transaction`);
                 runQuery(TransactionManager.getInstance(id).transaction!);
             } else {
                 const doAttach = (cb: (db: Firebird.Database) => void) => {
                     if (TransactionManager.getInstance(id).db) {
+                        console.log(`[FB] reusing existing db connection`);
                         cb(TransactionManager.getInstance(id).db!);
                     } else {
+                        console.log(`[FB] Firebird.attach calling | host=${options.host} | db=${options.database}`);
                         Firebird.attach(options, (err, db) => {
-                            if (err) return wrapReject(err);
-                            
+                            if (err) {
+                                console.log(`[FB] Firebird.attach ERROR | ${err.message}`);
+                                return wrapReject(err);
+                            }
+                            console.log(`[FB] Firebird.attach callback OK`);
+
                             (db as any).on('error', (dbErr: any) => {
+                                console.log(`[FB] db socket error | ${dbErr.message}`);
                                 if (TransactionManager.getInstance(id).currentReject) {
                                     TransactionManager.getInstance(id).currentReject!(dbErr);
                                 }
                             });
-                            
+
                             TransactionManager.getInstance(id).db = db;
                             cb(db);
                         });
@@ -229,10 +255,15 @@ export class QueryExecutor {
                 };
 
                 doAttach((db) => {
+                    console.log(`[FB] db.transaction calling...`);
                     db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err, tr) => {
-                        if (err) return wrapReject(err);
+                        if (err) {
+                            console.log(`[FB] db.transaction ERROR | ${err.message}`);
+                            return wrapReject(err);
+                        }
+                        console.log(`[FB] db.transaction callback OK`);
                         TransactionManager.getInstance(id).transaction = tr;
-                        TransactionManager.getInstance(id).notifyStateChange(); 
+                        TransactionManager.getInstance(id).notifyStateChange();
                         runQuery(tr);
                     });
                 });
