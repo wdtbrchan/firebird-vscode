@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.9.1]
 - **Diagnostics**: Added detailed `[FB]` prefixed console debug logging throughout the query execution pipeline (`executeNewQuery`, `_fetchAndEmit`, `Firebird.attach`, `db.transaction`, `newStatement`, `stmt.execute`, `stmt.fetch`) to help diagnose queries that appear to hang without producing output.
 
 ## [1.9.0]
