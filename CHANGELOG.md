@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.9.2]
 - **Procedure DDL**: Parameter default values are now shown in the procedure source/DDL view. Defaults are read from the parameter level first, with fallback to the domain-level default.
 
 ## [1.9.1]
