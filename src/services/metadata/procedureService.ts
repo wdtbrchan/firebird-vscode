@@ -61,7 +61,9 @@ export class ProcedureService extends BaseMetadataService {
             return rows.map(row => {
                 const paramName = row.RDB$PARAMETER_NAME.trim();
                 const typeStr = this.decodeType(row);
-                return `${paramName} ${typeStr}`;
+                const rawDefault = row.RDB$DEFAULT_SOURCE || row.DOMAIN_DEFAULT;
+                const defaultSrc = rawDefault ? ' ' + rawDefault.trim() : '';
+                return `${paramName} ${typeStr}${defaultSrc}`;
             });
         } catch (err) {
             console.error(`Error fetching params for ${procName}:`, err);

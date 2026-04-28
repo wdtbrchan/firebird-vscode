@@ -1,3 +1,6 @@
+## [ upcoming ]
+- **Procedure DDL**: Parameter default values are now shown in the procedure source/DDL view. Defaults are read from the parameter level first, with fallback to the domain-level default.
+
 ## [1.9.1]
 - **Diagnostics**: Added detailed `[FB]` prefixed console debug logging throughout the query execution pipeline (`executeNewQuery`, `_fetchAndEmit`, `Firebird.attach`, `db.transaction`, `newStatement`, `stmt.execute`, `stmt.fetch`) to help diagnose queries that appear to hang without producing output.
 
