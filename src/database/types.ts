@@ -19,7 +19,7 @@ export interface DatabaseConnection {
     port: number;
     database: string; // path
     user: string;
-    password?: string; // Optional if we move to Secrets API later
+    password?: string; // Persisted in vscode.SecretStorage (see explorer/passwordStore); only present in memory after hydration.
     role?: string;
     charset?: string;
     resultLocale?: string;

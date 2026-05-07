@@ -79,13 +79,16 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         
         this.loadConnections();
 
-        // Simulate a short loading delay to ensure the UI renders the loading state
-        // and doesn't flash "No data" if dependent on async activation
-        setTimeout(() => {
-            this._loading = false;
-            vscode.commands.executeCommand('setContext', 'firebird.isInitialized', true);
-            this._onDidChangeTreeData.fire(undefined);
-        }, 500);
+        // Migrate any legacy plain-text passwords into SecretStorage and
+        // hydrate in-memory passwords. Runs in parallel with the initial UI
+        // render so it doesn't block tree population.
+        this.connectionManager.initializePasswordStore()
+            .catch(err => console.error('Firebird: password store init failed', err))
+            .finally(() => {
+                this._loading = false;
+                vscode.commands.executeCommand('setContext', 'firebird.isInitialized', true);
+                this._onDidChangeTreeData.fire(undefined);
+            });
     }
 
     public setTreeView(treeView: vscode.TreeView<any>) {
@@ -213,15 +216,19 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         if (result) {
             this.connectionManager.setConnections(result.connections);
             this.groupManager.setGroups(result.groups);
-            
+
             // Clear active connection if it was removed
             if (this.connectionManager.getActiveConnectionId() && !result.connections.find(c => c.id === this.connectionManager.getActiveConnectionId())) {
                 this.connectionManager.setActiveConnectionId(undefined);
             }
 
+            // Move any plain-text passwords from the imported file into SecretStorage,
+            // then strip them from the in-memory connections that just got persisted.
+            await this.connectionManager.initializePasswordStore();
+
             this.saveConnections();
             this.favoritesManager.saveFavorites();
-            
+
             // Force full refresh
             this.connectionManager.setActiveConnectionId(undefined);
             this.refresh();

@@ -5,6 +5,14 @@ import { ConnectionEditor } from '../editors/connectionEditor';
 import { Database } from '../database';
 import { ConnectionGroup } from './treeItems/databaseItems';
 import { DatabaseConnection } from '../database/types';
+import {
+    SecretStorageLike,
+    deleteConnectionPassword,
+    hydratePasswordsFromSecrets,
+    migratePasswordsToSecrets,
+    setConnectionPassword,
+    stripPasswords
+} from './passwordStore';
 
 /**
  * Manages database connections – add, edit, remove, activate, move.
@@ -21,6 +29,10 @@ export class ConnectionManager {
         private onSave: () => void
     ) {}
 
+    private get secrets(): SecretStorageLike {
+        return this.context.secrets;
+    }
+
     /** Load connections from global state. */
     public loadConnections() {
         const storedConns = this.context.globalState.get<DatabaseConnection[]>('firebird.connections');
@@ -28,12 +40,41 @@ export class ConnectionManager {
         this.activeConnectionId = undefined;
     }
 
-    /** Save connections to global state and fire change event. */
+    /**
+     * Migrates any legacy plain-text passwords from globalState into SecretStorage,
+     * then hydrates in-memory connections from SecretStorage. Idempotent.
+     * Caller should fire a tree refresh after this resolves.
+     */
+    public async initializePasswordStore(): Promise<void> {
+        const migrated = await migratePasswordsToSecrets(this.secrets, this.connections);
+        if (migrated > 0) {
+            // Persist the now-stripped connections so plain passwords leave globalState.
+            this.context.globalState.update('firebird.connections', stripPasswords(this.connections));
+        }
+        await hydratePasswordsFromSecrets(this.secrets, this.connections);
+    }
+
+    /**
+     * Save connections to global state and fire change event. Passwords are
+     * stripped before persistence — secrets are managed via setConnectionPassword.
+     */
     public saveConnections() {
-        this.context.globalState.update('firebird.connections', this.connections);
+        this.context.globalState.update('firebird.connections', stripPasswords(this.connections));
         this.context.globalState.update('firebird.groups', this.getGroups());
         this.context.globalState.update('firebird.activeConnectionId', this.activeConnectionId);
         this.onSave();
+    }
+
+    /**
+     * Writes (or clears) a connection's password in SecretStorage based on the
+     * value currently held in memory.
+     */
+    private async persistPassword(connectionId: string, password: string | undefined): Promise<void> {
+        if (typeof password === 'string' && password.length > 0) {
+            await setConnectionPassword(this.secrets, connectionId, password);
+        } else {
+            await deleteConnectionPassword(this.secrets, connectionId);
+        }
     }
 
     /** Get all connections. */
@@ -71,6 +112,7 @@ export class ConnectionManager {
             this.context.extensionUri,
             () => ({ groups: this.getGroups(), connection: undefined }),
             async (conn) => {
+                await this.persistPassword(conn.id, conn.password);
                 this.connections.push(conn);
                 if (this.connections.length === 1) {
                     this.activeConnectionId = conn.id;
@@ -88,10 +130,11 @@ export class ConnectionManager {
                 const index = this.connections.findIndex(c => c.id === conn.id);
                 if (index !== -1) {
                     if (updatedConn.color) updatedConn.color = updatedConn.color.toLowerCase();
-                    
+
+                    await this.persistPassword(updatedConn.id, updatedConn.password);
                     this.connections[index] = updatedConn;
                     this.saveConnections();
-                    
+
                     refresh();
                 }
             },
@@ -143,6 +186,8 @@ export class ConnectionManager {
         if (this.activeConnectionId === conn.id) {
             this.activeConnectionId = undefined;
         }
+        // Fire-and-forget; failure to delete a stored secret should not block UI.
+        deleteConnectionPassword(this.secrets, conn.id).catch(() => { /* ignore */ });
         this.saveConnections();
     }
 

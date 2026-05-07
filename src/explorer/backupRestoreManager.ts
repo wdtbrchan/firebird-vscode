@@ -30,6 +30,13 @@ export async function backupConnections(
     groups: ConnectionGroup[],
     favorites: Map<string, FavoriteItem[]>
 ) {
+    const proceed = await vscode.window.showWarningMessage(
+        'Passwords are stored in VS Code SecretStorage inside the extension, but the backup file will contain them in plain text. Keep the file in a secure location.',
+        { modal: true },
+        'Continue'
+    );
+    if (proceed !== 'Continue') return;
+
     const result = await vscode.window.showSaveDialog({
         filters: { 'JSON': ['json'] },
         defaultUri: vscode.Uri.file('firebird-connections.json'),
@@ -89,6 +96,12 @@ export async function restoreConnections(
         if (!Array.isArray(data.connections) && !Array.isArray(data.groups)) {
              vscode.window.showErrorMessage('Invalid backup file format: Missing connections or groups array.');
              return undefined;
+        }
+
+        const hasPlainPasswords = Array.isArray(data.connections)
+            && data.connections.some((c: any) => typeof c?.password === 'string' && c.password.length > 0);
+        if (hasPlainPasswords) {
+            vscode.window.showInformationMessage('Imported passwords will be moved to VS Code SecretStorage.');
         }
 
         const choice = await vscode.window.showWarningMessage(
