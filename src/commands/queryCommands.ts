@@ -8,6 +8,7 @@ import { QueryExtractor } from '../services/queryExtractor';
 import { ExecutionService } from '../services/executionService';
 import { ExportService } from '../resultsPanel/exportService';
 import { ExportConfigPanel } from '../resultsPanel/exportConfigPanel';
+import { cleanQueryForExecution } from './queryCleanup';
 
 export function registerQueryCommands(
     context: vscode.ExtensionContext,
@@ -150,32 +151,7 @@ async function handleQueryExecution(
          return;
     }
 
-    // --- Query Cleanup ---
-    let cleanQuery = query.trim();
-    
-    // Strip out SET TERM blocks using the ScriptParser so that Firebird engine
-    // can execute the raw blocks directly
-    if (/^\s*SET\s+TERM\s+/i.test(cleanQuery)) {
-        const parsed = ScriptParser.split(cleanQuery, false);
-        if (parsed.length > 0) {
-            cleanQuery = parsed[0];
-        }
-    }
-
-    if (cleanQuery.endsWith(';')) cleanQuery = cleanQuery.slice(0, -1).trim();
-
-    if (editor.document.languageId !== 'sql') {
-         const assignmentMatch = /^\$[\w\d_]+\s*=\s*/.exec(cleanQuery);
-         if (assignmentMatch) {
-             cleanQuery = cleanQuery.substring(assignmentMatch[0].length).trim();
-         }
-         
-         if ((cleanQuery.startsWith('"') && cleanQuery.endsWith('"')) || 
-             (cleanQuery.startsWith("'") && cleanQuery.endsWith("'"))) {
-             cleanQuery = cleanQuery.substring(1, cleanQuery.length - 1);
-        }
-    }
-    // --- End Query Cleanup ---
+    let cleanQuery = cleanQueryForExecution(query, editor.document.languageId);
 
     try {
         const activeConn = databaseTreeDataProvider.connectionManager.getActiveConnection();
@@ -286,22 +262,7 @@ async function handleExportQueryToCsv(
          return;
     }
 
-    let cleanQuery = query.trim();
-    if (/^\s*SET\s+TERM\s+/i.test(cleanQuery)) {
-        const parsed = ScriptParser.split(cleanQuery, false);
-        if (parsed.length > 0) cleanQuery = parsed[0];
-    }
-    if (cleanQuery.endsWith(';')) cleanQuery = cleanQuery.slice(0, -1).trim();
-
-    if (editor.document.languageId !== 'sql') {
-         const assignmentMatch = /^\$[\w\d_]+\s*=\s*/.exec(cleanQuery);
-         if (assignmentMatch) cleanQuery = cleanQuery.substring(assignmentMatch[0].length).trim();
-         if ((cleanQuery.startsWith('"') && cleanQuery.endsWith('"')) || 
-             (cleanQuery.startsWith("'") && cleanQuery.endsWith("'"))) {
-             cleanQuery = cleanQuery.substring(1, cleanQuery.length - 1);
-        }
-    }
-
+    let cleanQuery = cleanQueryForExecution(query, editor.document.languageId);
     cleanQuery = ParameterInjector.inject(cleanQuery);
 
     const activeConn = databaseTreeDataProvider.connectionManager.getActiveConnection();

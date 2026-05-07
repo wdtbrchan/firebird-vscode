@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { DatabaseConnection } from '../database/types';
 import { FavoriteItem } from './treeItems/favoritesItems';
+import { findInTree, removeFromTree, insertIntoTree } from './treeUtils';
 
 /**
  * Manages favorites (starred items) for each connection.
@@ -15,7 +16,6 @@ export class FavoritesManager {
         private context: vscode.ExtensionContext,
         private fireChanged: () => void
     ) {
-        // Load favorites from global state
         const savedFavorites = this.context.globalState.get<any[]>('firebird.favoritesList', []);
         savedFavorites.forEach(f => this.favorites.set(f.key, f.value));
     }
@@ -23,35 +23,18 @@ export class FavoritesManager {
     // --- Script Favorites Helpers ---
 
     public isScriptFavorite(connectionId: string | undefined, scriptId: string): boolean {
-        let found = false;
-        this.favorites.forEach((items) => {
-            const search = (list: FavoriteItem[]): boolean => {
-                for (const item of list) {
-                    if (item.type === 'script' && item.scriptId === scriptId) return true;
-                    if (item.children && search(item.children)) return true;
-                }
-                return false;
-            };
-            if (search(items)) found = true;
-        });
-        return found;
+        for (const items of this.favorites.values()) {
+            if (findInTree<FavoriteItem>(items, i => i.type === 'script' && i.scriptId === scriptId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public async removeScriptFavorite(scriptId: string) {
         let changed = false;
-        this.favorites.forEach((items, connId) => {
-            const removeRecursive = (list: FavoriteItem[]): boolean => {
-                const idx = list.findIndex(i => i.type === 'script' && i.scriptId === scriptId);
-                if (idx !== -1) {
-                    list.splice(idx, 1);
-                    return true;
-                }
-                for (const child of list) {
-                    if (child.children && removeRecursive(child.children)) return true;
-                }
-                return false;
-            };
-            if (removeRecursive(items)) {
+        this.favorites.forEach(items => {
+            if (removeFromTree<FavoriteItem>(items, i => i.type === 'script' && i.scriptId === scriptId)) {
                 changed = true;
             }
         });
@@ -63,35 +46,31 @@ export class FavoritesManager {
 
     // --- Favorites Management ---
 
-    public async addFavoriteScript(connectionId: string, scriptId: string, scriptName: string) {
-        const items = this.favorites.get(connectionId) || [];
-        
+    public addFavoriteScript(connectionId: string, scriptId: string, scriptName: string) {
         if (this.getFavorite(connectionId, scriptId, 'script')) return;
 
+        const items = this.favorites.get(connectionId) || [];
         const newItem: FavoriteItem = {
             id: uuidv4(),
             type: 'script',
             label: scriptName,
-            scriptId: scriptId,
-            connectionId: connectionId
+            scriptId,
+            connectionId
         };
-
         items.push(newItem);
         this.favorites.set(connectionId, items);
         this.saveFavorites();
     }
 
-    public async addFavorite(connection: DatabaseConnection, objectName: string, objectType: 'table' | 'view' | 'trigger' | 'procedure' | 'generator' | 'function' | 'index') {
+    public addFavorite(connection: DatabaseConnection, objectName: string, objectType: 'table' | 'view' | 'trigger' | 'procedure' | 'generator' | 'function' | 'index') {
         const items = this.favorites.get(connection.id) || [];
-        
         const newItem: FavoriteItem = {
             id: uuidv4(),
             type: 'object',
             label: objectName,
-            objectType: objectType,
+            objectType,
             connectionId: connection.id
         };
-
         items.push(newItem);
         this.favorites.set(connection.id, items);
         this.saveFavorites();
@@ -99,25 +78,8 @@ export class FavoritesManager {
 
     public async removeFavorite(item: FavoriteItem) {
         if (!item.connectionId) return;
-        
         const items = this.favorites.get(item.connectionId) || [];
-        
-        const removeItemRecursive = (list: FavoriteItem[]): boolean => {
-            const index = list.findIndex(i => i.id === item.id);
-            if (index !== -1) {
-                list.splice(index, 1);
-                return true;
-            }
-            
-            for (const child of list) {
-                if (child.children) {
-                     if (removeItemRecursive(child.children)) return true;
-                }
-            }
-            return false;
-        };
-
-        if (removeItemRecursive(items)) {
+        if (removeFromTree<FavoriteItem>(items, i => i.id === item.id)) {
             this.favorites.set(item.connectionId, items);
             this.saveFavorites();
         }
@@ -143,162 +105,73 @@ export class FavoritesManager {
             isExpanded: true
         };
 
+        const items = this.favorites.get(connection.id) || [];
         if (parent) {
-            const rootItems = this.favorites.get(connection.id) || [];
-            const findAndAdd = (list: FavoriteItem[]): boolean => {
-                const p = list.find(i => i.id === parent.id);
-                if (p) {
-                    if (!p.children) p.children = [];
-                    p.children.push(newFolder);
-                    return true;
-                }
-                for (const item of list) {
-                    if (item.children) {
-                        if (findAndAdd(item.children)) return true;
-                    }
-                }
-                return false;
-            };
-            findAndAdd(rootItems);
-            this.favorites.set(connection.id, rootItems);
+            insertIntoTree<FavoriteItem>(items, newFolder, i => i.id === parent.id);
         } else {
-             const items = this.favorites.get(connection.id) || [];
-             items.push(newFolder);
-             this.favorites.set(connection.id, items);
+            items.push(newFolder);
         }
+        this.favorites.set(connection.id, items);
         this.saveFavorites();
     }
-    
+
     public async deleteFavoriteFolder(item: FavoriteItem) {
-         this.removeFavorite(item);
+        return this.removeFavorite(item);
     }
 
     public async renameFavoriteFolder(item: FavoriteItem) {
         if (!item.connectionId) return;
-        
+
         const name = await vscode.window.showInputBox({ prompt: 'New Folder Name', value: item.label });
         if (!name) return;
 
         const items = this.favorites.get(item.connectionId) || [];
-        
-        const findAndRename = (list: FavoriteItem[]): boolean => {
-            const target = list.find(i => i.id === item.id);
-            if (target) {
-                target.label = name;
-                return true;
-            }
-             for (const child of list) {
-                if (child.children) {
-                     if (findAndRename(child.children)) return true;
-                }
-            }
-            return false;
-        };
-
-        if (findAndRename(items)) {
-             this.favorites.set(item.connectionId, items);
-             this.saveFavorites();
+        const target = findInTree<FavoriteItem>(items, i => i.id === item.id);
+        if (target) {
+            target.label = name;
+            this.favorites.set(item.connectionId, items);
+            this.saveFavorites();
         }
     }
 
     public async moveFavorite(movedItem: FavoriteItem, targetParent: FavoriteItem | undefined, targetIndex?: number) {
         if (!movedItem.connectionId) return;
-        
+
         const items = this.favorites.get(movedItem.connectionId) || [];
-        
-        // 1. Remove from old location
-        let removed: FavoriteItem | undefined;
-        
-        const removeRecursive = (list: FavoriteItem[]): boolean => {
-            const idx = list.findIndex(i => i.id === movedItem.id);
-            if (idx !== -1) {
-                removed = list[idx];
-                list.splice(idx, 1);
-                return true;
-            }
-            for (const child of list) {
-                if (child.children) {
-                    if (removeRecursive(child.children)) return true;
-                }
-            }
-            return false;
-        };
 
-        if (!removeRecursive(items)) return; // Not found?
+        const removed = removeFromTree<FavoriteItem>(items, i => i.id === movedItem.id);
+        if (!removed) return;
 
-        // 2. Add to new location
         if (targetParent) {
-            // Find parent
-            const addToParent = (list: FavoriteItem[]): boolean => {
-                const p = list.find(i => i.id === targetParent.id);
-                if (p) {
-                    if (!p.children) p.children = [];
-                    if (targetIndex !== undefined && targetIndex >= 0 && targetIndex <= p.children.length) {
-                        p.children.splice(targetIndex, 0, removed!);
-                    } else {
-                        p.children.push(removed!);
-                    }
-                    return true;
-                }
-                for (const child of list) {
-                   if (child.children) {
-                       if (addToParent(child.children)) return true;
-                   }
-                }
-                return false;
-            };
-            addToParent(items);
+            insertIntoTree<FavoriteItem>(items, removed, i => i.id === targetParent.id, targetIndex);
         } else {
-            // Add to root
-            if (targetIndex !== undefined && targetIndex >= 0 && targetIndex <= items.length) {
-                items.splice(targetIndex, 0, removed!);
-            } else {
-                items.push(removed!);
-            }
+            const clamped = (targetIndex !== undefined && targetIndex >= 0 && targetIndex <= items.length)
+                ? targetIndex
+                : items.length;
+            items.splice(clamped, 0, removed);
         }
-        
+
         this.favorites.set(movedItem.connectionId, items);
         this.saveFavorites();
     }
 
     public getFavorite(connectionId: string, objectName: string, objectType: string): FavoriteItem | undefined {
         const items = this.favorites.get(connectionId) || [];
-        const find = (list: FavoriteItem[]): FavoriteItem | undefined => {
-            for (const item of list) {
-                if (item.type === 'object' && item.label === objectName && item.objectType === objectType) {
-                    return item;
-                }
-                if (item.type === 'script' && item.scriptId === objectName) {
-                    return item;
-                }
-                if (item.children) {
-                    const found = find(item.children);
-                    if (found) return found;
-                }
-            }
-            return undefined;
-        };
-        return find(items);
+        return findInTree<FavoriteItem>(items, item => {
+            if (item.type === 'object' && item.label === objectName && item.objectType === objectType) return true;
+            if (item.type === 'script' && item.scriptId === objectName) return true;
+            return false;
+        });
     }
 
     public async removeFavoriteObject(connection: DatabaseConnection, objectName: string, objectType: string) {
         const items = this.favorites.get(connection.id) || [];
-        
-        const findAndRemove = (list: FavoriteItem[]): boolean => {
-            const idx = list.findIndex(i => i.type === 'object' && i.label.toUpperCase() === objectName.toUpperCase() && i.objectType === objectType);
-            if (idx !== -1) {
-                list.splice(idx, 1);
-                return true;
-            }
-            for (const child of list) {
-                if (child.children) {
-                    if (findAndRemove(child.children)) return true;
-                }
-            }
-            return false;
-        };
-
-        if (findAndRemove(items)) {
+        const target = objectName.toUpperCase();
+        const removed = removeFromTree<FavoriteItem>(
+            items,
+            i => i.type === 'object' && i.label.toUpperCase() === target && i.objectType === objectType
+        );
+        if (removed) {
             this.favorites.set(connection.id, items);
             this.saveFavorites();
         }
@@ -316,29 +189,15 @@ export class FavoritesManager {
     public async removeFavoriteItem(item: FavoriteItem) {
         let changed = false;
 
-        const removeRecursive = (list: FavoriteItem[]): boolean => {
-             const idx = list.findIndex(i => i.id === item.id);
-             if (idx !== -1) {
-                 list.splice(idx, 1);
-                 return true;
-             }
-             for (const child of list) {
-                 if (child.children) {
-                     if (removeRecursive(child.children)) return true;
-                 }
-             }
-             return false;
-        };
-
         if (item.connectionId && this.favorites.has(item.connectionId)) {
             const items = this.favorites.get(item.connectionId)!;
-            if (removeRecursive(items)) {
+            if (removeFromTree<FavoriteItem>(items, i => i.id === item.id)) {
                 changed = true;
             }
         } else {
             // Fallback: search all connections if connectionId is missing (stuck items fix)
-            this.favorites.forEach((items, connId) => {
-                if (removeRecursive(items)) {
+            this.favorites.forEach(items => {
+                if (removeFromTree<FavoriteItem>(items, i => i.id === item.id)) {
                     changed = true;
                 }
             });

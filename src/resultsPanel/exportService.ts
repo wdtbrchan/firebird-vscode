@@ -3,6 +3,7 @@ import * as iconv from 'iconv-lite';
 import { DatabaseConnection } from '../database/types';
 import * as Firebird from 'node-firebird';
 import { prepareQueryBuffer, processResultRows, getUniqueColumnNames } from '../database/encodingUtils';
+import { toFirebirdOptions } from '../database/connectionOptions';
 
 export class ExportService {
     public static async exportCsv(
@@ -39,16 +40,7 @@ export class ExportService {
         reportProgress('Executing query...');
 
         try {
-            const options: Firebird.Options = {
-                host: connection.host,
-                port: connection.port,
-                database: connection.database,
-                user: connection.user,
-                password: connection.password,
-                role: connection.role,
-                encoding: 'NONE' as any,
-                lowercase_keys: false
-            };
+            const options = toFirebirdOptions(connection);
 
             const allRows: any[] = await new Promise((resolve, reject) => {
                 Firebird.attach(options, (err: any, db: any) => {

@@ -679,7 +679,7 @@
     "watch": "tsc -watch -p ./",
     "package": "vsce package",
     "lint": "eslint .",
-    "test-unit": "tsc -p ./ && node out/test/unit/queryExtractor.test.js && node out/test/unit/scriptParser.test.js && node out/test/unit/indexInfoTemplate.test.js"
+    "test-unit": "tsc -p ./ && node out/test/unit/queryExtractor.test.js && node out/test/unit/scriptParser.test.js && node out/test/unit/indexInfoTemplate.test.js && node out/test/unit/connectionOptions.test.js && node out/test/unit/treeUtils.test.js && node out/test/unit/queryCleanup.test.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
