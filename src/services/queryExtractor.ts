@@ -34,29 +34,13 @@ export class QueryExtractor {
     }
 
     private static extractSqlFile(text: string, offset: number, useEmptyLineAsSeparator: boolean): { text: string, startOffset: number, type?: string } | null {
-        // First, check if the offset is inside a SET TERM block
         const setTermBlock = this.findSetTermBlock(text, offset);
         if (setTermBlock) {
             return { ...setTermBlock, type: 'SET_TERM' };
         }
 
-        // Standard extraction logic
-        // Find statement between semicolons or empty lines
         let start = 0;
         let end = text.length;
-        
-        // ... existing logic ...
-        // I need to keep the existing logic. I will rewrite the whole function to include the check at top, 
-        // and then paste the existing logic back.
-        // Actually, to minimalize diff, I can just insert the check at the top.
-        // I'll assume the user wants me to implement the helper and call it.
-
-        const isEmptyLine = (idx: number): boolean => {
-            if (!useEmptyLineAsSeparator) return false;
-            // Scan for \n\s*\n
-            if (text[idx] !== '\n' && text[idx] !== '\r') return false;
-            return false; 
-        };
 
         // Backward scan
         for (let i = offset - 1; i >= 0; i--) {

@@ -100,6 +100,30 @@ SET TERM ; ^`;
         assert.ok(result[0].includes('END'));
     });
 
+    test('SQL escaped apostrophe inside string is not a string terminator', () => {
+        const text = `INSERT INTO t VALUES ('it''s');INSERT INTO t VALUES ('next');`;
+        const result = ScriptParser.split(text);
+        assert.strictEqual(result.length, 2, `Expected 2 statements, got ${result.length}: ${JSON.stringify(result)}`);
+        assert.strictEqual(result[0], `INSERT INTO t VALUES ('it''s')`);
+        assert.strictEqual(result[1], `INSERT INTO t VALUES ('next')`);
+    });
+
+    test('Semicolon inside SQL-escaped apostrophe string does not split', () => {
+        const text = `INSERT INTO t VALUES ('foo;bar''baz;qux');SELECT 1 FROM RDB$DATABASE;`;
+        const result = ScriptParser.split(text);
+        assert.strictEqual(result.length, 2, `Expected 2 statements, got ${result.length}: ${JSON.stringify(result)}`);
+        assert.strictEqual(result[0], `INSERT INTO t VALUES ('foo;bar''baz;qux')`);
+        assert.strictEqual(result[1], `SELECT 1 FROM RDB$DATABASE`);
+    });
+
+    test('Multiple consecutive escaped apostrophes', () => {
+        const text = `SELECT '''' FROM RDB$DATABASE;SELECT 2 FROM RDB$DATABASE;`;
+        const result = ScriptParser.split(text);
+        assert.strictEqual(result.length, 2, `Expected 2 statements, got ${result.length}: ${JSON.stringify(result)}`);
+        assert.strictEqual(result[0], `SELECT '''' FROM RDB$DATABASE`);
+        assert.strictEqual(result[1], `SELECT 2 FROM RDB$DATABASE`);
+    });
+
     console.log(`\nResults: ${passed} passed, ${failed} failed.`);
     if (failed > 0) process.exit(1);
 }

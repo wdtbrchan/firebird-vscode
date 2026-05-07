@@ -7,12 +7,6 @@ export class ScriptParser {
      * @returns An array of SQL statements.
      */
     public static split(script: string, useEmptyLineAsSeparator: boolean = false): string[] {
-        const statements: string[] = [];
-        const lines = script.split(/\r?\n/);
-        
-        // ... (existing line-based logic omitted for brevity as it's not used)
-
-        // Let's restart with a char-loop approach on the whole text.
         return this.parseCharByChar(script, useEmptyLineAsSeparator);
     }
 
@@ -79,8 +73,12 @@ export class ScriptParser {
                     inString = true;
                     stringQuote = char;
                 } else if (inString && char === stringQuote) {
-                    // Check for escaped quote? SQL uses '' for ' inside string
-                    // But Firebird strings...
+                    // SQL/Firebird escape: doubled quote inside string ('' or "") is a literal quote.
+                    if (nextChar === stringQuote) {
+                        buffer += char + nextChar;
+                        i += 2;
+                        continue;
+                    }
                     inString = false;
                 }
                 buffer += char;
