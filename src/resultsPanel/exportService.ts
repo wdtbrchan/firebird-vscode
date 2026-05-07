@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import * as iconv from 'iconv-lite';
 import { DatabaseConnection } from '../database/types';
-import * as Firebird from 'node-firebird';
-import { prepareQueryBuffer, processResultRows, getUniqueColumnNames } from '../database/encodingUtils';
-import { toFirebirdOptions } from '../database/connectionOptions';
+import { Database } from '../database';
+import { CsvFormat, formatCsvRows } from './csvFormat';
+
+const EXPORT_TX_ID = 'firebird-export';
+const EXPORT_BATCH_SIZE = 500;
 
 export class ExportService {
     public static async exportCsv(
@@ -16,7 +18,7 @@ export class ExportService {
         const qualifier: string = message.qualifier || '"';
         const encoding: string = message.encoding || 'UTF8';
         const filename: string = message.filename || 'export.csv';
-        const decimalSeparator: string = message.decimalSeparator || '.';
+        const decimalSeparator: '.' | ',' = (message.decimalSeparator === ',') ? ',' : '.';
 
         if (!currentQuery || !currentConnection) {
             vscode.window.showWarningMessage('No query to export.');
@@ -26,7 +28,6 @@ export class ExportService {
         const connection = currentConnection;
         const config = vscode.workspace.getConfiguration('firebird');
         config.update('csvDecimalSeparator', decimalSeparator, true);
-        const encodingConf = connection.charset || config.get<string>('charset', 'UTF8');
 
         const reportProgress = (status: string) => {
             if (message.onProgress) {
@@ -36,82 +37,12 @@ export class ExportService {
             }
         };
 
-        // Notify webview: Executing query
         reportProgress('Executing query...');
 
         try {
-            const options = toFirebirdOptions(connection);
-
-            const allRows: any[] = await new Promise((resolve, reject) => {
-                Firebird.attach(options, (err: any, db: any) => {
-                    if (err) return reject(err);
-
-                    const cleanQuery = currentQuery!.trim().replace(/;$/, '');
-                    const queryString = prepareQueryBuffer(cleanQuery, encodingConf);
-                    const batchSize = 500;
-
-                    db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err: any, tr: any) => {
-                        if (err) {
-                            try { db.detach(); } catch (e) { /* ignore */ }
-                            return reject(err);
-                        }
-
-                        const trAny = tr as any;
-                        trAny.newStatement(queryString, (err: any, stmt: any) => {
-                            if (err) {
-                                try { tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
-                                return reject(err);
-                            }
-
-                            stmt.execute(tr, [], (err: any, _result: any, _output: any, isSelect: boolean) => {
-                                if (err) {
-                                    try { stmt.close(); tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
-                                    return reject(err);
-                                }
-
-                                if (isSelect === undefined) {
-                                    isSelect = (stmt.type === 1);
-                                }
-                                if (!isSelect) {
-                                    try { stmt.close(); tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
-                                    return reject(new Error('Query does not return rows.'));
-                                }
-
-                                const collected: any[] = [];
-                                const columnNames = getUniqueColumnNames(stmt.output);
-                                const fetchBatch = () => {
-                                    stmt.fetch(tr, batchSize, async (err: any, ret: any) => {
-                                        if (err) {
-                                            try { stmt.close(); tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
-                                            return reject(err);
-                                        }
-
-                                        try {
-                                            const processed = await processResultRows(ret.data || [], encodingConf, columnNames);
-                                            collected.push(...processed);
-
-                                            // Report progress
-                                            reportProgress(`Fetching rows... ${collected.length}`);
-
-                                            const hasMore = !ret.fetched && (ret.data?.length === batchSize);
-                                            if (hasMore) {
-                                                fetchBatch();
-                                            } else {
-                                                // Done fetching
-                                                try { stmt.close(); tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
-                                                resolve(collected);
-                                            }
-                                        } catch (readErr) {
-                                            try { stmt.close(); tr.rollback(() => db.detach()); } catch (e) { /* ignore */ }
-                                            reject(readErr);
-                                        }
-                                    });
-                                };
-                                fetchBatch();
-                            }, { asObject: false });
-                        });
-                    });
-                });
+            const cleanQuery = currentQuery.trim().replace(/;$/, '');
+            const allRows = await this._fetchAllRows(connection, cleanQuery, count => {
+                reportProgress(`Fetching rows... ${count}`);
             });
 
             if (allRows.length === 0) {
@@ -120,40 +51,12 @@ export class ExportService {
                 return;
             }
 
-            // Generate CSV
+            const fmt: CsvFormat = { delimiter, qualifier, decimalSeparator };
             const columns = Object.keys(allRows[0]);
-            const escapeValue = (val: any): string => {
-                if (val === null || val === undefined) return '';
-                if (val instanceof Uint8Array) return '[Blob]';
-                let str: string;
-                if (val instanceof Date) {
-                    const pad = (n: number) => n.toString().padStart(2, '0');
-                    const isDateOnly = val.getHours() === 0 && val.getMinutes() === 0 && val.getSeconds() === 0 && val.getMilliseconds() === 0;
-                    if (isDateOnly) {
-                        str = `${val.getFullYear()}-${pad(val.getMonth() + 1)}-${pad(val.getDate())}`;
-                    } else {
-                        str = `${val.getFullYear()}-${pad(val.getMonth() + 1)}-${pad(val.getDate())} ${pad(val.getHours())}:${pad(val.getMinutes())}:${pad(val.getSeconds())}`;
-                    }
-                } else {
-                    str = typeof val === 'object' ? JSON.stringify(val) : String(val);
-                }
-                if (typeof val === 'number' && decimalSeparator === ',') {
-                    str = str.replace('.', ',');
-                }
-                const escaped = str.replace(new RegExp(qualifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), qualifier + qualifier);
-                return `${qualifier}${escaped}${qualifier}`;
-            };
+            const csvContent = formatCsvRows(columns, allRows, fmt);
 
-            const headerLine = columns.map(col => escapeValue(col)).join(delimiter);
-            const dataLines = allRows.map(row => {
-                return columns.map(col => escapeValue(row[col])).join(delimiter);
-            });
-            const csvContent = [headerLine, ...dataLines].join('\n');
-
-            // Wait for file location
             reportProgress('Select file save location...');
 
-            // Show save dialog
             const uri = await vscode.window.showSaveDialog({
                 defaultUri: vscode.Uri.file(filename),
                 filters: { 'CSV Files': ['csv'], 'All Files': ['*'] },
@@ -161,25 +64,61 @@ export class ExportService {
             });
 
             if (!uri) {
-                reportProgress(''); // Revert if cancelled
+                reportProgress('');
                 return;
             }
 
-            // Encode with iconv-lite
-            let fileBuffer: Buffer;
-            if (iconv.encodingExists(encoding)) {
-                fileBuffer = iconv.encode(csvContent, encoding);
-            } else {
-                fileBuffer = Buffer.from(csvContent, 'utf8');
-            }
+            const fileBuffer = iconv.encodingExists(encoding)
+                ? iconv.encode(csvContent, encoding)
+                : Buffer.from(csvContent, 'utf8');
 
             await vscode.workspace.fs.writeFile(uri, fileBuffer);
             vscode.window.showInformationMessage(`CSV exported: ${allRows.length} rows → ${uri.fsPath}`);
-            reportProgress(''); // Close fetching info block
+            reportProgress('');
 
         } catch (err: any) {
-            reportProgress(''); // Close fetching info block on error, rely on the error message box
+            reportProgress('');
             vscode.window.showErrorMessage(`Export failed: ${err.message}`);
+        } finally {
+            // Always release the dedicated export transaction so we never leave it open.
+            try {
+                await Database.rollback(EXPORT_TX_ID, 'Export finished');
+            } catch (e) {
+                // ignore – may not exist if attach failed
+            }
         }
+    }
+
+    /**
+     * Fetches all rows for `query` against `connection`, using a dedicated
+     * transaction id so we never disturb the user's active editor session.
+     * Pages through results via Database.executeQuery's offset/limit reuse.
+     */
+    private static async _fetchAllRows(
+        connection: DatabaseConnection,
+        query: string,
+        onProgress: (count: number) => void
+    ): Promise<any[]> {
+        const collected: any[] = [];
+        let offset = 0;
+        // Loop until executeQuery reports no more rows.
+        // executeQuery reuses the active statement when offset > 0 and the
+        // query/connection match, so this acts like server-side pagination.
+        while (true) {
+            const result = await Database.executeQuery(
+                EXPORT_TX_ID,
+                query,
+                connection,
+                { limit: EXPORT_BATCH_SIZE, offset }
+            );
+            if (result.rows.length > 0) {
+                collected.push(...result.rows);
+                onProgress(collected.length);
+            }
+            if (!result.hasMore) break;
+            offset += result.rows.length;
+            if (result.rows.length === 0) break; // safety
+        }
+        return collected;
     }
 }

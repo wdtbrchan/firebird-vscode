@@ -1,140 +1,61 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 import { DatabaseConnection } from '../database/types';
 import { MetadataService, TableColumn, TableIndex, TableDependency, TablePermission } from '../services/metadataService';
+import { BaseInfoPanel } from './baseInfoPanel';
 
-export class TableInfoPanel {
-    private readonly _panel: vscode.WebviewPanel;
-    private readonly _extensionUri: vscode.Uri;
-    private _disposables: vscode.Disposable[] = [];
+let cachedHtmlTemplate: string | undefined;
+let cachedCssTemplate: string | undefined;
 
+function loadTemplates(extensionUri: vscode.Uri): { html: string, css: string } {
+    if (cachedHtmlTemplate === undefined || cachedCssTemplate === undefined) {
+        const htmlPath = vscode.Uri.joinPath(extensionUri, 'src', 'editors', 'tableInfo.html').fsPath;
+        const cssPath = vscode.Uri.joinPath(extensionUri, 'src', 'editors', 'tableInfo.css').fsPath;
+        try {
+            cachedHtmlTemplate = fs.readFileSync(htmlPath, 'utf8');
+            cachedCssTemplate = fs.readFileSync(cssPath, 'utf8');
+        } catch (e) {
+            console.error('Failed to load tableInfo templates', e);
+            cachedHtmlTemplate = '';
+            cachedCssTemplate = '';
+        }
+    }
+    return { html: cachedHtmlTemplate!, css: cachedCssTemplate! };
+}
+
+export class TableInfoPanel extends BaseInfoPanel {
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
-        this._panel = panel;
-        this._extensionUri = extensionUri;
-        this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+        super(panel, extensionUri);
     }
 
     public static createOrShow(extensionUri: vscode.Uri, connection: DatabaseConnection, tableName: string, section?: 'triggers' | 'indexes') {
-        const column = vscode.window.activeTextEditor
-            ? vscode.window.activeTextEditor.viewColumn
-            : undefined;
-
-        // If we already have a panel, show it.
-        // TODO: Allow multiple panels for different tables? For now, singleton per table might be tricky.
-        // Let's create a new panel every time for simplicity or matching the implementation plan to replace "Open Object".
-        // Actually, if we want to replace "Open Object", we probably want to support multiple tables open.
-        // But for a first implementation, let's just create a new one.
-        
         const title = section ? `${tableName} (${section})` : `Table: ${tableName}`;
-
-        const panel = vscode.window.createWebviewPanel(
-            'firebirdTableInfo',
-            title,
-            column || vscode.ViewColumn.One,
-            {
-                enableScripts: true,
-                localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')]
-            }
-        );
-
+        const panel = BaseInfoPanel._createPanel(extensionUri, {
+            viewType: 'firebirdTableInfo',
+            title
+        });
         const instance = new TableInfoPanel(panel, extensionUri);
-        instance._update(connection, tableName, section);
+        instance._runUpdate(tableName, 'TABLE', () => instance._buildHtml(connection, tableName, section));
     }
 
-    public dispose() {
-        // TableInfoPanel.currentPanel = undefined; // If singleton
-        this._panel.dispose();
-        while (this._disposables.length) {
-            const x = this._disposables.pop();
-            if (x) {
-                x.dispose();
-            }
-        }
-    }
+    private async _buildHtml(connection: DatabaseConnection, tableName: string, section?: 'triggers' | 'indexes'): Promise<string> {
+        // Run all metadata queries in parallel; total wall time = the slowest one.
+        const [columns, triggers, indexes, dependencies, permissions, pks, fks] = await Promise.all([
+            MetadataService.getTableColumns(connection, tableName),
+            MetadataService.getTriggers(connection, tableName),
+            MetadataService.getIndexes(connection, tableName),
+            MetadataService.getTableDependencies(connection, tableName),
+            MetadataService.getTablePermissions(connection, tableName),
+            MetadataService.getPrimaryKeyColumns(connection, tableName),
+            MetadataService.getForeignKeyColumns(connection, tableName)
+        ]);
 
-    private async _update(connection: DatabaseConnection, tableName: string, section?: 'triggers' | 'indexes') {
-        this._panel.webview.html = this._getLoadingHtml(tableName);
-        
-        try {
-            const columns = await MetadataService.getTableColumns(connection, tableName);
-            const triggers = await MetadataService.getTriggers(connection, tableName);
-            const indexes = await MetadataService.getIndexes(connection, tableName);
-            const dependencies = await MetadataService.getTableDependencies(connection, tableName);
-            const permissions = await MetadataService.getTablePermissions(connection, tableName);
-            const pks = await MetadataService.getPrimaryKeyColumns(connection, tableName);
+        columns.forEach(c => {
+            if (pks.includes(c.name)) c.pk = true;
+            if (fks.has(c.name)) c.fk = fks.get(c.name);
+        });
 
-            const fks = await MetadataService.getForeignKeyColumns(connection, tableName);
-
-            // Mark PKs and FKs in columns
-            columns.forEach(c => {
-                if (pks.includes(c.name)) c.pk = true;
-                if (fks.has(c.name)) c.fk = fks.get(c.name);
-            });
-
-            this._panel.webview.html = this._getHtmlForWebview(tableName, columns, triggers, indexes, dependencies, permissions, section);
-        } catch (err) {
-            this._panel.webview.html = this._getErrorHtml(tableName, err);
-        }
-    }
-
-    private _getLoadingHtml(tableName: string): string {
-        return `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>${tableName}</title>
-            <style>
-                body { 
-                    font-family: var(--vscode-font-family); 
-                    padding: 20px; 
-                    color: var(--vscode-editor-foreground); 
-                    background-color: var(--vscode-editor-background);
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    height: 100vh;
-                    margin: 0;
-                    flex-direction: column;
-                }
-                .spinner {
-                    border: 4px solid var(--vscode-editor-background);
-                    border-top: 4px solid var(--vscode-progressBar-background);
-                    border-radius: 50%;
-                    width: 40px;
-                    height: 40px;
-                    animation: spin 1s linear infinite;
-                    margin-bottom: 20px;
-                }
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="spinner"></div>
-            <h2>Loading ${tableName}...</h2>
-        </body>
-        </html>`;
-    }
-
-    private _getErrorHtml(tableName: string, error: any): string {
-        return `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>${tableName}</title>
-            <style>
-                body { font-family: var(--vscode-font-family); padding: 20px; color: var(--vscode-editor-foreground); }
-                .error { color: var(--vscode-errorForeground); }
-            </style>
-        </head>
-        <body>
-            <h2>Error loading info for ${tableName}</h2>
-            <p class="error">${error}</p>
-        </body>
-        </html>`;
+        return this._getHtmlForWebview(tableName, columns, triggers, indexes, dependencies, permissions, section);
     }
 
     private _getHtmlForWebview(
@@ -284,20 +205,8 @@ export class TableInfoPanel {
              return html;
         };
 
-        const fs = require('fs');
-        const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'editors', 'tableInfo.html').fsPath;
-        const cssPath = vscode.Uri.joinPath(this._extensionUri, 'src', 'editors', 'tableInfo.css').fsPath;
-        
-        let htmlContent = '';
-        let cssContent = '';
-        try {
-            htmlContent = fs.readFileSync(htmlPath, 'utf8');
-            cssContent = fs.readFileSync(cssPath, 'utf8');
-        } catch (e) {
-            console.error('Failed to load tableInfo templates', e);
-        }
-
-        htmlContent = htmlContent.replace(/{{tableName}}/g, tableName);
+        const { html: rawHtml, css: cssContent } = loadTemplates(this._extensionUri);
+        let htmlContent = rawHtml.replace(/{{tableName}}/g, tableName);
         htmlContent = htmlContent.replace('{{cssContent}}', cssContent);
 
         const columnSortToggle = section ? '' : `<button class="sort-toggle-btn" id="btn-col-sort" title="DB order" onclick="toggleColumnSort()">DB</button>
