@@ -106,8 +106,15 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this.connectionManager.saveConnections();
     }
 
+    /**
+     * Re-render the tree. Does NOT reload connections from globalState —
+     * passwords now live in SecretStorage, so reloading from disk would
+     * give us stripped objects without passwords (see issue: edited /
+     * restored connection couldn't connect until VS Code restarted).
+     * The extension is the sole producer of connection state in
+     * globalState, so a disk reload here is unnecessary.
+     */
     refresh(): void {
-        this.loadConnections();
         this._onDidChangeTreeData.fire(undefined);
     }
 
@@ -233,9 +240,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             this.saveConnections();
             this.favoritesManager.saveFavorites();
 
-            // Force full refresh
             this.connectionManager.setActiveConnectionId(undefined);
-            this.refresh();
+            this._onDidChangeTreeData.fire(undefined);
         }
     }
 }
