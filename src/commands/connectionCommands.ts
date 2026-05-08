@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { Database } from '../database';
 import { DatabaseTreeDataProvider } from '../explorer/databaseTreeDataProvider';
 import { DatabaseConnection } from '../database/types';
+import { parseSlotArg } from './slotArg';
 
 export function registerConnectionCommands(
     context: vscode.ExtensionContext,
@@ -35,19 +36,22 @@ export function registerConnectionCommands(
         databaseTreeDataProvider.refreshItem(conn);
     }));
 
-    // Slot commands 1-9
-    for (let i = 1; i <= 9; i++) {
-        context.subscriptions.push(vscode.commands.registerCommand(`firebird.connectSlot${i}`, async () => {
-            const conn = databaseTreeDataProvider.connectionManager.getConnectionBySlot(i);
-            if (conn) {
-                const editor = vscode.window.activeTextEditor;
-                const id = editor ? editor.document.uri.toString() : 'global';
-                await Database.rollback(id);
-                databaseTreeDataProvider.connectionManager.setActive(conn);
-                vscode.window.showInformationMessage(`Switched to connection: ${conn.name || conn.database}`);
-            } else {
-                vscode.window.showInformationMessage(`No connection assigned to Slot ${i}. Edit a connection to assign it.`);
-            }
-        }));
-    }
+    // Single slot command — keybindings supply { slot: 1..9 } via args.
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.connectSlot', async (arg?: unknown) => {
+        const slot = parseSlotArg(arg);
+        if (slot === null) {
+            vscode.window.showWarningMessage('firebird.connectSlot requires a slot argument (1..9).');
+            return;
+        }
+        const conn = databaseTreeDataProvider.connectionManager.getConnectionBySlot(slot);
+        if (conn) {
+            const editor = vscode.window.activeTextEditor;
+            const id = editor ? editor.document.uri.toString() : 'global';
+            await Database.rollback(id);
+            databaseTreeDataProvider.connectionManager.setActive(conn);
+            vscode.window.showInformationMessage(`Switched to connection: ${conn.name || conn.database}`);
+        } else {
+            vscode.window.showInformationMessage(`No connection assigned to Slot ${slot}. Edit a connection to assign it.`);
+        }
+    }));
 }

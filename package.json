@@ -271,48 +271,8 @@
         "icon": "$(info)"
       },
       {
-        "command": "firebird.connectSlot1",
-        "title": "Connect to Slot 1",
-        "category": "Firebird"
-      },
-      {
-        "command": "firebird.connectSlot2",
-        "title": "Connect to Slot 2",
-        "category": "Firebird"
-      },
-      {
-        "command": "firebird.connectSlot3",
-        "title": "Connect to Slot 3",
-        "category": "Firebird"
-      },
-      {
-        "command": "firebird.connectSlot4",
-        "title": "Connect to Slot 4",
-        "category": "Firebird"
-      },
-      {
-        "command": "firebird.connectSlot5",
-        "title": "Connect to Slot 5",
-        "category": "Firebird"
-      },
-      {
-        "command": "firebird.connectSlot6",
-        "title": "Connect to Slot 6",
-        "category": "Firebird"
-      },
-      {
-        "command": "firebird.connectSlot7",
-        "title": "Connect to Slot 7",
-        "category": "Firebird"
-      },
-      {
-        "command": "firebird.connectSlot8",
-        "title": "Connect to Slot 8",
-        "category": "Firebird"
-      },
-      {
-        "command": "firebird.connectSlot9",
-        "title": "Connect to Slot 9",
+        "command": "firebird.connectSlot",
+        "title": "Connect to Slot (1..9)",
         "category": "Firebird"
       },
       {
@@ -399,49 +359,58 @@
         "when": "editorTextFocus && firebird:queryExecutionEnabled && firebird.hasActiveTransaction"
       },
       {
-        "command": "firebird.connectSlot1",
+        "command": "firebird.connectSlot",
         "key": "ctrl+alt+1",
-        "mac": "cmd+alt+1"
+        "mac": "cmd+alt+1",
+        "args": { "slot": 1 }
       },
       {
-        "command": "firebird.connectSlot2",
+        "command": "firebird.connectSlot",
         "key": "ctrl+alt+2",
-        "mac": "cmd+alt+2"
+        "mac": "cmd+alt+2",
+        "args": { "slot": 2 }
       },
       {
-        "command": "firebird.connectSlot3",
+        "command": "firebird.connectSlot",
         "key": "ctrl+alt+3",
-        "mac": "cmd+alt+3"
+        "mac": "cmd+alt+3",
+        "args": { "slot": 3 }
       },
       {
-        "command": "firebird.connectSlot4",
+        "command": "firebird.connectSlot",
         "key": "ctrl+alt+4",
-        "mac": "cmd+alt+4"
+        "mac": "cmd+alt+4",
+        "args": { "slot": 4 }
       },
       {
-        "command": "firebird.connectSlot5",
+        "command": "firebird.connectSlot",
         "key": "ctrl+alt+5",
-        "mac": "cmd+alt+5"
+        "mac": "cmd+alt+5",
+        "args": { "slot": 5 }
       },
       {
-        "command": "firebird.connectSlot6",
+        "command": "firebird.connectSlot",
         "key": "ctrl+alt+6",
-        "mac": "cmd+alt+6"
+        "mac": "cmd+alt+6",
+        "args": { "slot": 6 }
       },
       {
-        "command": "firebird.connectSlot7",
+        "command": "firebird.connectSlot",
         "key": "ctrl+alt+7",
-        "mac": "cmd+alt+7"
+        "mac": "cmd+alt+7",
+        "args": { "slot": 7 }
       },
       {
-        "command": "firebird.connectSlot8",
+        "command": "firebird.connectSlot",
         "key": "ctrl+alt+8",
-        "mac": "cmd+alt+8"
+        "mac": "cmd+alt+8",
+        "args": { "slot": 8 }
       },
       {
-        "command": "firebird.connectSlot9",
+        "command": "firebird.connectSlot",
         "key": "ctrl+alt+9",
-        "mac": "cmd+alt+9"
+        "mac": "cmd+alt+9",
+        "args": { "slot": 9 }
       }
     ],
     "viewsContainers": {
@@ -679,7 +648,7 @@
     "watch": "tsc -watch -p ./",
     "package": "vsce package",
     "lint": "eslint .",
-    "test-unit": "tsc -p ./ && node out/test/unit/queryExtractor.test.js && node out/test/unit/scriptParser.test.js && node out/test/unit/indexInfoTemplate.test.js && node out/test/unit/connectionOptions.test.js && node out/test/unit/treeUtils.test.js && node out/test/unit/queryCleanup.test.js && node out/test/unit/sqlIdentifier.test.js && node out/test/unit/metadataQueries.test.js && node out/test/unit/passwordStore.test.js && node out/test/unit/csvFormat.test.js && node out/test/unit/infoPanelTemplates.test.js"
+    "test-unit": "tsc -p ./ && node out/test/unit/queryExtractor.test.js && node out/test/unit/scriptParser.test.js && node out/test/unit/indexInfoTemplate.test.js && node out/test/unit/connectionOptions.test.js && node out/test/unit/treeUtils.test.js && node out/test/unit/queryCleanup.test.js && node out/test/unit/sqlIdentifier.test.js && node out/test/unit/metadataQueries.test.js && node out/test/unit/passwordStore.test.js && node out/test/unit/csvFormat.test.js && node out/test/unit/infoPanelTemplates.test.js && node out/test/unit/slotArg.test.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
