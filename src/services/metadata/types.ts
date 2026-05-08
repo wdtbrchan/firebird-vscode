@@ -29,3 +29,20 @@ export interface TablePermission {
     grantor: string;
     grantOption: boolean;
 }
+
+export interface Trigger {
+    name: string;
+    relation: string;
+    sequence: number;
+    type: number;
+    inactive: boolean;
+}
+
+export interface IndexDetails {
+    relation: string;
+    unique: boolean;
+    status: 'ACTIVE' | 'INACTIVE';
+    descending: boolean;
+    statistics?: number;
+    definition: string;
+}

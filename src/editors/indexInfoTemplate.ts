@@ -3,14 +3,8 @@
  * Pure function with no vscode dependency – kept testable in isolation.
  */
 
-export interface IndexDetails {
-    relation: string;
-    unique: boolean;
-    descending: boolean;
-    statistics?: number;
-    definition: string;
-    status: string; // 'ACTIVE' | 'INACTIVE'
-}
+import { IndexDetails } from '../services/metadata/types';
+export type { IndexDetails };
 
 const STYLE = `
     body {

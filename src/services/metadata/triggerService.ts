@@ -2,9 +2,10 @@ import { DatabaseConnection } from '../../database/types';
 import { Database } from '../../database';
 import { MetadataQueries } from '../metadataQueries';
 import { BaseMetadataService } from './baseMetadataService';
+import { Trigger } from './types';
 
 export class TriggerService extends BaseMetadataService {
-    public static async getTriggers(connection: DatabaseConnection, tableName?: string): Promise<any[]> {
+    public static async getTriggers(connection: DatabaseConnection, tableName?: string): Promise<Trigger[]> {
         const query = MetadataQueries.getTriggers(tableName);
 
         const rows = await Database.runMetaQuery('metadata', connection, query);

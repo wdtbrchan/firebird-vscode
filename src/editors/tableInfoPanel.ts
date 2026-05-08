@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { DatabaseConnection } from '../database/types';
-import { MetadataService, TableColumn, TableIndex, TableDependency, TablePermission } from '../services/metadataService';
+import { MetadataService, TableColumn, TableIndex, TableDependency, TablePermission, Trigger } from '../services/metadataService';
 import { BaseInfoPanel } from './baseInfoPanel';
 
 let cachedHtmlTemplate: string | undefined;
@@ -59,11 +59,11 @@ export class TableInfoPanel extends BaseInfoPanel {
     }
 
     private _getHtmlForWebview(
-        tableName: string, 
-        columns: TableColumn[], 
-        triggers: any[], 
-        indexes: TableIndex[], 
-        dependencies: TableDependency[], 
+        tableName: string,
+        columns: TableColumn[],
+        triggers: Trigger[],
+        indexes: TableIndex[],
+        dependencies: TableDependency[],
         permissions: TablePermission[],
         section?: 'triggers' | 'indexes'
     ): string {

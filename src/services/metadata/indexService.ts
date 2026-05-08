@@ -2,7 +2,7 @@ import { DatabaseConnection } from '../../database/types';
 import { Database } from '../../database';
 import { MetadataQueries } from '../metadataQueries';
 import { BaseMetadataService } from './baseMetadataService';
-import { TableIndex } from './types';
+import { TableIndex, IndexDetails } from './types';
 
 export class IndexService extends BaseMetadataService {
     public static async getIndexes(connection: DatabaseConnection, tableName: string): Promise<TableIndex[]> {
@@ -52,7 +52,7 @@ export class IndexService extends BaseMetadataService {
         }
     }
 
-    public static async getIndexDetails(connection: DatabaseConnection, indexName: string): Promise<any> {
+    public static async getIndexDetails(connection: DatabaseConnection, indexName: string): Promise<IndexDetails> {
         const queryIdx = MetadataQueries.getIndexInfo(indexName);
         const querySeg = MetadataQueries.getIndexSegments(indexName);
 

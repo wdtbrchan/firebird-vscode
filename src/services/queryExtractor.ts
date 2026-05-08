@@ -181,116 +181,85 @@ export class QueryExtractor {
         let i = 0;
         const len = text.length;
 
-        // State tracking
-        let inString: string | null = null; // ' or " or `
+        let inString: string | null = null;
         let inComment: 'LINE' | 'BLOCK' | null = null;
         let stringStart = -1;
 
-        // Optimization: For very large files, scanning from 0 might be slow.
-        // However, correct parsing requires knowing the context from the start.
-        // V8 is very fast at linear scanning.
+        // Linear scan from 0 because correct parsing depends on knowing whether
+        // we're inside a string/comment by the time we reach `offset`. We bail
+        // out as soon as we know the offset can't be inside any outer string.
 
         while (i < len) {
             const char = text[i];
-            const next = i + 1 < len ? text[i+1] : '';
+            const next = i + 1 < len ? text[i + 1] : '';
 
-            // 1. Inside String
             if (inString) {
                 if (char === '\\') {
-                    // Escape sequence, skip next char (e.g. \" or \\)
-                    i += 2; 
+                    i += 2;
                     continue;
                 }
                 if (char === inString) {
-                    // End of string
                     const stringEnd = i;
-                    
-                    // Check if this string covers the offset
-                    // Range: [stringStart, stringEnd] inclusive
                     if (stringStart <= offset && offset <= stringEnd) {
-                        const content = text.substring(stringStart + 1, stringEnd);
                         return {
-                            content,
+                            content: text.substring(stringStart + 1, stringEnd),
                             quoteChar: inString,
                             start: stringStart,
                             length: stringEnd - stringStart + 1
                         };
                     }
-
-                    // Reset state
                     inString = null;
                     stringStart = -1;
-                    i++; // Move past the closing quote
-                    
-                    // Specific logic: if text[offset] was inside this string, we returned.
-                    // If we are here, it means the string we just closed did NOT contain offset.
-                    // If i >= offset now, it means the offset was either inside this string (handled)
-                    // or prior to this string?
-                    // No. We scan i from 0.
-                    // If i >= offset, we passed the offset.
-                    // Since we were IN a string when we passed offset (if offset < i),
-                    // we would have returned if it started before offset.
-                    
-                    if (i >= offset) {
-                         return null;
-                    }
+                    i++;
+                    if (i >= offset) return null; // passed offset, not inside any string
                 } else {
                     i++;
                 }
-            }
-            // 2. Inside Line Comment
-            else if (inComment === 'LINE') {
+            } else if (inComment === 'LINE') {
                 if (char === '\n' || char === '\r') {
                     inComment = null;
+                    i++;
+                    // If we passed offset while still in a comment, the offset
+                    // was inside that comment — not in a string.
+                    if (i > offset) return null;
+                } else {
+                    i++;
+                    if (i > offset) return null; // offset is inside this line comment
                 }
-                i++;
-            }
-            // 3. Inside Block Comment
-            else if (inComment === 'BLOCK') {
+            } else if (inComment === 'BLOCK') {
                 if (char === '*' && next === '/') {
                     inComment = null;
                     i += 2;
+                    if (i > offset) return null; // passed offset while in block comment
                 } else {
                     i++;
+                    if (i > offset) return null; // offset is inside this block comment
                 }
-            }
-            // 4. Code / Whitespace
-            else {
-                // Check for Comments Start
+            } else {
                 if (char === '/' && next === '/') {
                     inComment = 'LINE';
                     i += 2;
-                }
-                else if (char === '#' && (i === 0 || /[\s\n\r]/.test(text[i-1]))) {
-                    // PHP/Shell style comment. 
+                } else if (char === '#' && (i === 0 || /[\s\n\r]/.test(text[i - 1]))) {
                     inComment = 'LINE';
                     i++;
-                }
-                else if (char === '/' && next === '*') {
+                } else if (char === '/' && next === '*') {
                     inComment = 'BLOCK';
                     i += 2;
-                }
-                // Check for String Start
-                else if (char === '"' || char === "'" || char === '`') {
+                } else if (char === '"' || char === "'" || char === '`') {
+                    // If a fresh string starts strictly past the offset, the
+                    // offset was in code/whitespace — no outer string can cover it.
+                    if (i > offset) return null;
                     inString = char;
                     stringStart = i;
                     i++;
-                }
-                else {
+                } else {
                     i++;
                 }
 
-                // If we are in code/whitespace and pass the offset, then the offset is not in a string within our scan logic.
-                // However, there is an edge case: offset is at the very start of a string (Start quote). 
-                // Then inString becomes set, but stringStart == offset. 
-                // The loop continues.
-                
-                if (i > offset && !inString && !inComment) {
-                    return null;
-                }
+                if (i > offset && !inString && !inComment) return null;
             }
         }
-        
+
         return null;
     }
 

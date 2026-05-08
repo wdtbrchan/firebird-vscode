@@ -326,6 +326,52 @@ $ciselnikLastTimestamp = $wpsql->queryp("
         assert.ok(!result!.text.includes('fetchOneValue'), 'Should not include PHP code');
     });
 
+    // --- Early-exit / cursor-in-comment tests ---
+
+    test('PHP: Cursor inside a line comment returns null (does not match later string)', () => {
+        const text = `// pretend this is a comment\n$sql = "SELECT 1";`;
+        const offset = 10; // somewhere inside "pretend"
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.strictEqual(result, null);
+    });
+
+    test('PHP: Cursor inside a block comment returns null', () => {
+        const text = `/* block comment with "fake string" inside */\n$sql = "SELECT 1";`;
+        const offset = 10; // somewhere inside the block comment
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.strictEqual(result, null);
+    });
+
+    test('PHP: Cursor in a hash (#) comment returns null', () => {
+        const text = `# top hash comment\n$sql = "SELECT 1";`;
+        const offset = 5; // inside hash comment
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.strictEqual(result, null);
+    });
+
+    test('PHP: Cursor before any string returns null even with huge tail', () => {
+        const tail = '\n' + 'x'.repeat(10_000) + '\n$sql = "SELECT 1";';
+        const text = `// hi\n$y = 1;` + tail;
+        const offset = 3; // inside "// hi"
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.strictEqual(result, null);
+    });
+
+    test('PHP: Block comment containing offset, even if huge, returns null fast', () => {
+        const big = 'a'.repeat(100_000);
+        const text = `/* ${big} */\n$sql = "SELECT 1";`;
+        const offset = 50; // well inside the block comment
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.strictEqual(result, null);
+    });
+
+    test('PHP: String starts after offset (offset is in code/whitespace) returns null', () => {
+        const text = `$x = 1;\n$sql = "SELECT 1";`;
+        const offset = 4; // at "= 1" — before any string starts
+        const result = QueryExtractor.extract(text, offset, 'php');
+        assert.strictEqual(result, null);
+    });
+
     // --- End Tests ---
 
     console.log(`\nResults: ${passed} passed, ${failed} failed.`);
