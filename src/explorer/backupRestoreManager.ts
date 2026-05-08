@@ -28,7 +28,8 @@ export function mergeTrees(existing: any[], incoming: any[]) {
 export async function backupConnections(
     connections: DatabaseConnection[],
     groups: ConnectionGroup[],
-    favorites: Map<string, FavoriteItem[]>
+    favorites: Map<string, FavoriteItem[]>,
+    scriptService: ScriptService
 ) {
     const proceed = await vscode.window.showWarningMessage(
         'Passwords are stored in VS Code SecretStorage inside the extension, but the backup file will contain them in plain text. Keep the file in a secure location.',
@@ -51,7 +52,7 @@ export async function backupConnections(
         favoritesObj[key] = value;
     });
 
-    const scriptState = ScriptService.getInstance().getFullState();
+    const scriptState = scriptService.getFullState();
 
     const data = {
         connections: connections,
@@ -78,7 +79,8 @@ export async function backupConnections(
 export async function restoreConnections(
     currentConnections: DatabaseConnection[],
     currentGroups: ConnectionGroup[],
-    favorites: Map<string, FavoriteItem[]>
+    favorites: Map<string, FavoriteItem[]>,
+    scriptService: ScriptService
 ): Promise<{ connections: DatabaseConnection[], groups: ConnectionGroup[], activeConnectionId: string | undefined } | undefined> {
     const result = await vscode.window.showOpenDialog({
         canSelectMany: false,
@@ -135,7 +137,7 @@ export async function restoreConnections(
                     shared: data.scripts.shared || [],
                     connections: data.scripts.connections || data.scripts.local || {}
                 };
-                ScriptService.getInstance().setFullState(state);
+                scriptService.setFullState(state);
             }
         } else {
             // Merge logic
@@ -179,7 +181,6 @@ export async function restoreConnections(
 
             // Merge Scripts
             if (data.scripts) {
-                const scriptService = ScriptService.getInstance();
                 const currentState = scriptService.getFullState();
                 
                 if (data.scripts.shared) {

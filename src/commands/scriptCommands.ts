@@ -3,8 +3,10 @@ import * as path from 'path';
 import { ScriptService, ScriptItemData } from '../services/scriptService';
 
 export function registerScriptCommands(
-    context: vscode.ExtensionContext
+    context: vscode.ExtensionContext,
+    scriptService: ScriptService
 ): void {
+    const service = scriptService;
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.createScript', async (arg?: any, parentId?: string) => {
         let connectionId: string | undefined = undefined;
@@ -37,7 +39,7 @@ export function registerScriptCommands(
 
         const saveListener = vscode.workspace.onDidSaveTextDocument((savedDoc) => {
              if (savedDoc === doc) {
-                 const service = ScriptService.getInstance();
+                 
                  service.addScript(path.basename(savedDoc.fileName), savedDoc.fileName, connectionId, pId);
                  removeListeners();
              }
@@ -74,7 +76,7 @@ export function registerScriptCommands(
         const name = await vscode.window.showInputBox({ prompt: 'Enter folder name', value: 'New Folder' });
         if (!name) return;
         
-        const service = ScriptService.getInstance();
+        
         service.addFolder(name, connectionId, pId);
     }));
 
@@ -101,7 +103,7 @@ export function registerScriptCommands(
 
         const uris = await vscode.window.showOpenDialog({ canSelectMany: true, filters: {'SQL': ['sql'], 'All': ['*']} });
         if (uris && uris.length > 0) {
-            const service = ScriptService.getInstance();
+            
             for (const uri of uris) {
                 service.addScript(path.basename(uri.fsPath), uri.fsPath, connectionId, pId);
             }
@@ -130,7 +132,7 @@ export function registerScriptCommands(
         });
         
         if (name && name !== currentName) {
-            const service = ScriptService.getInstance();
+            
             service.renameItem(itemId, name);
         }
     }));
@@ -139,7 +141,7 @@ export function registerScriptCommands(
         if (script.pending) {
              const doc = await vscode.workspace.openTextDocument({ language: 'sql', content: '' });
              await vscode.window.showTextDocument(doc);
-             const service = ScriptService.getInstance();
+             
              
              const removeListeners = () => {
                 saveListener.dispose();
@@ -165,7 +167,7 @@ export function registerScriptCommands(
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.deleteScript', async (item: any) => { 
-        const service = ScriptService.getInstance();
+        
         if (item && item.data) {
              const confirm = await vscode.window.showWarningMessage(`Are you sure you want to remove '${item.label}' from the list?`, { modal: true }, 'Remove');
              if (confirm === 'Remove') {
@@ -176,7 +178,7 @@ export function registerScriptCommands(
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.openFavoriteScript', async (data: any) => {
         if (data && data.scriptId) {
-             const service = ScriptService.getInstance();
+             
              const scriptItem = service.getScriptById(data.scriptId);
              
              if (scriptItem) {

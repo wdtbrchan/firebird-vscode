@@ -54,6 +54,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     public readonly connectionManager: ConnectionManager;
     public readonly groupManager: GroupManager;
     public readonly filterManager: FilterManager;
+    public readonly scriptService: ScriptService;
 
     private _loading: boolean = true;
     private treeView: vscode.TreeView<any> | undefined;
@@ -74,8 +75,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this.groupManager = new GroupManager(context, () => this.connectionManager.getConnections(), () => this.saveConnections());
         this.filterManager = new FilterManager(context);
 
-        ScriptService.initialize(context);
-        ScriptService.getInstance().onDidChangeScripts(() => this._onDidChangeTreeData.fire(undefined));
+        this.scriptService = new ScriptService(context);
+        this.scriptService.onDidChangeScripts(() => this._onDidChangeTreeData.fire(undefined));
         
         this.loadConnections();
 
@@ -145,7 +146,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             getIconUri: (color) => this.getIconUri(color),
             getTriggerViewMode: (connId, context) => this.triggerViewModes.get(`${connId}:${context || 'main'}`) || 'list',
             toggleTriggerViewMode: (connId, context) => this.toggleTriggerViewMode(connId, context),
-            setTriggerViewMode: (connId, context, mode) => this.setTriggerViewMode(connId, context, mode)
+            setTriggerViewMode: (connId, context, mode) => this.setTriggerViewMode(connId, context, mode),
+            scriptService: this.scriptService
         };
     }
 
@@ -202,7 +204,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         return backupConnections(
             this.connectionManager.getConnections(),
             this.groupManager.getGroups(),
-            this.favoritesManager.favorites
+            this.favoritesManager.favorites,
+            this.scriptService
         );
     }
 
@@ -210,7 +213,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         const result = await restoreConnections(
             this.connectionManager.getConnections(),
             this.groupManager.getGroups(),
-            this.favoritesManager.favorites
+            this.favoritesManager.favorites,
+            this.scriptService
         );
 
         if (result) {

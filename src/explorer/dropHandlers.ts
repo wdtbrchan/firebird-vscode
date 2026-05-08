@@ -71,13 +71,14 @@ export class DropHandlers {
 
     public static handleScriptDrop(
         target: any | undefined,
-        dataTransfer: vscode.DataTransfer
+        dataTransfer: vscode.DataTransfer,
+        provider: DatabaseTreeDataProvider
     ): boolean {
         const scriptTransfer = dataTransfer.get('application/vnd.code.tree.firebird-scripts');
         if (!scriptTransfer || !scriptTransfer.value) return false;
 
         const droppedItem = scriptTransfer.value;
-        const service = ScriptService.getInstance();
+        const service = provider.scriptService;
 
         if (!target) {
             console.log('Dropping on root (undefined target)');

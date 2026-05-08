@@ -2,7 +2,7 @@
 import * as path from 'path';
 
 import { MetadataService } from '../services/metadataService';
-import { ScriptService } from '../services/scriptService';
+import type { ScriptService } from '../services/scriptService';
 
 import { ConnectionGroup, FolderItem, ObjectItem, FilterItem } from './treeItems/databaseItems';
 import { DatabaseConnection } from '../database/types';
@@ -38,6 +38,7 @@ export interface TreeRenderingContext {
     getTriggerViewMode(connectionId: string, context: string): 'grouped' | 'list';
     toggleTriggerViewMode(connectionId: string, context: string): void;
     setTriggerViewMode(connectionId: string, context: string, mode: 'grouped' | 'list'): void;
+    scriptService: ScriptService;
 }
 
 

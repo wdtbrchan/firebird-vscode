@@ -88,7 +88,7 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
         }
 
         // Handle Script Drop
-        if (DropHandlers.handleScriptDrop(target, dataTransfer)) {
+        if (DropHandlers.handleScriptDrop(target, dataTransfer, this.provider)) {
             return;
         }
 

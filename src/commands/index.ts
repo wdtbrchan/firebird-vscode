@@ -26,7 +26,7 @@ export function registerAllCommands(
     registerGroupCommands(context, databaseTreeDataProvider);
     registerObjectCommands(context, databaseTreeDataProvider, ddlProvider);
     registerIndexTriggerCommands(context, databaseTreeDataProvider);
-    registerScriptCommands(context);
+    registerScriptCommands(context, databaseTreeDataProvider.scriptService);
     registerFavoritesCommands(context, databaseTreeDataProvider);
     registerFilterCommands(context, databaseTreeDataProvider);
     registerSettingsCommands(context, databaseTreeDataProvider);

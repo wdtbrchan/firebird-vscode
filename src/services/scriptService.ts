@@ -20,25 +20,14 @@ export interface ScriptsState {
 }
 
 export class ScriptService {
-    private static instance: ScriptService;
     private context: vscode.ExtensionContext;
     private state: ScriptsState = { shared: [], connections: {} };
     private _onDidChangeScripts = new vscode.EventEmitter<void>();
     public readonly onDidChangeScripts = this._onDidChangeScripts.event;
 
-    private constructor(context: vscode.ExtensionContext) {
+    constructor(context: vscode.ExtensionContext) {
         this.context = context;
         this.load();
-    }
-
-    public static initialize(context: vscode.ExtensionContext) {
-        if (!ScriptService.instance) {
-            ScriptService.instance = new ScriptService(context);
-        }
-    }
-
-    public static getInstance(): ScriptService {
-        return ScriptService.instance;
     }
 
     private load() {

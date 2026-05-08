@@ -648,7 +648,7 @@
     "watch": "tsc -watch -p ./",
     "package": "vsce package",
     "lint": "eslint .",
-    "test-unit": "tsc -p ./ && node out/test/unit/queryExtractor.test.js && node out/test/unit/scriptParser.test.js && node out/test/unit/indexInfoTemplate.test.js && node out/test/unit/connectionOptions.test.js && node out/test/unit/treeUtils.test.js && node out/test/unit/queryCleanup.test.js && node out/test/unit/sqlIdentifier.test.js && node out/test/unit/metadataQueries.test.js && node out/test/unit/passwordStore.test.js && node out/test/unit/csvFormat.test.js && node out/test/unit/infoPanelTemplates.test.js && node out/test/unit/slotArg.test.js"
+    "test-unit": "tsc -p ./ && node out/test/unit/queryExtractor.test.js && node out/test/unit/scriptParser.test.js && node out/test/unit/indexInfoTemplate.test.js && node out/test/unit/connectionOptions.test.js && node out/test/unit/treeUtils.test.js && node out/test/unit/queryCleanup.test.js && node out/test/unit/sqlIdentifier.test.js && node out/test/unit/metadataQueries.test.js && node out/test/unit/passwordStore.test.js && node out/test/unit/csvFormat.test.js && node out/test/unit/infoPanelTemplates.test.js && node out/test/unit/slotArg.test.js && node out/test/unit/scriptService.test.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
