@@ -30,8 +30,8 @@ export function registerOpenObjectCommands(
             
             const doc = await vscode.workspace.openTextDocument(uri);
             await vscode.window.showTextDocument(doc, { preview: true });
-        } catch (err: any) {
-             vscode.window.showErrorMessage(`Error opening object ${name}: ${err.message}`);
+        } catch (err) {
+             vscode.window.showErrorMessage(`Error opening object ${name}: ${(err as Error).message}`);
         }
     }));
 }

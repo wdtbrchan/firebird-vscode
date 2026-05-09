@@ -3,6 +3,12 @@ import { DatabaseTreeDataProvider } from '../explorer/databaseTreeDataProvider';
 import { ScriptItem } from '../explorer/treeItems/scriptItems';
 import { IndexItem } from '../explorer/treeItems/indexItems';
 
+/* eslint-disable @typescript-eslint/no-explicit-any --
+ * Command handlers receive an argument shape that depends on the invocation
+ * site (tree menu, palette, codelens, …). We accept `any` and narrow via
+ * `instanceof` / property checks at runtime.
+ */
+
 export function registerFavoritesCommands(
     context: vscode.ExtensionContext,
     databaseTreeDataProvider: DatabaseTreeDataProvider

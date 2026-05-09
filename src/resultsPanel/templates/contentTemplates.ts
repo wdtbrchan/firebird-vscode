@@ -20,7 +20,7 @@ export function escapeHtml(unsafe: string): string {
 /**
  * Formats a cell value for display in the results table.
  */
-export function formatCellValue(val: any, locale: string): string {
+export function formatCellValue(val: unknown, locale: string): string {
     if (val === null) {
         return '<span class="null-value">[NULL]</span>';
     }
@@ -30,7 +30,7 @@ export function formatCellValue(val: any, locale: string): string {
         result = '[Blob]';
     } else if (typeof val === 'number') {
         if (!Number.isInteger(val)) {
-            try { result = val.toLocaleString(locale); } catch (e) { result = val.toString(); }
+            try { result = val.toLocaleString(locale); } catch (_e) { result = val.toString(); }
         } else {
             result = val.toString();
         }
@@ -42,7 +42,7 @@ export function formatCellValue(val: any, locale: string): string {
             } else {
                 result = val.toLocaleString(locale);
             }
-        } catch (e) {
+        } catch (_e) {
             result = val.toString();
         }
     } else if (typeof val === 'object' && val !== null) {
@@ -93,7 +93,7 @@ import { iconChevronDown } from './icons';
 /**
  * Returns the HTML for the results data table.
  */
-export function getResultsTableHtml(results: any[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string, encoding?: string, tableName?: string, decimalSeparator?: string): string {
+export function getResultsTableHtml(results: Record<string, unknown>[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string, encoding?: string, tableName?: string, decimalSeparator?: string): string {
     const columns = Object.keys(results[0]);
     const headerRow = '<th></th>' + columns.map((col, idx) => `
         <th data-col-index="${idx + 1}">
@@ -199,7 +199,7 @@ export function getResultsTableHtml(results: any[], locale: string, hasMore: boo
 /**
  * Generates row HTML for appending to an existing table (used by _appendRowsToWebview).
  */
-export function generateRowsHtml(rows: any[], startIndex: number, locale: string): string {
+export function generateRowsHtml(rows: Record<string, unknown>[], startIndex: number, locale: string): string {
     if (rows.length === 0) return '';
     const columns = Object.keys(rows[0]);
     return rows.map((row, idx) => {

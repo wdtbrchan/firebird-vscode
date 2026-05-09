@@ -49,7 +49,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.onDidChangeActiveTextEditor(editor => {
             if (editor) {
                 const id = editor.document.uri.toString();
-                const tm = (TransactionManager as any).instances?.get(id) || TransactionManager.getInstance(id);
+                const tm = TransactionManager.instances.get(id) || TransactionManager.getInstance(id);
                 statusBarController.activeAutoRollbackAt = tm.autoRollbackDeadline;
                 if (tm.hasActiveTransaction && tm.autoRollbackDeadline) {
                     statusBarController.startStatusBarTimer();
@@ -89,9 +89,9 @@ export function activate(context: vscode.ExtensionContext) {
         // --- Register All Commands ---
         registerAllCommands(context, databaseTreeDataProvider, ddlProvider);
 
-    } catch (e: any) {
+    } catch (e) {
         console.error('Firebird extension activation failed:', e);
-        vscode.window.showErrorMessage('Firebird extension activation failed: ' + e.message);
+        vscode.window.showErrorMessage('Firebird extension activation failed: ' + (e as Error).message);
     }
 }
 

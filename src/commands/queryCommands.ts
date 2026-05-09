@@ -6,7 +6,6 @@ import { ScriptParser } from '../services/scriptParser';
 import { ParameterInjector } from '../services/parameterInjector';
 import { QueryExtractor } from '../services/queryExtractor';
 import { ExecutionService } from '../services/executionService';
-import { ExportService } from '../resultsPanel/exportService';
 import { ExportConfigPanel } from '../resultsPanel/exportConfigPanel';
 import { cleanQueryForExecution } from './queryCleanup';
 
@@ -72,7 +71,7 @@ export function registerQueryCommands(
                 vscode.window.showTextDocument(editor.document, editor.viewColumn, true);
             }
             
-        } catch (err: any) {
+        } catch (err) {
              const id = editor ? editor.document.uri.toString() : 'global';
              const hasTransaction = Database.hasActiveTransaction(id);
              
@@ -86,9 +85,9 @@ export function registerQueryCommands(
 
              const panel = ResultsPanel.panels.get(id);
              if (panel) {
-                 panel.showError(err.message, false);
+                 panel.showError((err as Error).message, false);
              }
-             vscode.window.showErrorMessage('Error executing script: ' + err.message, { modal: true });
+             vscode.window.showErrorMessage('Error executing script: ' + (err as Error).message, { modal: true });
         }
     }));
 
@@ -184,11 +183,11 @@ async function handleQueryExecution(
 
         vscode.window.showTextDocument(editor.document, editor.viewColumn, true);
         
-    } catch (err: any) {
+    } catch (err) {
          const id = editor.document.uri.toString();
          const hasTransaction = Database.hasActiveTransaction(id);
          
-         const match = /line\s+(\d+),\s+column\s+(\d+)/i.exec(err.message);
+         const match = /line\s+(\d+),\s+column\s+(\d+)/i.exec((err as Error).message);
          if (match && editor) {
              try {
                 const errorLineRel = parseInt(match[1], 10);
@@ -213,7 +212,7 @@ async function handleQueryExecution(
 
          const panel = ResultsPanel.panels.get(id);
          if (panel) {
-             panel.showError(err.message, false);
+             panel.showError((err as Error).message, false);
          }
          
          if (hasTransaction) {
@@ -224,7 +223,7 @@ async function handleQueryExecution(
              }
          }
          
-         vscode.window.showErrorMessage('Error executing query: ' + err.message, { modal: true });
+         vscode.window.showErrorMessage('Error executing query: ' + (err as Error).message, { modal: true });
     }
 }
 

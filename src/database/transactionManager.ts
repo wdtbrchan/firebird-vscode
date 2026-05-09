@@ -32,7 +32,7 @@ export class TransactionManager {
     public autoRollbackTimer: NodeJS.Timeout | undefined;
     public autoRollbackDeadline: number | undefined;
     public currentOptions: Firebird.Options | undefined;
-    public activeStatement: any | undefined;
+    public activeStatement: unknown;
     public activeQuery: string | undefined;
     public activeConnectionInfo: string | undefined;
     public currentReject: ((err: Error) => void) | undefined;
@@ -90,7 +90,7 @@ export class TransactionManager {
             this.autoRollbackTimer = undefined;
         }
         if (this.activeStatement) {
-            try { this.activeStatement.close(); } catch (e) { /* ignore */ }
+            try { (this.activeStatement as { close(): void }).close(); } catch { /* ignore */ }
             this.activeStatement = undefined;
         }
         this.activeQuery = undefined;
@@ -98,7 +98,7 @@ export class TransactionManager {
         if (this.db) {
             try {
                 this.db.detach();
-            } catch (e) { /* ignore */ }
+            } catch { /* ignore */ }
             this.db = undefined;
             this.currentOptions = undefined;
         }
@@ -116,7 +116,7 @@ export class TransactionManager {
         if (this.db) {
             try {
                 this.db.detach();
-            } catch (e) { /* ignore */ }
+            } catch { /* ignore */ }
             this.db = undefined;
         }
         this.transaction = undefined;
@@ -140,14 +140,19 @@ export class TransactionManager {
 
         if (this.db) {
             try {
-                // Forcefully destroy the socket connection if available in node-firebird
-                const dbAny = this.db as any;
-                if (dbAny.connection && dbAny.connection._socket && typeof dbAny.connection._socket.destroy === 'function') {
-                    dbAny.connection._socket.destroy();
-                } else if (dbAny.connection && typeof dbAny.connection.destroy === 'function') {
-                    dbAny.connection.destroy();
-                } else if (typeof dbAny.destroy === 'function') {
-                    dbAny.destroy();
+                // Forcefully destroy the socket connection if available in node-firebird.
+                // node-firebird does not export typings for these internals.
+                interface InternalSocket { destroy?(): void }
+                interface InternalDbConnection { _socket?: InternalSocket; destroy?(): void }
+                interface InternalDb { connection?: InternalDbConnection; destroy?(): void }
+                const dbInternal = this.db as unknown as InternalDb;
+                const conn = dbInternal.connection;
+                if (conn?._socket?.destroy) {
+                    conn._socket.destroy();
+                } else if (conn?.destroy) {
+                    conn.destroy();
+                } else if (dbInternal.destroy) {
+                    dbInternal.destroy();
                 } else {
                     this.db.detach();
                 }

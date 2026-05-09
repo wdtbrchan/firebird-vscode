@@ -49,7 +49,7 @@ export class ActiveConnectionCodeLensProvider implements vscode.CodeLensProvider
         this._onDidChangeCodeLenses.fire();
     }
 
-    public provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
+    public provideCodeLenses(document: vscode.TextDocument, _token: vscode.CancellationToken): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
         const config = vscode.workspace.getConfiguration('firebird');
         if (!config.get<boolean>('enableCodeLens', true)) {
             return [];

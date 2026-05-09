@@ -1,3 +1,28 @@
+/**
+ * Subset of the internal node-firebird statement / transaction shape we touch
+ * to issue a raw OP_INFO_SQL request. The library does not expose typings for
+ * these internals so we declare the absolute minimum locally.
+ */
+interface InternalMessage {
+    pos: number;
+    addInt(n: number): void;
+    addBuffer(buf: Buffer): void;
+    addAlignment(len: number): void;
+}
+
+interface InternalConnection {
+    _msg: InternalMessage;
+    _queueEvent(cb: (err: unknown, response: { buffer?: Buffer } | undefined) => void): void;
+}
+
+interface InternalTransaction {
+    connection?: InternalConnection;
+}
+
+interface InternalStatement {
+    handle?: number;
+}
+
 export class RowCounter {
     /**
      * Detects the DML type from a SQL query string.
@@ -15,8 +40,10 @@ export class RowCounter {
      * Fetches affected row count from a statement using internal Firebird protocol.
      * When dmlType is specified, returns only the count for that specific operation type.
      */
-    public static async getAffectedRows(statement: any, transaction: any, dmlType?: 'insert' | 'update' | 'delete'): Promise<number | undefined> {
+    public static async getAffectedRows(rawStatement: unknown, rawTransaction: unknown, dmlType?: 'insert' | 'update' | 'delete'): Promise<number | undefined> {
         return new Promise((resolve) => {
+            const statement = rawStatement as InternalStatement | undefined;
+            const transaction = rawTransaction as InternalTransaction | undefined;
             if (!transaction || !transaction.connection || !transaction.connection._msg || !statement || !statement.handle) {
                 resolve(undefined);
                 return;
@@ -27,7 +54,8 @@ export class RowCounter {
             // Constants
             const OP_INFO_SQL = 70; // Correct opcode (was incorrectly 19)
             const ISC_INFO_SQL_RECORDS = 23;
-            const ISC_INFO_REQ_SELECT_COUNT = 13;
+            // ISC_INFO_REQ_SELECT_COUNT = 13 — defined by the protocol but we
+            // never inspect it (we only sum the DML-mutating counts).
             const ISC_INFO_REQ_INSERT_COUNT = 14;
             const ISC_INFO_REQ_UPDATE_COUNT = 15;
             const ISC_INFO_REQ_DELETE_COUNT = 16;
@@ -55,7 +83,7 @@ export class RowCounter {
                     resolve(undefined);
                 }, 5000); // 5s timeout
 
-                connection._queueEvent((err: any, response: any) => {
+                connection._queueEvent((err, response) => {
                     clearTimeout(timeoutId);
                     if (err || !response || !response.buffer) {
                         resolve(undefined);
@@ -112,11 +140,11 @@ export class RowCounter {
                         }
                         
                         resolve(found ? totalAffected : undefined);
-                    } catch (e) {
+                    } catch (_e) {
                         resolve(undefined);
                     }
                 });
-            } catch (e) {
+            } catch (_e) {
                 if (timeoutId!) clearTimeout(timeoutId);
                 resolve(undefined);
             }

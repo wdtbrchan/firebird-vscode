@@ -2,23 +2,22 @@ import * as vscode from 'vscode';
 import { TreeRenderingContext } from '../treeRendering';
 import { ObjectItem } from '../treeItems/databaseItems';
 import { IndexItem, TableIndexesItem, CreateNewIndexItem, IndexOperationItem } from '../treeItems/indexItems';
-import { TableTriggersItem, TriggerItem, TriggerGroupItem, TriggerOperationItem, TriggerFolderItem } from '../treeItems/triggerItems';
+import { TriggerItem, TriggerGroupItem, TriggerOperationItem } from '../treeItems/triggerItems';
 import { OperationItem } from '../treeItems/operationItems';
 import { MetadataService } from '../../services/metadataService';
-import { getTriggerList, getGroupedTriggers } from '../triggerRendering';
 
-export async function getTableIndexesChildren(element: TableIndexesItem, ctx: TreeRenderingContext): Promise<vscode.TreeItem[]> {
+export async function getTableIndexesChildren(element: TableIndexesItem, _ctx: TreeRenderingContext): Promise<vscode.TreeItem[]> {
     const indexes = await MetadataService.getIndexes(element.connection, element.tableName);
     const items: vscode.TreeItem[] = [];
     items.push(new CreateNewIndexItem(element.connection, element.tableName));
-    
+
     indexes.forEach(idx => {
         items.push(new IndexItem(element.connection, element.tableName, idx.name, idx.unique, idx.inactive));
     });
     return items;
 }
 
-export function getIndexOperationChildren(element: IndexItem, ctx: TreeRenderingContext): IndexOperationItem[] {
+export function getIndexOperationChildren(element: IndexItem, _ctx: TreeRenderingContext): IndexOperationItem[] {
     const ops: IndexOperationItem[] = [];
     ops.push(new IndexOperationItem('Drop index', 'drop', element.connection, element.indexName));
     if (element.inactive) {
@@ -30,7 +29,7 @@ export function getIndexOperationChildren(element: IndexItem, ctx: TreeRendering
     return ops;
 }
 
-export function getTriggerOperationChildren(element: TriggerItem, ctx: TreeRenderingContext): (TriggerOperationItem | OperationItem)[] {
+export function getTriggerOperationChildren(element: TriggerItem, _ctx: TreeRenderingContext): (TriggerOperationItem | OperationItem)[] {
     const ops: (TriggerOperationItem | OperationItem)[] = [];
     ops.push(new OperationItem('DDL Script', 'alter', new ObjectItem(element.triggerName, 'trigger', element.connection)));
 
@@ -47,17 +46,14 @@ export function getTriggerGroupChildren(element: TriggerGroupItem, ctx: TreeRend
     if (element.triggers.length > 0) {
         const first = element.triggers[0];
         if (first instanceof TriggerGroupItem || first instanceof TriggerItem) {
-            return element.triggers;
+            return element.triggers as (TriggerItem | TriggerGroupItem)[];
         }
     }
 
-    const sorted = element.triggers.sort((a, b) => {
-        const pa = a.sequence || 0;
-        const pb = b.sequence || 0;
-        return pa - pb;
-    });
+    const triggers = element.triggers as Array<{ name: string; sequence: number; inactive: boolean }>;
+    const sorted = triggers.sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
     return sorted.map(t => {
-            const isFav = !!ctx.getFavorite(element.connection.id, t.name, 'trigger');
-            return new TriggerItem(element.connection, t.name, t.sequence, t.inactive, isFav);
+        const isFav = !!ctx.getFavorite(element.connection.id, t.name, 'trigger');
+        return new TriggerItem(element.connection, t.name, t.sequence, t.inactive, isFav);
     });
 }

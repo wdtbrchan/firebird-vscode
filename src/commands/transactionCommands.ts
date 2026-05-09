@@ -19,8 +19,8 @@ export function registerTransactionCommands(
             }
 
             vscode.window.setStatusBarMessage('Firebird: Transaction Committed', 3000);
-        } catch (err: any) {
-            vscode.window.showErrorMessage('Commit failed: ' + err.message);
+        } catch (err) {
+            vscode.window.showErrorMessage('Commit failed: ' + (err as Error).message);
         }
     }));
 
@@ -30,8 +30,8 @@ export function registerTransactionCommands(
             const resolvedId = id || (editor ? editor.document.uri.toString() : 'global');
             await Database.rollback(resolvedId);
             vscode.window.setStatusBarMessage('Firebird: Transaction Rolled Back', 3000);
-        } catch (err: any) {
-             vscode.window.showErrorMessage('Rollback failed: ' + err.message);
+        } catch (err) {
+             vscode.window.showErrorMessage('Rollback failed: ' + (err as Error).message);
         }
     }));
 }

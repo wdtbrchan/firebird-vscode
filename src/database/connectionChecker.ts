@@ -14,7 +14,7 @@ export class ConnectionChecker {
                 if (err) return reject(err);
                 try {
                     db.detach();
-                } catch (e) { /* ignore */ }
+                } catch (_e) { /* ignore */ }
                 resolve();
             });
         });

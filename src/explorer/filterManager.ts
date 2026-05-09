@@ -8,7 +8,7 @@ export class FilterManager {
     private filters: Map<string, string> = new Map();
 
     constructor(private context: vscode.ExtensionContext) {
-        const savedFilters = context.globalState.get<any[]>('firebird.filters', []);
+        const savedFilters = context.globalState.get<{ key: string; value: string }[]>('firebird.filters', []);
         savedFilters.forEach(f => this.filters.set(f.key, f.value));
     }
 

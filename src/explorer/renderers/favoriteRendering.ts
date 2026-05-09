@@ -3,9 +3,8 @@ import { TreeRenderingContext } from '../treeRendering';
 import { FavoritesRootItem, FavoriteFolderItem, FavoriteScriptItem, FavoriteIndexItem, FavoriteItem } from '../treeItems/favoritesItems';
 import { TriggerItem } from '../treeItems/triggerItems';
 import { ObjectItem } from '../treeItems/databaseItems';
-import { DatabaseConnection } from '../../database/types';
 
-export function getFavoritesChildren(element: FavoritesRootItem | FavoriteFolderItem, ctx: TreeRenderingContext): any[] {
+export function getFavoritesChildren(element: FavoritesRootItem | FavoriteFolderItem, ctx: TreeRenderingContext): vscode.TreeItem[] {
     let sourceList: FavoriteItem[] = [];
     
     if (element instanceof FavoritesRootItem) {

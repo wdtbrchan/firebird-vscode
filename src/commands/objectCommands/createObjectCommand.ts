@@ -1,15 +1,20 @@
 import * as vscode from 'vscode';
 import { DatabaseConnection } from '../../database/types';
 
+interface CreateObjectArg {
+    connection?: DatabaseConnection;
+    type?: string;
+}
+
 export function registerCreateObjectCommand(
     context: vscode.ExtensionContext
 ): void {
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.createObject', async (arg?: any, connection?: DatabaseConnection) => {
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.createObject', async (arg?: CreateObjectArg | string, connection?: DatabaseConnection) => {
         let objectType: string | undefined;
         let conn: DatabaseConnection | undefined;
 
         if (arg) {
-            if (arg.connection && arg.type) {
+            if (typeof arg !== 'string' && arg.connection && arg.type) {
                 conn = arg.connection;
                 switch (arg.type) {
                     case 'tables': objectType = 'table'; break;
@@ -54,8 +59,8 @@ export function registerCreateObjectCommand(
         try {
             const doc = await vscode.workspace.openTextDocument({ language: 'sql', content: script });
             await vscode.window.showTextDocument(doc);
-        } catch (err: any) {
-            vscode.window.showErrorMessage(`Error creating object script: ${err.message}`);
+        } catch (err) {
+            vscode.window.showErrorMessage(`Error creating object script: ${(err as Error).message}`);
         }
     }));
 }

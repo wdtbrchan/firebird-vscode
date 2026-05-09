@@ -7,6 +7,10 @@ import { SourceCodePanel } from '../../editors/sourceCodePanel';
 import { IndexInfoPanel } from '../../editors/indexInfoPanel';
 import { GeneratorInfoPanel } from '../../editors/generatorInfoPanel';
 
+/* eslint-disable @typescript-eslint/no-explicit-any --
+ * Tree-menu command args have heterogeneous shapes; narrowing happens at runtime.
+ */
+
 export function registerInfoPanelsCommands(
     context: vscode.ExtensionContext
 ): void {
@@ -38,7 +42,7 @@ export function registerInfoPanelsCommands(
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.openSourceInfo', async (arg1: any, arg2?: any) => {
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.openSourceInfo', async (arg1: any, _arg2?: any) => {
         let name: string | undefined;
         let connection: DatabaseConnection | undefined;
         let type: 'trigger' | 'procedure' | 'view' | 'function' | 'generator' | undefined;

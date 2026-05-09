@@ -20,6 +20,12 @@ export class Database {
         return QueryExecutor.executeQuery(id, query, connection, queryOptions);
     }
 
+    /**
+     * Returns raw RDB$ rows. Typed as `any[]` so each metadata service can
+     * read columns by name without casting every field — they map the rows
+     * to their own typed result.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     public static async runMetaQuery(id: string, connection: DatabaseConnection, query: string): Promise<any[]> {
         return QueryExecutor.runMetaQuery(id, connection, query);
     }

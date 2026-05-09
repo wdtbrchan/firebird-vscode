@@ -23,7 +23,6 @@ export class ScriptParser {
         while (i < script.length) {
             const char = script[i];
             const nextChar = script[i + 1] || '';
-            const prevChar = i > 0 ? script[i - 1] : '';
 
             // Handle comments
             if (inLineComment) {

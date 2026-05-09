@@ -7,12 +7,24 @@ import { CsvFormat, formatCsvRows } from './csvFormat';
 const EXPORT_TX_ID = 'firebird-export';
 const EXPORT_BATCH_SIZE = 500;
 
+/**
+ * Message payload posted from the export config webview.
+ */
+export interface CsvExportMessage {
+    delimiter?: string;
+    qualifier?: string;
+    encoding?: string;
+    filename?: string;
+    decimalSeparator?: string;
+    onProgress?: (status: string) => void;
+}
+
 export class ExportService {
     public static async exportCsv(
         panel: vscode.WebviewPanel | undefined,
         currentQuery: string | undefined,
         currentConnection: DatabaseConnection | undefined,
-        message: any
+        message: CsvExportMessage
     ) {
         const delimiter: string = message.delimiter || ';';
         const qualifier: string = message.qualifier || '"';
@@ -76,14 +88,14 @@ export class ExportService {
             vscode.window.showInformationMessage(`CSV exported: ${allRows.length} rows → ${uri.fsPath}`);
             reportProgress('');
 
-        } catch (err: any) {
+        } catch (err) {
             reportProgress('');
-            vscode.window.showErrorMessage(`Export failed: ${err.message}`);
+            vscode.window.showErrorMessage(`Export failed: ${(err as Error).message}`);
         } finally {
             // Always release the dedicated export transaction so we never leave it open.
             try {
                 await Database.rollback(EXPORT_TX_ID, 'Export finished');
-            } catch (e) {
+            } catch (_e) {
                 // ignore – may not exist if attach failed
             }
         }
@@ -98,8 +110,8 @@ export class ExportService {
         connection: DatabaseConnection,
         query: string,
         onProgress: (count: number) => void
-    ): Promise<any[]> {
-        const collected: any[] = [];
+    ): Promise<Record<string, unknown>[]> {
+        const collected: Record<string, unknown>[] = [];
         let offset = 0;
         // Loop until executeQuery reports no more rows.
         // executeQuery reuses the active statement when offset > 0 and the

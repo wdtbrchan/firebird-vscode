@@ -2,6 +2,14 @@
 import * as vscode from 'vscode';
 import { FolderItem } from './databaseItems';
 import { DatabaseConnection } from '../../database/types';
+import { Trigger } from '../../services/metadataService';
+
+/**
+ * A TriggerGroupItem may contain either nested groups/items (when triggers
+ * have already been mapped to TreeItems) or raw trigger metadata rows from
+ * MetadataService.getTriggers (before they've been mapped).
+ */
+export type TriggerLikeEntry = Trigger | TriggerGroupItem | TriggerItem;
 
 export class TriggerFolderItem extends FolderItem {
     constructor(
@@ -18,7 +26,7 @@ export class TriggerFolderItem extends FolderItem {
 export class TriggerGroupItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
-        public readonly triggers: any[], // Store triggers directly or TriggerItems
+        public readonly triggers: TriggerLikeEntry[], // Either nested groups/items or trigger metadata rows
         public readonly connection: DatabaseConnection,
         state: vscode.TreeItemCollapsibleState = vscode.TreeItemCollapsibleState.Collapsed,
         uniquePath?: string

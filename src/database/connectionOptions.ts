@@ -6,6 +6,8 @@ import { DatabaseConnection } from './types';
  * Centralizes the mapping so callers can't drift on encoding / lowercase_keys.
  */
 export function toFirebirdOptions(conn: DatabaseConnection): Firebird.Options {
+    // Cast through `unknown` because node-firebird's typings don't include
+    // every option we set (e.g. lowercase_keys, encoding string variants).
     return {
         host: conn.host,
         port: conn.port,
@@ -15,5 +17,5 @@ export function toFirebirdOptions(conn: DatabaseConnection): Firebird.Options {
         role: conn.role,
         encoding: 'NONE',
         lowercase_keys: false
-    } as any;
+    } as unknown as Firebird.Options;
 }

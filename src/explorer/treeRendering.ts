@@ -6,10 +6,10 @@ import type { ScriptService } from '../services/scriptService';
 
 import { ConnectionGroup, FolderItem, ObjectItem, FilterItem } from './treeItems/databaseItems';
 import { DatabaseConnection } from '../database/types';
-import { FavoriteItem, FavoritesRootItem, FavoriteFolderItem, FavoriteScriptItem, FavoriteIndexItem } from './treeItems/favoritesItems';
-import { ScriptItem, ScriptFolderItem } from './treeItems/scriptItems';
-import { TriggerGroupItem, TableTriggersItem, TriggerItem, TriggerOperationItem, TriggerFolderItem } from './treeItems/triggerItems';
-import { TableIndexesItem, CreateNewIndexItem, IndexItem, IndexOperationItem } from './treeItems/indexItems';
+import { FavoriteItem, FavoritesRootItem, FavoriteFolderItem } from './treeItems/favoritesItems';
+import { ScriptFolderItem } from './treeItems/scriptItems';
+import { TriggerGroupItem, TableTriggersItem, TriggerItem, TriggerFolderItem } from './treeItems/triggerItems';
+import { TableIndexesItem, IndexItem } from './treeItems/indexItems';
 import { OperationItem } from './treeItems/operationItems';
 import { PaddingItem } from './treeItems/common';
 import { getGroupedTriggers, getTriggerList } from './triggerRendering';
@@ -43,10 +43,17 @@ export interface TreeRenderingContext {
 
 
 /**
+ * Any element that may appear in the explorer tree. Concrete shape is
+ * narrowed via `instanceof` / property checks inside the rendering helpers.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- union of >20 unrelated tree node shapes
+export type TreeElement = any;
+
+/**
  * Builds a vscode.TreeItem from any tree element.
  */
 export function buildTreeItem(
-    element: any,
+    element: TreeElement,
     ctx: TreeRenderingContext
 ): vscode.TreeItem {
     if (element instanceof vscode.TreeItem) {
@@ -55,7 +62,6 @@ export function buildTreeItem(
 
     if ('host' in element) {
         // It's a connection
-        const isLocal = element.host === '127.0.0.1' || element.host === 'localhost';
         const label = element.name || path.basename(element.database);
         
         const isActive = element.id === ctx.getActiveConnectionId();
@@ -140,10 +146,10 @@ export function buildTreeItem(
  * Returns children for a given tree element (or root if undefined).
  */
 export async function getTreeChildren(
-    element: any | undefined,
+    element: TreeElement | undefined,
     ctx: TreeRenderingContext,
     isLoading: boolean
-): Promise<any[]> {
+): Promise<TreeElement[]> {
     if (isLoading && !element) {
         return [];
     }

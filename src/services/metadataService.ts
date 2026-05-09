@@ -15,7 +15,7 @@ import { TriggerService } from './metadata/triggerService';
 import { IndexService } from './metadata/indexService';
 import { GeneratorService } from './metadata/generatorService';
 import { PermissionService } from './metadata/permissionService';
-import { TablePermission, Trigger, IndexDetails } from './metadata/types';
+import { TablePermission } from './metadata/types';
 
 /**
  * Facade over the per-object metadata services. Kept thin – all methods

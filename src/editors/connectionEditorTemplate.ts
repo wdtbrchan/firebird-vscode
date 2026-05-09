@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import * as fs from 'fs';
 import { ConnectionGroup } from '../explorer/treeItems/databaseItems';
 import { DatabaseConnection } from '../database/types';
@@ -69,22 +68,9 @@ export function getConnectionEditorHtml(
         return `<html><body>Error loading HTML template: ${e}</body></html>`;
     }
 
-    // URIs for Webview
-    // We need to pass the webview instance to correctly generate `asWebviewUri`. 
-    // Wait, the original getConnectionEditorHtml doesn't take the webview instance. It takes `extensionUri: any`.
-    // It used to do: href="${extensionUri}/node_modules/@vscode/codicons/dist/codicon.css"
-    // So let's maintain the same approach or pass a dummy one.
-    // In original code: <link href="${extensionUri}/node_modules/@vscode/codicons/dist/codicon.css" rel="stylesheet" />
-    
-    const cssUri = `${extensionUri}/src/editors/connectionEditor.css`;
-    const jsUri = `${extensionUri}/src/editors/connectionEditor.js`;
-    // BUT wait! InVS Code webviews, loading file:// URIs directly is blocked by CSP and security.
-    // The previous implementation used inline CSS and JS. Now that they are external, if we use just strings, it won't load! 
-    // Let's actually INLINE the generated CSS and JS into the HTML, or we MUST change the signature to take the webview to use webview.asWebviewUri.
-    
-    // Changing signature would break callers. Let's just INLINE the CSS and JS for now, which achieves 
-    // separation of files while keeping the webview code simple and robust.
-    
+    // CSS and JS are inlined into the HTML because webviews can't load
+    // arbitrary file:// URIs without going through `webview.asWebviewUri`,
+    // and this function does not have access to the webview instance.
     const cssPath = vscode.Uri.joinPath(extensionUri, 'src', 'editors', 'connectionEditor.css').fsPath;
     const jsPath = vscode.Uri.joinPath(extensionUri, 'src', 'editors', 'connectionEditor.js').fsPath;
     const cssContent = fs.readFileSync(cssPath, 'utf8');

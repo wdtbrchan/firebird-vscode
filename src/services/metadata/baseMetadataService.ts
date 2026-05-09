@@ -7,13 +7,13 @@ export class BaseMetadataService {
         return rows.map(row => row[fieldName].trim());
     }
 
-    protected static decodeType(row: any): string {
+    protected static decodeType(row: Record<string, unknown>): string {
         let type = 'UNKNOWN';
-        const t = row.RDB$FIELD_TYPE;
-        const sub = row.RDB$FIELD_SUB_TYPE;
-        const len = row.RDB$FIELD_LENGTH;
-        const precision = row.RDB$FIELD_PRECISION;
-        const scale = row.RDB$FIELD_SCALE; // negative in Firebird (e.g. -2 = 2 decimal places)
+        const t = row.RDB$FIELD_TYPE as number | undefined;
+        const sub = row.RDB$FIELD_SUB_TYPE as number | undefined;
+        const len = row.RDB$FIELD_LENGTH as number | undefined;
+        const precision = row.RDB$FIELD_PRECISION as number | undefined;
+        const scale = row.RDB$FIELD_SCALE as number | undefined; // negative in Firebird (e.g. -2 = 2 decimal places)
 
         // Helper to format NUMERIC/DECIMAL with precision and scale
         const numericType = (typeName: string): string => {

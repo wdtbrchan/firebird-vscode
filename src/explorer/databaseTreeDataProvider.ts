@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
 
-import { ConnectionEditor } from '../editors/connectionEditor';
-import { Database } from '../database';
 import { ScriptService } from '../services/scriptService';
 
 // Re-exporting from separate files to maintain backward compatibility and cleaner organization
@@ -15,8 +13,8 @@ export * from './treeItems/common';
 
 import { ConnectionGroup, FolderItem, ObjectItem, FilterItem } from './treeItems/databaseItems';
 import { DatabaseConnection } from '../database/types';
-import { 
-    FavoriteItem, FavoritesRootItem, FavoriteFolderItem, FavoriteScriptItem, FavoriteIndexItem 
+import {
+    FavoriteItem, FavoritesRootItem, FavoriteFolderItem
 } from './treeItems/favoritesItems';
 import { 
     ScriptItem, ScriptFolderItem 
@@ -43,7 +41,7 @@ import { ConnectionManager } from './connectionManager';
 import { GroupManager } from './groupManager';
 import { FilterManager } from './filterManager';
 import { backupConnections, restoreConnections } from './backupRestoreManager';
-import { buildTreeItem, getTreeChildren, TreeRenderingContext } from './treeRendering';
+import { buildTreeItem, getTreeChildren, TreeRenderingContext, TreeElement } from './treeRendering';
 
 export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<DatabaseConnection | ConnectionGroup | FolderItem | TriggerFolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem> {
     private _onDidChangeTreeData: vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerFolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void> = new vscode.EventEmitter<DatabaseConnection | ConnectionGroup | FolderItem | TriggerFolderItem | TriggerGroupItem | TableTriggersItem | TableIndexesItem | ObjectItem | OperationItem | CreateNewIndexItem | IndexItem | IndexOperationItem | TriggerItem | TriggerOperationItem | FilterItem | ScriptItem | ScriptFolderItem | FavoritesRootItem | FavoriteFolderItem | PaddingItem | vscode.TreeItem | undefined | void>();
@@ -57,7 +55,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
     public readonly scriptService: ScriptService;
 
     private _loading: boolean = true;
-    private treeView: vscode.TreeView<any> | undefined;
+    private treeView: vscode.TreeView<TreeElement> | undefined;
 
     // View state for triggers (not persisted to disk)
     private triggerViewModes: Map<string, 'grouped' | 'list'> = new Map();
@@ -92,7 +90,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
             });
     }
 
-    public setTreeView(treeView: vscode.TreeView<any>) {
+    public setTreeView(treeView: vscode.TreeView<TreeElement>) {
         this.treeView = treeView;
     }
 
@@ -118,7 +116,7 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         this._onDidChangeTreeData.fire(undefined);
     }
 
-    refreshItem(item?: any): void {
+    refreshItem(item?: TreeElement): void {
         this._onDidChangeTreeData.fire(item);
     }
 
@@ -180,8 +178,8 @@ export class DatabaseTreeDataProvider implements vscode.TreeDataProvider<Databas
         return buildTreeItem(element, this.renderingContext);
     }
 
-    getParent(element: any): vscode.ProviderResult<any> {
-        if (element.host && element.database) { 
+    getParent(element: TreeElement): vscode.ProviderResult<TreeElement> {
+        if (element.host && element.database) {
              const conn = element as DatabaseConnection;
              if (conn.groupId) {
                  return this.groupManager.getGroups().find(g => g.id === conn.groupId);

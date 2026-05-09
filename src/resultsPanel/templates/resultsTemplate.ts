@@ -8,9 +8,10 @@ import { getHeaderHtml, resolveConnectionColor } from './headerTemplate';
 import { getInfoBarHtml, InfoBarParams } from './infoBarTemplate';
 import { getErrorHtml, getNoResultsHtml, getResultsTableHtml, escapeHtml } from './contentTemplates';
 import { iconCommit, iconRollback } from './icons';
+import { DatabaseConnection } from '../../database/types';
 
 export interface ResultsPageParams {
-    results: any[];
+    results: Record<string, unknown>[];
     message: string | undefined;
     showButtons: boolean;
     isError: boolean;
@@ -21,7 +22,7 @@ export interface ResultsPageParams {
     affectedRows: number | undefined;
     currentQuery: string | undefined;
     displayQuery?: string;
-    currentConnection: any;
+    currentConnection: DatabaseConnection | undefined;
     lastExecutionTime: number | undefined;
     autoRollbackAt: number;
     locale: string;

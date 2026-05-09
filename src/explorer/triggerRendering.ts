@@ -13,11 +13,12 @@ export async function getGroupedTriggers(
     context: string,
     tableName?: string, 
     filter?: string, 
-    forceGroup?: boolean
+    _forceGroup?: boolean
 ): Promise<TriggerGroupItem[]> {
     try {
         const allTriggers = await MetadataService.getTriggers(connection, tableName);
-        const hierarchy: { [event: string]: { [time: string]: any[] } } = {};
+        type TriggerEntry = typeof allTriggers[number];
+        const hierarchy: { [event: string]: { [time: string]: TriggerEntry[] } } = {};
         
         for (const t of allTriggers) {
             if (filter && !t.name.toLowerCase().includes(filter.toLowerCase())) {
@@ -110,9 +111,9 @@ export async function getGroupedTriggers(
         }
         
         return result;
-    } catch (err: any) {
+    } catch (err) {
         console.error('Error getting grouped triggers:', err);
-        vscode.window.showErrorMessage(`Error loading grouped triggers: ${err.message}`);
+        vscode.window.showErrorMessage(`Error loading grouped triggers: ${(err as Error).message}`);
         return [];
     }
 }

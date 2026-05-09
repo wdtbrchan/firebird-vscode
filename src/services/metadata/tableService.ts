@@ -2,7 +2,7 @@ import { DatabaseConnection } from '../../database/types';
 import { Database } from '../../database';
 import { MetadataQueries } from '../metadataQueries';
 import { BaseMetadataService } from './baseMetadataService';
-import { TableColumn, TableDependency, TablePermission } from './types';
+import { TableColumn, TableDependency } from './types';
 
 export class TableService extends BaseMetadataService {
     public static async getTables(connection: DatabaseConnection): Promise<string[]> {

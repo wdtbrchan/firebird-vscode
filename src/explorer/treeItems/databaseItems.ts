@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { DatabaseConnection } from '../../database/types';
 
 export interface ConnectionGroup {

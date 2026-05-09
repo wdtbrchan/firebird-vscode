@@ -3,11 +3,17 @@ import { DatabaseTreeDataProvider } from './databaseTreeDataProvider';
 import { FavoritesRootItem, FavoriteFolderItem, FavoriteScriptItem, FavoriteItem } from './treeItems/favoritesItems';
 import { ScriptItem, ScriptFolderItem } from './treeItems/scriptItems';
 import { ObjectItem, FolderItem } from './treeItems/databaseItems';
-import { ScriptService, ScriptItemData } from '../services/scriptService';
+import { ScriptItemData } from '../services/scriptService';
+
+/* eslint-disable @typescript-eslint/no-explicit-any --
+ * Drop targets come from vscode tree drag&drop with one of many shapes
+ * (FolderItem, ScriptFolderItem, ScriptItem, FavoritesRootItem, …).
+ * Narrowed at runtime via instanceof / contextValue checks.
+ */
 
 export class DropHandlers {
     public static handleFavoriteDrop(
-        target: any | undefined,
+        target: any,
         dataTransfer: vscode.DataTransfer,
         provider: DatabaseTreeDataProvider
     ): boolean {
@@ -70,7 +76,7 @@ export class DropHandlers {
     }
 
     public static handleScriptDrop(
-        target: any | undefined,
+        target: any,
         dataTransfer: vscode.DataTransfer,
         provider: DatabaseTreeDataProvider
     ): boolean {

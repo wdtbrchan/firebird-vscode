@@ -2,6 +2,12 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ScriptService, ScriptItemData } from '../services/scriptService';
 
+/* eslint-disable @typescript-eslint/no-explicit-any --
+ * Command handler arguments come from VS Code with shape that depends on
+ * the call site (tree node, palette, codelens). Narrowed with property
+ * checks at runtime.
+ */
+
 export function registerScriptCommands(
     context: vscode.ExtensionContext,
     scriptService: ScriptService

@@ -8,7 +8,7 @@ export interface QueryOptions {
 }
 
 export interface QueryResult {
-    rows: any[];
+    rows: Record<string, unknown>[];
     affectedRows?: number;
     hasMore?: boolean;
 }

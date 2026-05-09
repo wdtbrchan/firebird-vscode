@@ -28,7 +28,7 @@ export class TriggerService extends BaseMetadataService {
             const seq = row.RDB$TRIGGER_SEQUENCE || 0;
             const inactive = row.RDB$TRIGGER_INACTIVE === 1;
             const type = row.RDB$TRIGGER_TYPE || 0;
-            
+
             const typeStr = this.decodeTriggerType(type);
 
             return `CREATE TRIGGER ${name} FOR ${relation} ${inactive ? 'INACTIVE' : 'ACTIVE'}\n${typeStr} POSITION ${seq}\n${source}`;

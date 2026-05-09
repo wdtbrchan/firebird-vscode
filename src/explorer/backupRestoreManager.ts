@@ -5,17 +5,23 @@ import { DatabaseConnection } from '../database/types';
 import { FavoriteItem } from './treeItems/favoritesItems';
 import { ScriptService } from '../services/scriptService';
 
+interface TreeMergeNode {
+    id?: string;
+    children?: TreeMergeNode[];
+    [other: string]: unknown;
+}
+
 /**
  * Helper for merging recursive tree structures (Favorites, Scripts) based on ID.
  */
-export function mergeTrees(existing: any[], incoming: any[]) {
+export function mergeTrees(existing: TreeMergeNode[], incoming: TreeMergeNode[]): void {
     for (const newItem of incoming) {
         const existingItem = existing.find(e => e.id === newItem.id);
         if (existingItem) {
-             if (newItem.children && newItem.children.length > 0) {
-                 if (!existingItem.children) existingItem.children = [];
-                 mergeTrees(existingItem.children, newItem.children);
-             }
+            if (newItem.children && newItem.children.length > 0) {
+                if (!existingItem.children) existingItem.children = [];
+                mergeTrees(existingItem.children, newItem.children);
+            }
         } else {
             existing.push(newItem);
         }
@@ -67,8 +73,8 @@ export async function backupConnections(
     try {
         await vscode.workspace.fs.writeFile(result, Buffer.from(JSON.stringify(data, null, 2), 'utf8'));
         vscode.window.showInformationMessage('Configuration backed up successfully.');
-    } catch (err: any) {
-        vscode.window.showErrorMessage(`Backup failed: ${err.message}`);
+    } catch (err) {
+        vscode.window.showErrorMessage(`Backup failed: ${(err as Error).message}`);
     }
 }
 
@@ -101,7 +107,7 @@ export async function restoreConnections(
         }
 
         const hasPlainPasswords = Array.isArray(data.connections)
-            && data.connections.some((c: any) => typeof c?.password === 'string' && c.password.length > 0);
+            && data.connections.some((c: { password?: unknown }) => typeof c?.password === 'string' && (c.password as string).length > 0);
         if (hasPlainPasswords) {
             vscode.window.showInformationMessage('Imported passwords will be moved to VS Code SecretStorage.');
         }
@@ -174,7 +180,7 @@ export async function restoreConnections(
                 for (const connId in data.favorites) {
                     const newFavs = data.favorites[connId] as FavoriteItem[];
                     const existingFavs = favorites.get(connId) || [];
-                    mergeTrees(existingFavs, newFavs);
+                    mergeTrees(existingFavs as unknown as TreeMergeNode[], newFavs as unknown as TreeMergeNode[]);
                     favorites.set(connId, existingFavs);
                 }
             }
@@ -184,16 +190,16 @@ export async function restoreConnections(
                 const currentState = scriptService.getFullState();
                 
                 if (data.scripts.shared) {
-                    mergeTrees(currentState.shared, data.scripts.shared);
+                    mergeTrees(currentState.shared as unknown as TreeMergeNode[], data.scripts.shared);
                 }
 
                 const connectionScripts = data.scripts.connections || data.scripts.local;
-                
+
                 if (connectionScripts) {
                     if (!currentState.connections) currentState.connections = {};
                     for (const connId in connectionScripts) {
                          if (!currentState.connections[connId]) currentState.connections[connId] = [];
-                         mergeTrees(currentState.connections[connId], connectionScripts[connId]);
+                         mergeTrees(currentState.connections[connId] as unknown as TreeMergeNode[], connectionScripts[connId]);
                     }
                 }
                 scriptService.setFullState(currentState);
@@ -204,8 +210,8 @@ export async function restoreConnections(
 
         return { connections, groups, activeConnectionId };
 
-    } catch (err: any) {
-         vscode.window.showErrorMessage(`Restore failed: ${err.message}`);
+    } catch (err) {
+         vscode.window.showErrorMessage(`Restore failed: ${(err as Error).message}`);
          return undefined;
     }
 }

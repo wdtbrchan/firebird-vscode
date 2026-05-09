@@ -2,6 +2,10 @@ import * as vscode from 'vscode';
 import { DatabaseConnection } from '../database/types';
 import { DatabaseTreeDataProvider } from '../explorer/databaseTreeDataProvider';
 
+/* eslint-disable @typescript-eslint/no-explicit-any --
+ * Tree-menu command args have heterogeneous shapes; narrowing happens at runtime.
+ */
+
 export function registerIndexTriggerCommands(
     context: vscode.ExtensionContext,
     treeDataProvider: DatabaseTreeDataProvider

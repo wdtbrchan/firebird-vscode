@@ -2,12 +2,13 @@ import * as vscode from 'vscode';
 import { TreeRenderingContext } from '../treeRendering';
 import { ScriptFolderItem, ScriptItem } from '../treeItems/scriptItems';
 import { FolderItem } from '../treeItems/databaseItems';
+import { ScriptItemData } from '../../services/scriptService';
 
 export function getScriptFolderChildren(element: FolderItem | ScriptFolderItem, ctx: TreeRenderingContext): vscode.TreeItem[] {
     const service = ctx.scriptService;
     const items: vscode.TreeItem[] = [];
     let scriptConnectionId: string | undefined;
-    let scriptsToRender: any[] = [];
+    let scriptsToRender: ScriptItemData[] = [];
     
     if (element instanceof FolderItem) {
         if (element.type === 'local-scripts') {

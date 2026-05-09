@@ -1,4 +1,3 @@
-import * as vscode from 'vscode';
 import { TreeRenderingContext } from '../treeRendering';
 import { ObjectItem } from '../treeItems/databaseItems';
 import { OperationItem } from '../treeItems/operationItems';
@@ -49,7 +48,7 @@ export async function getObjectOperationChildren(element: ObjectItem, ctx: TreeR
             try {
                 const val = await MetadataService.getGeneratorValue(element.connection, element.label);
                 ops.push(new OperationItem(`Value: ${val}`, 'info', element));
-            } catch(e) {
+            } catch {
                 ops.push(new OperationItem(`Value: Error`, 'info', element));
             }
     }

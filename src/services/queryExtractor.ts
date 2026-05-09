@@ -17,7 +17,8 @@ export class QueryExtractor {
             return null;
         }
 
-        let { content, quoteChar, start } = stringInfo;
+        const { quoteChar, start } = stringInfo;
+        let { content } = stringInfo;
 
         // 2. Cleanup
         if (quoteChar === '"') {

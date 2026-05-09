@@ -2,39 +2,43 @@
 import * as vscode from 'vscode';
 import { DatabaseTreeDataProvider } from './databaseTreeDataProvider';
 import { DatabaseConnection } from '../database/types';
-import { FavoritesRootItem, FavoriteFolderItem, FavoriteScriptItem, FavoriteItem } from './treeItems/favoritesItems';
+import { FavoriteFolderItem, FavoriteScriptItem, FavoriteItem } from './treeItems/favoritesItems';
 import { ScriptItem, ScriptFolderItem } from './treeItems/scriptItems';
-import { ObjectItem, FolderItem } from './treeItems/databaseItems';
-import { ScriptService, ScriptItemData } from '../services/scriptService';
+import { ObjectItem } from './treeItems/databaseItems';
 import { DropHandlers } from './dropHandlers';
 
-export class DatabaseDragAndDropController implements vscode.TreeDragAndDropController<any> {
+type TreeElement = unknown;
+
+export class DatabaseDragAndDropController implements vscode.TreeDragAndDropController<TreeElement> {
     public dropMimeTypes = ['application/vnd.code.tree.firebird-databases', 'application/vnd.code.tree.firebird-scripts', 'application/vnd.code.tree.firebird-favorites'];
     public dragMimeTypes = ['application/vnd.code.tree.firebird-databases', 'application/vnd.code.tree.firebird-scripts', 'application/vnd.code.tree.firebird-favorites'];
 
     constructor(private provider: DatabaseTreeDataProvider) {}
 
-    private isConnectionItem(item: any): boolean {
-        const res = item && 'host' in item;
-        // console.log('isConnectionItem', item, res);
-        return res;
+    private isConnectionItem(item: unknown): item is DatabaseConnection {
+        return !!item && typeof item === 'object' && 'host' in item;
     }
 
-    private isGroupItem(item: any): boolean {
-        const res = item && !this.isConnectionItem(item) && !(item instanceof vscode.TreeItem) && 'id' in item && 'name' in item;
-        // console.log('isGroupItem', item, res);
-        return res;
+    private isGroupItem(item: unknown): item is { id: string; name: string } {
+        if (!item || typeof item !== 'object') return false;
+        if (this.isConnectionItem(item)) return false;
+        if (item instanceof vscode.TreeItem) return false;
+        return 'id' in item && 'name' in item;
     }
 
-    private isScriptItem(item: any): boolean {
-        return item instanceof ScriptItem || (item && (item.contextValue === 'script-file' || item.contextValue === 'script-file-favorite'));
+    private isScriptItem(item: unknown): boolean {
+        return item instanceof ScriptItem || (!!item && typeof item === 'object' && (
+            (item as { contextValue?: string }).contextValue === 'script-file' ||
+            (item as { contextValue?: string }).contextValue === 'script-file-favorite'
+        ));
     }
 
-    private isScriptFolderItem(item: any): boolean {
-        return item instanceof ScriptFolderItem || (item && item.contextValue === 'script-folder');
+    private isScriptFolderItem(item: unknown): boolean {
+        return item instanceof ScriptFolderItem ||
+            (!!item && typeof item === 'object' && (item as { contextValue?: string }).contextValue === 'script-folder');
     }
 
-    handleDrag(source: any[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): void | Thenable<void> {
+    handleDrag(source: TreeElement[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): void | Thenable<void> {
         console.log('handleDrag called', source);
         const item = source[0];
         if (!item) return;
@@ -79,7 +83,7 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
         }
     }
 
-    handleDrop(target: any | undefined, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): void | Thenable<void> {
+    handleDrop(target: TreeElement | undefined, dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken): void | Thenable<void> {
         console.log('handleDrop called. Target:', target);
         
         // Handle Favorite Drop
@@ -122,11 +126,12 @@ export class DatabaseDragAndDropController implements vscode.TreeDragAndDropCont
                 }
 
                 if (this.isGroupItem(target)) {
-                    if (droppedItem.id === target.id) return;
+                    const draggedGroup = droppedItem as { id: string };
+                    if (draggedGroup.id === target.id) return;
                     const allGroups = this.provider.groupManager.getGroups();
                     const targetIndex = allGroups.findIndex(g => g.id === target.id);
                     if (targetIndex >= 0) {
-                        this.provider.groupManager.moveGroup(droppedItem.id, targetIndex);
+                        this.provider.groupManager.moveGroup(draggedGroup.id, targetIndex);
                     }
                 }
             }

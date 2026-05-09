@@ -27,10 +27,12 @@ export function registerFilterCommands(
         inputBox.show();
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.clearFilter', async (item: any) => {
-        if (item && item.command && item.command.arguments && item.command.arguments.length >= 2) {
-             const connection = item.command.arguments[0];
-             const type = item.command.arguments[1];
+    interface ClearFilterItem {
+        command?: { arguments?: [DatabaseConnection, string] };
+    }
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.clearFilter', async (item: ClearFilterItem) => {
+        if (item?.command?.arguments && item.command.arguments.length >= 2) {
+             const [connection, type] = item.command.arguments;
              databaseTreeDataProvider.filterManager.setFilter(connection.id, type, '');
              databaseTreeDataProvider.refreshItem(connection);
         }

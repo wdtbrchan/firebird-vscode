@@ -53,7 +53,7 @@ export class ExportConfigPanel {
         defaultEncoding: string,
         defaultDecimalSeparator: string,
         defaultFilename: string,
-        cspSource: string
+        _cspSource: string
     ): string {
         const cssPath = vscode.Uri.joinPath(extensionUri, 'src', 'resultsPanel', 'templates', 'styles.css').fsPath;
         let styles = '';

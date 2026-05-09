@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { Database } from '../database';
 import { resolveConnectionColor, getHeaderHtml } from './templates/headerTemplate';
 import { getLoadingHtml } from './templates/loadingTemplate';
 import { getResultsPageHtml } from './templates/resultsTemplate';
@@ -14,7 +13,7 @@ export class ResultsPanel {
     private readonly _extensionUri: vscode.Uri;
     private readonly _id: string;
     private _disposables: vscode.Disposable[] = [];
-    private _lastResults: any[] = [];
+    private _lastResults: Record<string, unknown>[] = [];
     private _lastMessage: string | undefined;
     private _showButtons: boolean = false;
     private _currentQuery: string | undefined;
@@ -191,7 +190,7 @@ export class ResultsPanel {
 
 
 
-    private _appendRowsToWebview(newRows: any[], startIndex: number, hasMore: boolean, affectedRows?: number) {
+    private _appendRowsToWebview(newRows: Record<string, unknown>[], startIndex: number, hasMore: boolean, affectedRows?: number) {
         const config = vscode.workspace.getConfiguration('firebird');
         const locale = this._currentConnection?.resultLocale || config.get<string>('resultLocale', 'en-US');
         
@@ -218,7 +217,7 @@ export class ResultsPanel {
 
 
 
-    private _updateContentForTable(results: any[], hasTransaction: boolean, context?: string, hasMore: boolean = false, affectedRows?: number) {
+    private _updateContentForTable(results: Record<string, unknown>[], hasTransaction: boolean, context?: string, hasMore: boolean = false, affectedRows?: number) {
          this._isLoading = false;
          this._lastResults = results;
          this._lastMessage = undefined;
@@ -232,7 +231,7 @@ export class ResultsPanel {
          this._panel.webview.html = this._getHtmlForWebview(results, undefined, hasTransaction, false, this._lastContext, hasMore, undefined, affectedRows);
     }
 
-    public update(results: any[], hasTransaction: boolean, context?: string) {
+    public update(results: Record<string, unknown>[], hasTransaction: boolean, context?: string) {
         this._updateContentForTable(results, hasTransaction, context, false);
     }
 
@@ -257,7 +256,7 @@ export class ResultsPanel {
         });
     }
 
-    private _getHtmlForWebview(results: any[], message: string | undefined, showButtons: boolean, isError: boolean, context: string | undefined, hasMore?: boolean, transactionAction?: string, affectedRows?: number, isPlan: boolean = false): string {
+    private _getHtmlForWebview(results: Record<string, unknown>[], message: string | undefined, showButtons: boolean, isError: boolean, context: string | undefined, hasMore?: boolean, transactionAction?: string, affectedRows?: number, isPlan: boolean = false): string {
         this._hasMore = hasMore || false;
 
         const config = vscode.workspace.getConfiguration('firebird');
@@ -292,7 +291,6 @@ export class ResultsPanel {
 
 
     public dispose() {
-        const tm = (Database as any).TransactionManager ? undefined : undefined; // Database dependency removed/refactored, it's safer to not forcefully rollback on panel close if it's per document, let the transaction manager expire it if needed. Or we could rollback. Let's not rollback. Just clean up.
         ResultsPanel.panels.delete(this._id);
         this._panel.dispose();
         while (this._disposables.length) {

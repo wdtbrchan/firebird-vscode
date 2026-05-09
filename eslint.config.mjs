@@ -6,8 +6,13 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   {
     rules: {
-      '@typescript-eslint/no-explicit-any': 'warn', // Downgrading for now since we have a lot
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': ['warn', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_'
+      }],
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       'prefer-const': 'warn'
     },
@@ -15,6 +20,14 @@ export default tseslint.config(
       parserOptions: {
         project: './tsconfig.json',
       },
+    }
+  },
+  {
+    // Tests use `any` liberally (mock contexts, error casts, ad-hoc fixtures);
+    // enforcing strict typing there has very low payoff.
+    files: ['src/test/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off'
     }
   },
   {

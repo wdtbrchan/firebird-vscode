@@ -6,7 +6,7 @@ import { DatabaseConnection } from '../database/types';
 import { TransactionManager } from '../database/transactionManager';
 
 export interface ExecutionDataEvent {
-    results: any[];
+    results: Record<string, unknown>[];
     affectedRows?: number;
     hasMore: boolean;
     append: boolean;
@@ -49,7 +49,7 @@ export class ExecutionService {
     private _displayQuery: string | undefined;
     private _currentOffset: number = 0;
     private _limit: number = 1000;
-    private _allResults: any[] = [];
+    private _allResults: Record<string, unknown>[] = [];
     private _lastExecutionTime: number | undefined;
     private _isExecuting: boolean = false;
 
@@ -137,9 +137,9 @@ export class ExecutionService {
                 connection: this._currentConnection,
                 executionTime: this._lastExecutionTime
             });
-        } catch (err: any) {
+        } catch (err) {
             const hasTransaction = Database.hasActiveTransaction(this.id);
-            this._onError.fire({ message: err.message, hasTransaction });
+            this._onError.fire({ message: (err as Error).message, hasTransaction });
         } finally {
             this._isExecuting = false;
             const end = performance.now();
@@ -193,9 +193,9 @@ export class ExecutionService {
                 }
                 executedCount++;
             }
-        } catch (err: any) {
+        } catch (err) {
             const hasTransaction = Database.hasActiveTransaction(this.id);
-            this._onError.fire({ message: `Script error at statement ${executedCount + 1}: ${err.message}`, hasTransaction });
+            this._onError.fire({ message: `Script error at statement ${executedCount + 1}: ${(err as Error).message}`, hasTransaction });
         } finally {
             this._isExecuting = false;
             const end = performance.now();
@@ -257,14 +257,14 @@ export class ExecutionService {
             });
             console.log(`[FB] _onData fired`);
 
-        } catch (err: any) {
+        } catch (err) {
             const elapsed = ((performance.now() - start) / 1000).toFixed(3);
-            console.log(`[FB] _fetchAndEmit ERROR | elapsed=${elapsed}s | message=${err.message}`);
+            console.log(`[FB] _fetchAndEmit ERROR | elapsed=${elapsed}s | message=${(err as Error).message}`);
             if (!append) {
                 this._lastExecutionTime = parseFloat(elapsed);
             }
             const hasTransaction = Database.hasActiveTransaction(this.id);
-            this._onError.fire({ message: err.message, hasTransaction });
+            this._onError.fire({ message: (err as Error).message, hasTransaction });
             throw err;
         }
     }

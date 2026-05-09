@@ -4,14 +4,15 @@
  * and any other tree-shaped state stored in the explorer.
  */
 
-interface TreeNode {
-    children?: any[];
+// Self-referential constraint so children are typed as the same node type.
+interface TreeNode<Self> {
+    children?: Self[];
 }
 
 /**
  * Returns the first node matching `predicate` in the tree (depth-first).
  */
-export function findInTree<T extends TreeNode>(list: T[], predicate: (node: T) => boolean): T | undefined {
+export function findInTree<T extends TreeNode<T>>(list: T[], predicate: (node: T) => boolean): T | undefined {
     for (const node of list) {
         if (predicate(node)) return node;
         if (node.children && node.children.length > 0) {
@@ -26,7 +27,7 @@ export function findInTree<T extends TreeNode>(list: T[], predicate: (node: T) =
  * Removes the first node matching `predicate` from the tree (depth-first).
  * Returns the removed node, or undefined if no match.
  */
-export function removeFromTree<T extends TreeNode>(list: T[], predicate: (node: T) => boolean): T | undefined {
+export function removeFromTree<T extends TreeNode<T>>(list: T[], predicate: (node: T) => boolean): T | undefined {
     const idx = list.findIndex(predicate);
     if (idx !== -1) {
         const [removed] = list.splice(idx, 1);
@@ -47,7 +48,7 @@ export function removeFromTree<T extends TreeNode>(list: T[], predicate: (node: 
  * If parent is not found, falls back to root.
  * `index` controls placement in the target list (default = append).
  */
-export function insertIntoTree<T extends TreeNode>(
+export function insertIntoTree<T extends TreeNode<T>>(
     list: T[],
     node: T,
     parentPredicate?: (node: T) => boolean,

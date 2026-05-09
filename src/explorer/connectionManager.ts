@@ -177,7 +177,7 @@ export class ConnectionManager {
         this.saveConnections();
     }
 
-    refreshDatabase(conn: DatabaseConnection, fireChange: (element: any) => void) {
+    refreshDatabase(conn: DatabaseConnection, fireChange: (element: DatabaseConnection) => void) {
         fireChange(conn);
     }
 
@@ -198,16 +198,16 @@ export class ConnectionManager {
         }
     }
 
-    async setActive(conn: DatabaseConnection, treeView?: vscode.TreeView<any>) {
+    async setActive(conn: DatabaseConnection, treeView?: vscode.TreeView<unknown>) {
         this.connectingConnectionIds.add(conn.id);
         this.saveConnections(); // Fire update to show spinner
 
         try {
             await Database.checkConnection(conn);
             this.failedConnectionIds.delete(conn.id);
-        } catch (err: any) {
-            this.failedConnectionIds.set(conn.id, err.message);
-            vscode.window.showErrorMessage(`Failed to connect to ${conn.name || conn.database}: ${err.message}`);
+        } catch (err) {
+            this.failedConnectionIds.set(conn.id, (err as Error).message);
+            vscode.window.showErrorMessage(`Failed to connect to ${conn.name || conn.database}: ${(err as Error).message}`);
             this.connectingConnectionIds.delete(conn.id);
             this.saveConnections(); 
             return; 

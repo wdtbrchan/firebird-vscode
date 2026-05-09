@@ -16,7 +16,7 @@ export class FavoritesManager {
         private context: vscode.ExtensionContext,
         private fireChanged: () => void
     ) {
-        const savedFavorites = this.context.globalState.get<any[]>('firebird.favoritesList', []);
+        const savedFavorites = this.context.globalState.get<{ key: string; value: FavoriteItem[] }[]>('firebird.favoritesList', []);
         savedFavorites.forEach(f => this.favorites.set(f.key, f.value));
     }
 
@@ -178,7 +178,7 @@ export class FavoritesManager {
     }
 
     public saveFavorites() {
-        const exportData: any[] = [];
+        const exportData: { key: string; value: FavoriteItem[] }[] = [];
         this.favorites.forEach((value, key) => {
             exportData.push({ key, value });
         });

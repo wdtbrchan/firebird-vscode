@@ -115,8 +115,8 @@ export function registerScriptCommands(
             });
             await vscode.window.showTextDocument(doc);
 
-        } catch (err: any) {
-            vscode.window.showErrorMessage(`Error generating script: ${err.message}`);
+        } catch (err) {
+            vscode.window.showErrorMessage(`Error generating script: ${(err as Error).message}`);
         }
     }));
 }

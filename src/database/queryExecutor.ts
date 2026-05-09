@@ -13,6 +13,46 @@ interface PreparedExecution {
 }
 
 /**
+ * Local minimal types for the bits of node-firebird we touch but which the
+ * library's published types omit. Intentionally narrow — only what we use.
+ */
+type FbErr = Error & { message: string };
+
+interface FbStatementOutputColumn {
+    alias?: string;
+    field?: string;
+}
+
+interface FbFetchResult {
+    data?: unknown[];
+    fetched?: boolean;
+}
+
+interface FbStatement {
+    output: FbStatementOutputColumn[];
+    type: number;
+    handle?: number;
+    plan?: string;
+    execute(tr: Firebird.Transaction, params: unknown[], cb: (err: FbErr | null, result: unknown, output: unknown, isSelect: boolean) => void, opts?: { asObject?: boolean }): void;
+    fetch(tr: Firebird.Transaction, limit: number, cb: (err: FbErr | null, ret: FbFetchResult) => void): void;
+    close(): void;
+    drop(): void;
+}
+
+interface FbConnection {
+    prepare(tr: Firebird.Transaction, query: string, b: boolean, cb: (err: FbErr | null, statement: FbStatement) => void): void;
+}
+
+interface FbTransactionWithExt extends Firebird.Transaction {
+    newStatement(query: string, cb: (err: FbErr | null, statement: FbStatement) => void): void;
+    connection?: FbConnection;
+}
+
+interface FbDatabaseWithEvents extends Firebird.Database {
+    on(event: 'error', cb: (err: FbErr) => void): void;
+}
+
+/**
  * Handles query execution, affected row counting, and metadata queries.
  */
 export class QueryExecutor {
@@ -20,7 +60,7 @@ export class QueryExecutor {
     /**
      * Runs a simple metadata query using a one-shot connection (no transaction reuse).
      */
-    public static async runMetaQuery(id: string, connection: DatabaseConnection, query: string): Promise<any[]> {
+    public static async runMetaQuery(id: string, connection: DatabaseConnection, query: string): Promise<Record<string, unknown>[]> {
         const config = vscode.workspace.getConfiguration('firebird');
         const encodingConf = connection.charset || config.get<string>('charset', 'UTF8');
         const options = toFirebirdOptions(connection);
@@ -29,8 +69,8 @@ export class QueryExecutor {
             Firebird.attach(options, (err, db) => {
                 if (err) return reject(err);
 
-                (db as any).on('error', (dbErr: any) => {
-                    try { db.detach(); } catch (e) { /* ignore */ }
+                (db as FbDatabaseWithEvents).on('error', (dbErr) => {
+                    try { db.detach(); } catch (_e) { /* ignore */ }
                     reject(dbErr);
                 });
 
@@ -38,16 +78,16 @@ export class QueryExecutor {
 
                 db.query(finalQuery, [], async (err, result) => {
                     if (err) {
-                        try { db.detach(); } catch (e) { /* ignore */ }
+                        try { db.detach(); } catch (_e) { /* ignore */ }
                         return reject(err);
                     }
 
                     try {
                         const rows = await processResultRows(result, encodingConf);
-                        try { db.detach(); } catch (e) { /* ignore */ }
+                        try { db.detach(); } catch (_e) { /* ignore */ }
                         resolve(rows);
                     } catch (readErr) {
-                        try { db.detach(); } catch (e) { /* ignore */ }
+                        try { db.detach(); } catch (_e) { /* ignore */ }
                         reject(readErr);
                     }
                 });
@@ -77,7 +117,7 @@ export class QueryExecutor {
                 console.log(`[FB] QueryExecutor.executeQuery RESOLVE | rows=${res.rows.length} | affectedRows=${res.affectedRows} | elapsed=${((performance.now() - t0) / 1000).toFixed(3)}s`);
                 resolve(res);
             };
-            const wrapReject = (err: any) => {
+            const wrapReject = (err: Error) => {
                 tm.currentReject = undefined;
                 tm.resetAutoRollback();
                 console.log(`[FB] QueryExecutor.executeQuery REJECT | elapsed=${((performance.now() - t0) / 1000).toFixed(3)}s | message=${err.message}`);
@@ -86,15 +126,15 @@ export class QueryExecutor {
             tm.currentReject = wrapReject;
 
             const runQuery = (tr: Firebird.Transaction) => {
-                const trAny = tr as any;
+                const trExt = tr as FbTransactionWithExt;
                 const queryString = prepareQueryBuffer(cleanQuery, encodingConf);
                 const limit = queryOptions?.limit || 1000;
                 const reqOffset = queryOptions?.offset || 0;
                 const connectionInfo = `${options.host}:${options.database}`;
 
-                const executeOnStatement = (stmt: any) => {
+                const executeOnStatement = (stmt: FbStatement) => {
                     console.log(`[FB] stmt.execute calling...`);
-                    stmt.execute(tr, [], async (err: any, _result: any, _output: any, isSelect: boolean) => {
+                    stmt.execute(tr, [], async (err, _result, _output, isSelect) => {
                         if (err) {
                             console.log(`[FB] stmt.execute ERROR | ${err.message}`);
                             return wrapReject(err);
@@ -112,7 +152,7 @@ export class QueryExecutor {
 
                             const columnNames = getUniqueColumnNames(stmt.output);
                             console.log(`[FB] stmt.fetch calling | limit=${limit} | columns=${columnNames.length}`);
-                            stmt.fetch(tr, limit, async (fetchErr: any, ret: any) => {
+                            stmt.fetch(tr, limit, async (fetchErr, ret) => {
                                 if (fetchErr) {
                                     console.log(`[FB] stmt.fetch ERROR | ${fetchErr.message}`);
                                     stmt.close();
@@ -127,7 +167,7 @@ export class QueryExecutor {
                                         hasMore: !ret.fetched && (ret.data?.length === limit)
                                     });
                                 } catch (readErr) {
-                                    wrapReject(readErr);
+                                    wrapReject(readErr as Error);
                                 }
                             });
                         } else {
@@ -135,7 +175,7 @@ export class QueryExecutor {
                             let affectedRows: number | undefined;
                             try {
                                 affectedRows = await RowCounter.getAffectedRows(stmt, tr, dmlType);
-                            } catch (e) { /* ignore */ }
+                            } catch (_e) { /* ignore */ }
 
                             stmt.close();
                             tm.activeStatement = undefined;
@@ -144,10 +184,10 @@ export class QueryExecutor {
                     }, { asObject: false });
                 };
 
-                const fetchMore = (stmt: any) => {
+                const fetchMore = (stmt: FbStatement) => {
                     const columnNames = getUniqueColumnNames(stmt.output);
                     console.log(`[FB] fetchMore (reuse stmt) calling | limit=${limit} | offset=${reqOffset}`);
-                    stmt.fetch(tr, limit, async (err: any, ret: any) => {
+                    stmt.fetch(tr, limit, async (err, ret) => {
                         if (err) {
                             console.log(`[FB] fetchMore ERROR | ${err.message}`);
                             stmt.close();
@@ -162,7 +202,7 @@ export class QueryExecutor {
                                 hasMore: !ret.fetched && (ret.data?.length === limit)
                             });
                         } catch (readErr) {
-                            wrapReject(readErr);
+                            wrapReject(readErr as Error);
                         }
                     });
                 };
@@ -170,15 +210,15 @@ export class QueryExecutor {
                 if (reqOffset > 0 && tm.activeStatement &&
                     tm.activeQuery === cleanQuery &&
                     tm.activeConnectionInfo === connectionInfo) {
-                    fetchMore(tm.activeStatement);
+                    fetchMore(tm.activeStatement as FbStatement);
                 } else {
                     if (tm.activeStatement) {
-                        try { tm.activeStatement.close(); } catch (e) { /* ignore */ }
+                        try { (tm.activeStatement as FbStatement).close(); } catch (_e) { /* ignore */ }
                         tm.activeStatement = undefined;
                     }
 
                     console.log(`[FB] newStatement calling...`);
-                    trAny.newStatement(queryString, (err: any, statement: any) => {
+                    trExt.newStatement(queryString, (err, statement) => {
                         if (err) {
                             console.log(`[FB] newStatement ERROR | ${err.message}`);
                             return wrapReject(err);
@@ -208,7 +248,7 @@ export class QueryExecutor {
                 tm.resetAutoRollback();
                 resolve(plan);
             };
-            const wrapReject = (err: any) => {
+            const wrapReject = (err: Error) => {
                 tm.currentReject = undefined;
                 tm.resetAutoRollback();
                 reject(err);
@@ -216,15 +256,15 @@ export class QueryExecutor {
             tm.currentReject = wrapReject;
 
             const runGetPlan = (tr: Firebird.Transaction) => {
-                const trAny = tr as any;
+                const trExt = tr as FbTransactionWithExt;
                 const queryString = prepareQueryBuffer(cleanQuery, encodingConf);
 
                 if (tm.activeStatement) {
-                    try { tm.activeStatement.close(); } catch (e) { /* ignore */ }
+                    try { (tm.activeStatement as FbStatement).close(); } catch (_e) { /* ignore */ }
                     tm.activeStatement = undefined;
                 }
 
-                trAny.connection.prepare(tr, queryString, true, (err: any, statement: any) => {
+                trExt.connection!.prepare(tr, queryString, true, (err, statement) => {
                     if (err) return wrapReject(err);
                     const planResult = statement.plan || 'No plan available';
                     statement.drop();
@@ -283,7 +323,7 @@ export class QueryExecutor {
         id: string,
         options: Firebird.Options,
         onTransaction: (tr: Firebird.Transaction) => void,
-        onError: (err: any) => void
+        onError: (err: Error) => void
     ): void {
         const tm = TransactionManager.getInstance(id);
 
@@ -321,7 +361,7 @@ export class QueryExecutor {
             }
             console.log(`[FB] Firebird.attach callback OK`);
 
-            (db as any).on('error', (dbErr: any) => {
+            (db as FbDatabaseWithEvents).on('error', (dbErr) => {
                 console.log(`[FB] db socket error | ${dbErr.message}`);
                 if (tm.currentReject) {
                     tm.currentReject(dbErr);
