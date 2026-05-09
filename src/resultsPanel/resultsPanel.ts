@@ -116,7 +116,7 @@ export class ResultsPanel {
         const config = vscode.workspace.getConfiguration('firebird');
         const panelLocation = config.get<string>('queryResultPanelLocation', 'side');
 
-        let column = vscode.window.activeTextEditor ? vscode.ViewColumn.Beside : undefined;
+        const column = vscode.window.activeTextEditor ? vscode.ViewColumn.Beside : undefined;
 
         let originalDirection: string | undefined;
         let workbenchConfig: vscode.WorkspaceConfiguration | undefined;

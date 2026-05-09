@@ -25,7 +25,7 @@ export function formatCellValue(val: any, locale: string): string {
         return '<span class="null-value">[NULL]</span>';
     }
     
-    let result = '';
+    let result: string;
     if (val instanceof Uint8Array) {
         result = '[Blob]';
     } else if (typeof val === 'number') {
@@ -107,7 +107,7 @@ export function getResultsTableHtml(results: any[], locale: string, hasMore: boo
         const cells = columns.map(col => {
             const rowVal = row[col];
             const val = formatCellValue(rowVal, locale);
-            let attributes = '';
+            let attributes: string;
             if (rowVal === null) {
                 attributes = ` data-null="true"`;
             } else if (typeof rowVal === 'number') {
@@ -115,7 +115,7 @@ export function getResultsTableHtml(results: any[], locale: string, hasMore: boo
             } else if (rowVal instanceof Date) {
                 const pad = (n: number) => n.toString().padStart(2, '0');
                 const isDateOnly = rowVal.getHours() === 0 && rowVal.getMinutes() === 0 && rowVal.getSeconds() === 0 && rowVal.getMilliseconds() === 0;
-                let rawDate = '';
+                let rawDate: string;
                 if (isDateOnly) {
                     rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())}`;
                 } else {
@@ -207,7 +207,7 @@ export function generateRowsHtml(rows: any[], startIndex: number, locale: string
         const cells = columns.map(col => {
             const rowVal = row[col];
             const val = formatCellValue(rowVal, locale);
-            let attributes = '';
+            let attributes: string;
             if (rowVal === null) {
                 attributes = ` data-null="true"`;
             } else if (typeof rowVal === 'number') {
@@ -215,7 +215,7 @@ export function generateRowsHtml(rows: any[], startIndex: number, locale: string
             } else if (rowVal instanceof Date) {
                 const pad = (n: number) => n.toString().padStart(2, '0');
                 const isDateOnly = rowVal.getHours() === 0 && rowVal.getMinutes() === 0 && rowVal.getSeconds() === 0 && rowVal.getMilliseconds() === 0;
-                let rawDate = '';
+                let rawDate: string;
                 if (isDateOnly) {
                     rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())}`;
                 } else {

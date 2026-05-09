@@ -62,7 +62,7 @@ export function getConnectionEditorHtml(
     // So if the files are in src/editors, we need to resolve properly.
     // However, loading via webview API allows doing it clean relative to extension path.
     const htmlPath = vscode.Uri.joinPath(extensionUri, 'src', 'editors', 'connectionEditor.html').fsPath;
-    let htmlContent = '';
+    let htmlContent: string;
     try {
         htmlContent = fs.readFileSync(htmlPath, 'utf8');
     } catch (e) {
@@ -87,8 +87,8 @@ export function getConnectionEditorHtml(
     
     const cssPath = vscode.Uri.joinPath(extensionUri, 'src', 'editors', 'connectionEditor.css').fsPath;
     const jsPath = vscode.Uri.joinPath(extensionUri, 'src', 'editors', 'connectionEditor.js').fsPath;
-    let cssContent = fs.readFileSync(cssPath, 'utf8');
-    let jsContent = fs.readFileSync(jsPath, 'utf8');
+    const cssContent = fs.readFileSync(cssPath, 'utf8');
+    const jsContent = fs.readFileSync(jsPath, 'utf8');
 
     // Replace placeholders
     const codiconUri = `${extensionUri}/node_modules/@vscode/codicons/dist/codicon.css`;
