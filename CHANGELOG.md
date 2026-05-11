@@ -1,3 +1,8 @@
+## [ upcoming ]
+- **DB Explorer**: Each index node now has an auto-expanded `Columns` sub-tree listing the indexed columns (with ordinal positions). Computed indexes display the `COMPUTED BY` expression directly in the tree — no need to open the info panel.
+- **Index Info**: The columns/expression are now rendered as a dedicated, prominent table with ordinal positions and column count. Computed indexes get a highlighted `COMPUTED BY` section.
+- **Internal**: `TableIndex` and `IndexDetails` now carry structured `columns` and `expression` fields; `getIndexes` query also pulls `RDB$EXPRESSION_SOURCE`. HTML output in the index info template is now fully escaped.
+
 ## [1.9.3]
 - **Security**: Connection passwords are now stored in VS Code `SecretStorage` instead of plain `globalState`. Existing passwords are automatically migrated on first use.
 - **Security**: Hardened SQL identifier and apostrophe escaping in metadata queries and `ScriptParser` to prevent injection via object/parameter names.

@@ -11,7 +11,7 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 
 - **SQL Execution**: Run queries (`CTRL+Enter`) and scripts (`CTRL+ALT+Enter`). Supports **Explain Query Plan** (`CTRL+SHIFT+ENTER`) to retrieve Firebird execution plans. Supports SQL from other files (e.g. PHP) with parameter injection.
 - **Transaction Support**: Explicit Commit/Rollback support.
-- **Explorer**: View databases, tables, views, procedures, triggers and more.
+- **Explorer**: View databases, tables, views, procedures, triggers and more. Indexes show their columns (or `COMPUTED BY` expression) directly in the tree.
 - **Table Info**: Detailed view of table structure with PK/FK tags, index column tooltips, and grouped trigger views.
 - **Query Results**: Horizontal scrollbar for tables with many columns. Context menu to copy values, columns (as raw values or as comma-separated list), or entire tables (Excel-formatted) to clipboard. Configurable panel location (side or bottom).
 - **CSV Export**: Export query results to CSV with configurable delimiter, qualifier, encoding, and decimal separator. 

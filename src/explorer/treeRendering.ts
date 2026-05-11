@@ -9,14 +9,14 @@ import { DatabaseConnection } from '../database/types';
 import { FavoriteItem, FavoritesRootItem, FavoriteFolderItem } from './treeItems/favoritesItems';
 import { ScriptFolderItem } from './treeItems/scriptItems';
 import { TriggerGroupItem, TableTriggersItem, TriggerItem, TriggerFolderItem } from './treeItems/triggerItems';
-import { TableIndexesItem, IndexItem } from './treeItems/indexItems';
+import { TableIndexesItem, IndexItem, IndexColumnsItem } from './treeItems/indexItems';
 import { OperationItem } from './treeItems/operationItems';
 import { PaddingItem } from './treeItems/common';
 import { getGroupedTriggers, getTriggerList } from './triggerRendering';
 
 import { getFavoritesChildren } from './renderers/favoriteRendering';
 import { getScriptFolderChildren } from './renderers/scriptRendering';
-import { getTableIndexesChildren, getIndexOperationChildren, getTriggerOperationChildren, getTriggerGroupChildren } from './renderers/subObjectRendering';
+import { getTableIndexesChildren, getIndexChildren, getIndexColumnsChildren, getTriggerOperationChildren, getTriggerGroupChildren } from './renderers/subObjectRendering';
 import { getObjectOperationChildren } from './renderers/objectRendering';
 
 /**
@@ -223,7 +223,9 @@ export async function getTreeChildren(
         } else if (element instanceof TableIndexesItem) {
              return getTableIndexesChildren(element, ctx);
         } else if (element instanceof IndexItem) {
-             return getIndexOperationChildren(element, ctx);
+             return getIndexChildren(element, ctx);
+        } else if (element instanceof IndexColumnsItem) {
+             return getIndexColumnsChildren(element, ctx);
         } else if (element instanceof TriggerGroupItem) {
              return getTriggerGroupChildren(element, ctx);
         } else if (element instanceof TriggerItem) {

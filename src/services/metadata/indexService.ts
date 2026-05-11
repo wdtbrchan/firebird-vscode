@@ -15,17 +15,22 @@ export class IndexService extends BaseMetadataService {
             for (const row of rows) {
                 const name = row.RDB$INDEX_NAME.trim();
                 const col = row.RDB$FIELD_NAME ? row.RDB$FIELD_NAME.trim() : '';
+                const expression = row.RDB$EXPRESSION_SOURCE
+                    ? String(row.RDB$EXPRESSION_SOURCE).trim()
+                    : undefined;
 
                 if (!indexes.has(name)) {
                     indexes.set(name, {
                         name: name,
                         unique: row.RDB$UNIQUE_FLAG === 1,
                         inactive: row.RDB$INDEX_INACTIVE === 1,
-                        columns: col ? [col] : []
+                        columns: col ? [col] : [],
+                        expression
                     });
                 } else {
                     const idx = indexes.get(name)!;
                     if (col) idx.columns.push(col);
+                    if (expression && !idx.expression) idx.expression = expression;
                 }
             }
             return Array.from(indexes.values());
@@ -68,12 +73,15 @@ export class IndexService extends BaseMetadataService {
         const expression = idx.RDB$EXPRESSION_SOURCE;
 
         let definition: string;
+        let columns: string[] = [];
+        let expressionText: string | undefined;
         if (expression) {
-            definition = `COMPUTED BY (${expression.trim()})`;
+            expressionText = String(expression).trim();
+            definition = `COMPUTED BY (${expressionText})`;
         } else {
             const segRows = await Database.runMetaQuery('metadata', connection, querySeg);
-            const columns = segRows.map(r => r.RDB$FIELD_NAME.trim()).join(', ');
-            definition = columns;
+            columns = segRows.map(r => r.RDB$FIELD_NAME.trim());
+            definition = columns.join(', ');
         }
 
         return {
@@ -82,7 +90,9 @@ export class IndexService extends BaseMetadataService {
             status: inactive ? 'INACTIVE' : 'ACTIVE',
             descending,
             statistics,
-            definition
+            definition,
+            columns,
+            expression: expressionText
         };
     }
 }

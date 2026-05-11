@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { TreeRenderingContext } from '../treeRendering';
 import { ObjectItem } from '../treeItems/databaseItems';
-import { IndexItem, TableIndexesItem, CreateNewIndexItem, IndexOperationItem } from '../treeItems/indexItems';
+import { IndexItem, TableIndexesItem, CreateNewIndexItem, IndexOperationItem, IndexColumnsItem, IndexColumnItem } from '../treeItems/indexItems';
 import { TriggerItem, TriggerGroupItem, TriggerOperationItem } from '../treeItems/triggerItems';
 import { OperationItem } from '../treeItems/operationItems';
 import { MetadataService } from '../../services/metadataService';
@@ -12,21 +12,40 @@ export async function getTableIndexesChildren(element: TableIndexesItem, _ctx: T
     items.push(new CreateNewIndexItem(element.connection, element.tableName));
 
     indexes.forEach(idx => {
-        items.push(new IndexItem(element.connection, element.tableName, idx.name, idx.unique, idx.inactive));
+        items.push(new IndexItem(
+            element.connection,
+            element.tableName,
+            idx.name,
+            idx.unique,
+            idx.inactive,
+            idx.columns,
+            idx.expression
+        ));
     });
     return items;
 }
 
-export function getIndexOperationChildren(element: IndexItem, _ctx: TreeRenderingContext): IndexOperationItem[] {
-    const ops: IndexOperationItem[] = [];
-    ops.push(new IndexOperationItem('Drop index', 'drop', element.connection, element.indexName));
+export function getIndexChildren(element: IndexItem, _ctx: TreeRenderingContext): vscode.TreeItem[] {
+    const items: vscode.TreeItem[] = [];
+    items.push(new IndexColumnsItem(element.connection, element.indexName, element.columns, element.expression));
+
+    items.push(new IndexOperationItem('Drop index', 'drop', element.connection, element.indexName));
     if (element.inactive) {
-        ops.push(new IndexOperationItem('Make index active', 'activate', element.connection, element.indexName));
+        items.push(new IndexOperationItem('Make index active', 'activate', element.connection, element.indexName));
     } else {
-        ops.push(new IndexOperationItem('Make index inactive', 'deactivate', element.connection, element.indexName));
+        items.push(new IndexOperationItem('Make index inactive', 'deactivate', element.connection, element.indexName));
     }
-    ops.push(new IndexOperationItem('Recompute statistics for index', 'recompute', element.connection, element.indexName));
-    return ops;
+    items.push(new IndexOperationItem('Recompute statistics for index', 'recompute', element.connection, element.indexName));
+    return items;
+}
+
+export function getIndexColumnsChildren(element: IndexColumnsItem, _ctx: TreeRenderingContext): IndexColumnItem[] {
+    if (element.expression) {
+        return [new IndexColumnItem(element.connection, element.indexName, element.expression, 'computed')];
+    }
+    return element.columns.map((col, idx) =>
+        new IndexColumnItem(element.connection, element.indexName, col, 'column', idx)
+    );
 }
 
 export function getTriggerOperationChildren(element: TriggerItem, _ctx: TreeRenderingContext): (TriggerOperationItem | OperationItem)[] {

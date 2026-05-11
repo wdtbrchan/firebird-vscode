@@ -95,7 +95,7 @@ export const MetadataQueries = {
     getGeneratorValue: (name: string) => `SELECT GEN_ID(${quoteIdentifier(name)}, 0) AS CUR_VAL FROM RDB$DATABASE`,
 
     getIndexes: (tableName: string) => `
-        SELECT i.RDB$INDEX_NAME, i.RDB$UNIQUE_FLAG, i.RDB$INDEX_INACTIVE, s.RDB$FIELD_NAME
+        SELECT i.RDB$INDEX_NAME, i.RDB$UNIQUE_FLAG, i.RDB$INDEX_INACTIVE, i.RDB$EXPRESSION_SOURCE, s.RDB$FIELD_NAME
         FROM RDB$INDICES i
         LEFT JOIN RDB$INDEX_SEGMENTS s ON i.RDB$INDEX_NAME = s.RDB$INDEX_NAME
         WHERE i.RDB$RELATION_NAME = '${esc(tableName)}'

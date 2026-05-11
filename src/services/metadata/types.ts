@@ -16,6 +16,7 @@ export interface TableIndex {
     unique: boolean;
     inactive: boolean;
     columns: string[];
+    expression?: string;
 }
 
 export interface TableDependency {
@@ -45,4 +46,6 @@ export interface IndexDetails {
     descending: boolean;
     statistics?: number;
     definition: string;
+    columns: string[];
+    expression?: string;
 }
