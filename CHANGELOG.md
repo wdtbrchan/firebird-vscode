@@ -1,3 +1,11 @@
+## [ upcoming ]
+- **Security**: Connection passwords are now stored in VS Code `SecretStorage` instead of plain `globalState`. Existing passwords are automatically migrated on first use.
+- **Security**: Hardened SQL identifier and apostrophe escaping in metadata queries and `ScriptParser` to prevent injection via object/parameter names.
+- **Fix**: `refresh()` no longer wipes in-memory passwords for already-connected databases.
+- **Fix**: Corrected a typo in the index status (active/inactive) display.
+- **Internal**: Large refactor pass — `ExportService` now reuses `Database.executeQuery`, introduced shared `BaseInfoPanel` for info webviews, deduplicated connection-options mapping, favorites tree-walk, query cleanup and query executor helpers, switched `ScriptService` to dependency injection (no more singleton), and collapsed 9 separate `connectSlot` commands into a single command with arguments.
+- **Internal**: Tightened TypeScript typing across `metadataService` and `queryExtractor`, and cleared all ESLint errors and warnings.
+
 ## [1.9.2]
 - **Procedure DDL**: Parameter default values are now shown in the procedure source/DDL view. Defaults are read from the parameter level first, with fallback to the domain-level default.
 
