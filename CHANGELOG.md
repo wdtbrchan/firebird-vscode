@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.9.4]
 - **DB Explorer**: Each index node now has an auto-expanded `Columns` sub-tree listing the indexed columns (with ordinal positions). Computed indexes display the `COMPUTED BY` expression directly in the tree — no need to open the info panel.
 - **Index Info**: The columns/expression are now rendered as a dedicated, prominent table with ordinal positions and column count. Computed indexes get a highlighted `COMPUTED BY` section.
 - **Internal**: `TableIndex` and `IndexDetails` now carry structured `columns` and `expression` fields; `getIndexes` query also pulls `RDB$EXPRESSION_SOURCE`. HTML output in the index info template is now fully escaped.
