@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.9.3]
 - **Security**: Connection passwords are now stored in VS Code `SecretStorage` instead of plain `globalState`. Existing passwords are automatically migrated on first use.
 - **Security**: Hardened SQL identifier and apostrophe escaping in metadata queries and `ScriptParser` to prevent injection via object/parameter names.
 - **Fix**: `refresh()` no longer wipes in-memory passwords for already-connected databases.
