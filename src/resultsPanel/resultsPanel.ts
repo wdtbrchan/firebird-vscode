@@ -6,6 +6,9 @@ import { generateRowsHtml } from './templates/contentTemplates';
 import { ExportService } from './exportService';
 import { ExecutionService } from '../services/executionService';
 import { DatabaseConnection } from '../database/types';
+import { MetadataService } from '../services/metadataService';
+import { buildUpdateScript, EditedRowPayload } from './updateScriptService';
+import { FirebirdLog } from '../logger';
 
 export class ResultsPanel {
     public static panels: Map<string, ResultsPanel> = new Map();
@@ -61,6 +64,12 @@ export class ResultsPanel {
                     case 'exportCsv':
                         ExportService.exportCsv(this._panel, this._currentQuery, this._currentConnection, message);
                         return;
+                    case 'requestPrimaryKeyColumns':
+                        void this._sendPrimaryKeyColumns(message.tableName);
+                        return;
+                    case 'generateUpdateScript':
+                        void this._generateUpdateScript(message.tableName, message.primaryKeyColumns, message.rows);
+                        return;
                 }
             },
             null,
@@ -84,7 +93,7 @@ export class ResultsPanel {
             this.showPlan(e.plan, e.context);
         }, this, this._disposables);
         execService.onData(e => {
-            console.log(`[FB] ResultsPanel.onData received | rows=${e.results.length} | append=${e.append} | hasMore=${e.hasMore}`);
+            FirebirdLog.info(`[FB] ResultsPanel.onData received | rows=${e.results.length} | append=${e.append} | hasMore=${e.hasMore}`);
             this._currentQuery = e.query;
             this._displayQuery = e.displayQuery;
             this._currentConnection = e.connection;
@@ -99,7 +108,7 @@ export class ResultsPanel {
             } else {
                 this._updateContentForTable([], e.hasTransaction, e.context, false, undefined);
             }
-            console.log(`[FB] ResultsPanel webview HTML updated`);
+            FirebirdLog.info(`[FB] ResultsPanel webview HTML updated`);
         }, this, this._disposables);
 
         this._updateContentForTable([], false);
@@ -287,6 +296,25 @@ export class ResultsPanel {
 
     public get connectionColor(): string | undefined {
         return this._currentConnection?.color;
+    }
+
+    private async _sendPrimaryKeyColumns(tableName: string) {
+        if (!this._currentConnection || !tableName) return;
+        const columns = await MetadataService.getPrimaryKeyColumns(this._currentConnection, tableName);
+        this._panel.webview.postMessage({ command: 'primaryKeyColumns', columns });
+    }
+
+    private async _generateUpdateScript(tableName: string, primaryKeyColumns: string[], rows: EditedRowPayload[]) {
+        try {
+            const script = buildUpdateScript({ tableName, primaryKeyColumns, rows });
+            const doc = await vscode.workspace.openTextDocument({ language: 'sql', content: script });
+            await vscode.window.showTextDocument(doc);
+        } catch (err) {
+            this._panel.webview.postMessage({
+                command: 'updateScriptError',
+                message: (err as Error).message
+            });
+        }
     }
 
 

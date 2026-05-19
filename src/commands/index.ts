@@ -11,6 +11,7 @@ import { registerScriptCommands } from './scriptCommands';
 import { registerFavoritesCommands } from './favoritesCommands';
 import { registerFilterCommands } from './filterCommands';
 import { registerSettingsCommands } from './settingsCommands';
+import { FirebirdLog } from '../logger';
 
 /**
  * Registers all extension commands.
@@ -30,4 +31,7 @@ export function registerAllCommands(
     registerFavoritesCommands(context, databaseTreeDataProvider);
     registerFilterCommands(context, databaseTreeDataProvider);
     registerSettingsCommands(context, databaseTreeDataProvider);
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.showLog', () => {
+        FirebirdLog.show();
+    }));
 }

@@ -13,6 +13,7 @@ import {
     setConnectionPassword,
     stripPasswords
 } from './passwordStore';
+import { FirebirdLog } from '../logger';
 
 /**
  * Manages database connections – add, edit, remove, activate, move.
@@ -33,11 +34,16 @@ export class ConnectionManager {
         return this.context.secrets;
     }
 
+    private describeConnection(conn: DatabaseConnection): string {
+        return `${conn.name || path.basename(conn.database)} | ${conn.host || 'localhost'}:${conn.port || 3050} | ${conn.database}`;
+    }
+
     /** Load connections from global state. */
     public loadConnections() {
         const storedConns = this.context.globalState.get<DatabaseConnection[]>('firebird.connections');
         this.connections = storedConns || [];
         this.activeConnectionId = undefined;
+        FirebirdLog.info(`[FB] Connections loaded | count=${this.connections.length}`);
     }
 
     /**
@@ -50,8 +56,10 @@ export class ConnectionManager {
         if (migrated > 0) {
             // Persist the now-stripped connections so plain passwords leave globalState.
             this.context.globalState.update('firebird.connections', stripPasswords(this.connections));
+            FirebirdLog.info(`[FB] Migrated connection passwords to SecretStorage | count=${migrated}`);
         }
         await hydratePasswordsFromSecrets(this.secrets, this.connections);
+        FirebirdLog.info(`[FB] Connection passwords hydrated from SecretStorage`);
     }
 
     /**
@@ -118,6 +126,7 @@ export class ConnectionManager {
                     this.activeConnectionId = conn.id;
                 }
                 this.saveConnections();
+                FirebirdLog.info(`[FB] Connection added | ${this.describeConnection(conn)}`);
             }
         );
     }
@@ -134,6 +143,7 @@ export class ConnectionManager {
                     await this.persistPassword(updatedConn.id, updatedConn.password);
                     this.connections[index] = updatedConn;
                     this.saveConnections();
+                    FirebirdLog.info(`[FB] Connection updated | ${this.describeConnection(updatedConn)}`);
 
                     refresh();
                 }
@@ -175,9 +185,11 @@ export class ConnectionManager {
             this.connections.push(removed);
         }
         this.saveConnections();
+        FirebirdLog.info(`[FB] Connection moved | ${this.describeConnection(removed)} | targetGroupId=${targetGroupId || 'root'}`);
     }
 
     refreshDatabase(conn: DatabaseConnection, fireChange: (element: DatabaseConnection) => void) {
+        FirebirdLog.info(`[FB] Connection refresh requested | ${this.describeConnection(conn)}`);
         fireChange(conn);
     }
 
@@ -189,16 +201,21 @@ export class ConnectionManager {
         // Fire-and-forget; failure to delete a stored secret should not block UI.
         deleteConnectionPassword(this.secrets, conn.id).catch(() => { /* ignore */ });
         this.saveConnections();
+        FirebirdLog.info(`[FB] Connection removed | ${this.describeConnection(conn)}`);
     }
 
     disconnect(conn: DatabaseConnection) {
         if (this.activeConnectionId === conn.id) {
             this.activeConnectionId = undefined;
             this.saveConnections();
+            FirebirdLog.info(`[FB] Connection deactivated | ${this.describeConnection(conn)}`);
+        } else {
+            FirebirdLog.info(`[FB] Disconnect requested for inactive connection | ${this.describeConnection(conn)}`);
         }
     }
 
     async setActive(conn: DatabaseConnection, treeView?: vscode.TreeView<unknown>) {
+        FirebirdLog.info(`[FB] Connection activation requested | ${this.describeConnection(conn)}`, true);
         this.connectingConnectionIds.add(conn.id);
         this.saveConnections(); // Fire update to show spinner
 
@@ -207,6 +224,7 @@ export class ConnectionManager {
             this.failedConnectionIds.delete(conn.id);
         } catch (err) {
             this.failedConnectionIds.set(conn.id, (err as Error).message);
+            FirebirdLog.error(`[FB] Connection activation failed | ${this.describeConnection(conn)} | message=${(err as Error).message}`, err, true);
             vscode.window.showErrorMessage(`Failed to connect to ${conn.name || conn.database}: ${(err as Error).message}`);
             this.connectingConnectionIds.delete(conn.id);
             this.saveConnections(); 
@@ -217,13 +235,14 @@ export class ConnectionManager {
         this.connectingConnectionIds.delete(conn.id);
         this.activeConnectionId = conn.id;
         this.saveConnections();
+        FirebirdLog.info(`[FB] Connection activated | ${this.describeConnection(conn)}`, true);
         
         // Force expand the active connection
         if (treeView) {
             try {
                 await treeView.reveal(conn, { expand: true, select: true, focus: true });
             } catch (err) {
-                console.error('Failed to reveal connection:', err);
+                FirebirdLog.error('[FB] Failed to reveal active connection in tree', err);
             }
         }
     }

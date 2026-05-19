@@ -1,3 +1,8 @@
+## [ upcoming ]
+- **Diagnostics**: Added a dedicated `Firebird SQL` Output Channel with structured logging for extension activation, connection selection/checks, query execution stages, transaction lifecycle, cancellation, kill, detach, and auto-rollback events.
+- **Diagnostics**: Added the `Firebird: Show Firebird SQL Log` command to open the log explicitly from the Command Palette without showing it automatically during normal use.
+- **Webviews**: Removed an invalid local `codicon.css` resource reference from the connection editor webview.
+
 ## [1.9.4]
 - **DB Explorer**: Each index node now has an auto-expanded `Columns` sub-tree listing the indexed columns (with ordinal positions). Computed indexes display the `COMPUTED BY` expression directly in the tree — no need to open the info panel.
 - **Index Info**: The columns/expression are now rendered as a dedicated, prominent table with ordinal positions and column count. Computed indexes get a highlighted `COMPUTED BY` section.

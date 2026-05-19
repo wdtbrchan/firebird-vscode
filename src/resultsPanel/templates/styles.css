@@ -159,6 +159,11 @@ th:first-child {
 /* Hover effect */
 tbody tr:hover { background-color: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.1)); }
 tbody tr:hover .row-index { background-color: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.1)); }
+tbody tr.modified-row { background-color: rgba(180, 58, 58, 0.22); }
+tbody tr.modified-row:hover { background-color: rgba(180, 58, 58, 0.3); }
+td.modified-cell { box-shadow: inset 3px 0 0 #d16969; }
+td[data-column-name] { cursor: pointer; }
+td[data-editable="false"] { cursor: default; }
 
 .no-results-bar { width: 100%; padding: 15px 20px; box-sizing: border-box; background-color: #333; color: #fff; }
 
@@ -239,6 +244,42 @@ body.vscode-light .no-results-bar { background-color: #e0e0e0; color: #333; }
     background-color: var(--vscode-button-secondaryHoverBackground, #444);
 }
 
+.changes-bar {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--vscode-panel-border);
+    background-color: var(--vscode-editorWidget-background, #252526);
+}
+.changes-bar.visible { display: flex; }
+.changes-actions { display: flex; gap: 8px; }
+.btn-primary,
+.btn-secondary {
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.btn-primary {
+    color: var(--vscode-button-foreground, #fff);
+    background-color: var(--vscode-button-background, #0e639c);
+    border: 1px solid var(--vscode-button-background, #0e639c);
+}
+.btn-secondary {
+    color: var(--vscode-button-secondaryForeground, #ccc);
+    background-color: transparent;
+    border: 1px solid var(--vscode-button-secondaryBackground, #555);
+}
+.btn-primary:hover { background-color: var(--vscode-button-hoverBackground, #1177bb); }
+.btn-secondary:hover { background-color: var(--vscode-button-secondaryHoverBackground, #444); }
+
 /* CSV Modal */
 .csv-modal-overlay {
     display: none;
@@ -250,6 +291,60 @@ body.vscode-light .no-results-bar { background-color: #e0e0e0; color: #333; }
     justify-content: center;
 }
 .csv-modal-overlay.visible { display: flex; }
+.edit-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 2100;
+    align-items: center;
+    justify-content: center;
+}
+.edit-modal-overlay.visible { display: flex; }
+.edit-modal {
+    width: min(520px, calc(100vw - 32px));
+    background-color: #252526;
+    border: 1px solid #454545;
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    padding: 20px 24px;
+    color: #ccc;
+}
+.edit-modal h3 {
+    margin: 0 0 16px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+}
+.edit-modal textarea {
+    width: 100%;
+    min-height: 150px;
+    resize: vertical;
+    box-sizing: border-box;
+    padding: 8px;
+    font: inherit;
+    color: #ccc;
+    background-color: #3c3c3c;
+    border: 1px solid #555;
+    border-radius: 3px;
+}
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+.edit-modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+}
+.modal-error {
+    min-height: 18px;
+    color: #f48771;
+    margin-top: 8px;
+}
 .csv-modal {
     background-color: #252526;
     border: 1px solid #454545;
@@ -340,6 +435,17 @@ body.vscode-light .csv-modal-buttons .btn-cancel {
 }
 body.vscode-light .csv-modal-buttons .btn-cancel:hover {
     background-color: #e0e0e0;
+}
+body.vscode-light .edit-modal {
+    background-color: #f3f3f3;
+    border: 1px solid #cecece;
+    color: #333;
+}
+body.vscode-light .edit-modal h3 { color: #222; }
+body.vscode-light .edit-modal textarea {
+    background-color: #fff;
+    color: #333;
+    border: 1px solid #cecece;
 }
 
 /* Context Menu */

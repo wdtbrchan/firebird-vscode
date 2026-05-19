@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as Firebird from 'node-firebird';
+import { FirebirdLog } from '../logger';
 
 type StateChangeHandler = (hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) => void;
 
@@ -23,6 +24,7 @@ export class TransactionManager {
     }
 
     public static cleanupAll() {
+        FirebirdLog.info(`[FB] Cleaning up all transaction managers | count=${this.instances.size}`);
         this.instances.forEach(instance => instance.cleanupConnection());
         this.instances.clear();
     }
@@ -54,14 +56,21 @@ export class TransactionManager {
     public async commit(): Promise<void> {
         return new Promise((resolve, reject) => {
             if (this.transaction) {
+                FirebirdLog.info(`[FB] Transaction commit calling | id=${this.id}`);
                 this.transaction.commit((err) => {
                     this.transaction = undefined;
                     this.notifyStateChange('Committed'); 
                     this.cleanupConnection();
-                    if (err) reject(err);
-                    else resolve();
+                    if (err) {
+                        FirebirdLog.error(`[FB] Transaction commit failed | id=${this.id} | message=${err.message}`);
+                        reject(err);
+                    } else {
+                        FirebirdLog.info(`[FB] Transaction commit OK | id=${this.id}`);
+                        resolve();
+                    }
                 });
             } else {
+                FirebirdLog.info(`[FB] Transaction commit skipped; no active transaction | id=${this.id}`);
                 resolve();
             }
         });
@@ -70,15 +79,22 @@ export class TransactionManager {
     public async rollback(reason: string = 'Rolled back'): Promise<void> {
         return new Promise((resolve, reject) => {
             if (this.transaction) {
+                FirebirdLog.info(`[FB] Transaction rollback calling | id=${this.id} | reason=${reason}`);
                 this.transaction.rollback((err) => {
                     this.transaction = undefined;
                     this.notifyStateChange(reason); 
                     this.cleanupConnection();
-                    if (err) reject(err);
-                    else resolve();
+                    if (err) {
+                        FirebirdLog.error(`[FB] Transaction rollback failed | id=${this.id} | message=${err.message}`);
+                        reject(err);
+                    } else {
+                        FirebirdLog.info(`[FB] Transaction rollback OK | id=${this.id} | reason=${reason}`);
+                        resolve();
+                    }
                 });
             } else {
-                 this.cleanupConnection(); 
+                FirebirdLog.info(`[FB] Transaction rollback skipped; no active transaction | id=${this.id} | reason=${reason}`);
+                this.cleanupConnection(); 
                 resolve();
             }
         });
@@ -92,12 +108,14 @@ export class TransactionManager {
         if (this.activeStatement) {
             try { (this.activeStatement as { close(): void }).close(); } catch { /* ignore */ }
             this.activeStatement = undefined;
+            FirebirdLog.info(`[FB] Active statement closed | id=${this.id}`);
         }
         this.activeQuery = undefined;
         this.activeConnectionInfo = undefined;
         if (this.db) {
             try {
                 this.db.detach();
+                FirebirdLog.info(`[FB] Database connection detached | id=${this.id}`);
             } catch { /* ignore */ }
             this.db = undefined;
             this.currentOptions = undefined;
@@ -106,6 +124,7 @@ export class TransactionManager {
     }
 
     public cancelConnection() {
+        FirebirdLog.info(`[FB] Query cancel requested | id=${this.id}`, true);
         if (this.autoRollbackTimer) {
             clearTimeout(this.autoRollbackTimer);
             this.autoRollbackTimer = undefined;
@@ -116,6 +135,7 @@ export class TransactionManager {
         if (this.db) {
             try {
                 this.db.detach();
+                FirebirdLog.info(`[FB] Database connection detached by cancel | id=${this.id}`);
             } catch { /* ignore */ }
             this.db = undefined;
         }
@@ -132,6 +152,7 @@ export class TransactionManager {
     }
 
     public killConnection() {
+        FirebirdLog.info(`[FB] Query kill requested | id=${this.id}`, true);
         if (this.autoRollbackTimer) {
             clearTimeout(this.autoRollbackTimer);
             this.autoRollbackTimer = undefined;
@@ -156,8 +177,9 @@ export class TransactionManager {
                 } else {
                     this.db.detach();
                 }
+                FirebirdLog.info(`[FB] Database connection killed/detached | id=${this.id}`);
             } catch (e) {
-                console.error('Error forcefully killing connection', e);
+                FirebirdLog.error(`[FB] Error forcefully killing connection | id=${this.id}`, e, true);
             }
             this.db = undefined;
         }
@@ -195,6 +217,7 @@ export class TransactionManager {
         this.autoRollbackDeadline = Date.now() + (timeoutSeconds * 1000);
 
         this.autoRollbackTimer = setTimeout(() => {
+            FirebirdLog.info(`[FB] Auto rollback timeout reached | id=${this.id}`);
             vscode.window.showInformationMessage('Firebird transaction auto-rolled back due to inactivity.');
             this.rollback('Auto-rolled back');
         }, timeoutSeconds * 1000);

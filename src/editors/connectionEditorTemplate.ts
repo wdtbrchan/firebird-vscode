@@ -76,9 +76,6 @@ export function getConnectionEditorHtml(
     const cssContent = fs.readFileSync(cssPath, 'utf8');
     const jsContent = fs.readFileSync(jsPath, 'utf8');
 
-    // Replace placeholders
-    const codiconUri = `${extensionUri}/node_modules/@vscode/codicons/dist/codicon.css`;
-    htmlContent = htmlContent.replace('{{codiconUri}}', codiconUri);
     htmlContent = htmlContent.replace('<!-- DATA_INJECTION -->', `<script>window.INITIAL_DATA = ${JSON.stringify(initialData)};</script>`);
     
     // Instead of using external links for our own css/js because of VS code security without webview instance:

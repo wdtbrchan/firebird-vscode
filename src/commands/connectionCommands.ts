@@ -3,6 +3,7 @@ import { Database } from '../database';
 import { DatabaseTreeDataProvider } from '../explorer/databaseTreeDataProvider';
 import { DatabaseConnection } from '../database/types';
 import { parseSlotArg } from './slotArg';
+import { FirebirdLog } from '../logger';
 
 export function registerConnectionCommands(
     context: vscode.ExtensionContext,
@@ -12,7 +13,10 @@ export function registerConnectionCommands(
     context.subscriptions.push(vscode.commands.registerCommand('firebird.selectDatabase', async (conn: DatabaseConnection) => {
         const editor = vscode.window.activeTextEditor;
         const id = editor ? editor.document.uri.toString() : 'global';
-        await Database.rollback(id);
+        FirebirdLog.info(`[FB] Select database command | id=${id} | connection=${conn.name || conn.database}`);
+        if (Database.hasActiveTransaction(id)) {
+            await Database.rollback(id, 'Connection changed');
+        }
         databaseTreeDataProvider.connectionManager.setActive(conn);
     }));
 
@@ -25,6 +29,7 @@ export function registerConnectionCommands(
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.disconnectDatabase', (conn: DatabaseConnection) => {
+        FirebirdLog.info(`[FB] Disconnect database command | connection=${conn.name || conn.database}`);
         databaseTreeDataProvider.connectionManager.disconnect(conn);
     }));
 
@@ -33,6 +38,7 @@ export function registerConnectionCommands(
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('firebird.refreshDatabase', (conn: DatabaseConnection) => {
+        FirebirdLog.info(`[FB] Refresh database command | connection=${conn.name || conn.database}`);
         databaseTreeDataProvider.refreshItem(conn);
     }));
 
@@ -47,7 +53,10 @@ export function registerConnectionCommands(
         if (conn) {
             const editor = vscode.window.activeTextEditor;
             const id = editor ? editor.document.uri.toString() : 'global';
-            await Database.rollback(id);
+            FirebirdLog.info(`[FB] Connect slot command | slot=${slot} | id=${id} | connection=${conn.name || conn.database}`);
+            if (Database.hasActiveTransaction(id)) {
+                await Database.rollback(id, 'Connection changed');
+            }
             databaseTreeDataProvider.connectionManager.setActive(conn);
             vscode.window.showInformationMessage(`Switched to connection: ${conn.name || conn.database}`);
         } else {

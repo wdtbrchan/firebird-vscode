@@ -21,6 +21,7 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 - **Backup & Restore**: Easily backup and restore your connection settings, including favorites and scripts.
 - **Concurrent Execution**: Run multiple queries simultaneously in different editors, each with its own transaction context.
 - **Audio Notifications**: Configurable sound alerts for long-running queries and scripts.
+- **Diagnostics**: Query and connection lifecycle logs are available in the `Firebird SQL` Output Channel. Run `Firebird: Show Firebird SQL Log` from the Command Palette (`F1`) to open it.
 
 ## Requirements
 

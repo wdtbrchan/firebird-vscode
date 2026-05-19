@@ -6,6 +6,7 @@ import { QueryOptions, QueryResult, DatabaseConnection } from './types';
 import { RowCounter } from './rowCounter';
 import { ConnectionChecker } from './connectionChecker';
 import { toFirebirdOptions } from './connectionOptions';
+import { FirebirdLog } from '../logger';
 
 interface PreparedExecution {
     options: Firebird.Options;
@@ -103,24 +104,30 @@ export class QueryExecutor {
         const cleanQuery = query.trim().replace(/;$/, '');
         const offset = queryOptions?.offset || 0;
         const qPreview = cleanQuery.replace(/\s+/g, ' ').substring(0, 60);
-        console.log(`[FB] QueryExecutor.executeQuery START | id=${id} | offset=${offset} | query="${qPreview}"`);
+        FirebirdLog.info(`[FB] QueryExecutor.executeQuery START | id=${id} | offset=${offset} | query="${qPreview}"`);
 
         const { options, encodingConf } = await this._prepareForExecution(id, connection);
 
         return new Promise<QueryResult>((resolve, reject) => {
             const tm = TransactionManager.getInstance(id);
             const t0 = performance.now();
+            let pendingStage = 'initializing';
+            const pendingLogTimer = setInterval(() => {
+                FirebirdLog.info(`[FB] QueryExecutor.executeQuery PENDING | stage=${pendingStage} | elapsed=${((performance.now() - t0) / 1000).toFixed(3)}s`);
+            }, 15000);
 
             const wrapResolve = (res: QueryResult) => {
+                clearInterval(pendingLogTimer);
                 tm.currentReject = undefined;
                 tm.resetAutoRollback();
-                console.log(`[FB] QueryExecutor.executeQuery RESOLVE | rows=${res.rows.length} | affectedRows=${res.affectedRows} | elapsed=${((performance.now() - t0) / 1000).toFixed(3)}s`);
+                FirebirdLog.info(`[FB] QueryExecutor.executeQuery RESOLVE | rows=${res.rows.length} | affectedRows=${res.affectedRows} | elapsed=${((performance.now() - t0) / 1000).toFixed(3)}s`);
                 resolve(res);
             };
             const wrapReject = (err: Error) => {
+                clearInterval(pendingLogTimer);
                 tm.currentReject = undefined;
                 tm.resetAutoRollback();
-                console.log(`[FB] QueryExecutor.executeQuery REJECT | elapsed=${((performance.now() - t0) / 1000).toFixed(3)}s | message=${err.message}`);
+                FirebirdLog.error(`[FB] QueryExecutor.executeQuery REJECT | elapsed=${((performance.now() - t0) / 1000).toFixed(3)}s | message=${err.message}`);
                 reject(err);
             };
             tm.currentReject = wrapReject;
@@ -133,17 +140,18 @@ export class QueryExecutor {
                 const connectionInfo = `${options.host}:${options.database}`;
 
                 const executeOnStatement = (stmt: FbStatement) => {
-                    console.log(`[FB] stmt.execute calling...`);
+                    FirebirdLog.info(`[FB] stmt.execute calling...`);
+                    pendingStage = 'stmt.execute';
                     stmt.execute(tr, [], async (err, _result, _output, isSelect) => {
                         if (err) {
-                            console.log(`[FB] stmt.execute ERROR | ${err.message}`);
+                            FirebirdLog.error(`[FB] stmt.execute ERROR | ${err.message}`);
                             return wrapReject(err);
                         }
 
                         if (isSelect === undefined) {
                             isSelect = (stmt.type === 1);
                         }
-                        console.log(`[FB] stmt.execute callback | isSelect=${isSelect}`);
+                        FirebirdLog.info(`[FB] stmt.execute callback | isSelect=${isSelect}`);
 
                         if (isSelect) {
                             tm.activeStatement = stmt;
@@ -151,15 +159,16 @@ export class QueryExecutor {
                             tm.activeConnectionInfo = connectionInfo;
 
                             const columnNames = getUniqueColumnNames(stmt.output);
-                            console.log(`[FB] stmt.fetch calling | limit=${limit} | columns=${columnNames.length}`);
+                            FirebirdLog.info(`[FB] stmt.fetch calling | limit=${limit} | columns=${columnNames.length}`);
+                            pendingStage = 'stmt.fetch';
                             stmt.fetch(tr, limit, async (fetchErr, ret) => {
                                 if (fetchErr) {
-                                    console.log(`[FB] stmt.fetch ERROR | ${fetchErr.message}`);
+                                    FirebirdLog.error(`[FB] stmt.fetch ERROR | ${fetchErr.message}`);
                                     stmt.close();
                                     tm.activeStatement = undefined;
                                     return wrapReject(fetchErr);
                                 }
-                                console.log(`[FB] stmt.fetch callback | rows=${ret.data?.length ?? 0} | fetched=${ret.fetched}`);
+                                FirebirdLog.info(`[FB] stmt.fetch callback | rows=${ret.data?.length ?? 0} | fetched=${ret.fetched}`);
                                 try {
                                     const processed = await processResultRows(ret.data || [], encodingConf, columnNames);
                                     wrapResolve({
@@ -186,15 +195,16 @@ export class QueryExecutor {
 
                 const fetchMore = (stmt: FbStatement) => {
                     const columnNames = getUniqueColumnNames(stmt.output);
-                    console.log(`[FB] fetchMore (reuse stmt) calling | limit=${limit} | offset=${reqOffset}`);
+                    FirebirdLog.info(`[FB] fetchMore (reuse stmt) calling | limit=${limit} | offset=${reqOffset}`);
+                    pendingStage = 'stmt.fetchMore';
                     stmt.fetch(tr, limit, async (err, ret) => {
                         if (err) {
-                            console.log(`[FB] fetchMore ERROR | ${err.message}`);
+                            FirebirdLog.error(`[FB] fetchMore ERROR | ${err.message}`);
                             stmt.close();
                             tm.activeStatement = undefined;
                             return wrapReject(err);
                         }
-                        console.log(`[FB] fetchMore callback | rows=${ret.data?.length ?? 0} | fetched=${ret.fetched}`);
+                        FirebirdLog.info(`[FB] fetchMore callback | rows=${ret.data?.length ?? 0} | fetched=${ret.fetched}`);
                         try {
                             const processed = await processResultRows(ret.data || [], encodingConf, columnNames);
                             wrapResolve({
@@ -217,18 +227,20 @@ export class QueryExecutor {
                         tm.activeStatement = undefined;
                     }
 
-                    console.log(`[FB] newStatement calling...`);
+                    FirebirdLog.info(`[FB] newStatement calling...`);
+                    pendingStage = 'transaction.newStatement';
                     trExt.newStatement(queryString, (err, statement) => {
                         if (err) {
-                            console.log(`[FB] newStatement ERROR | ${err.message}`);
+                            FirebirdLog.error(`[FB] newStatement ERROR | ${err.message}`);
                             return wrapReject(err);
                         }
-                        console.log(`[FB] newStatement callback OK`);
+                        FirebirdLog.info(`[FB] newStatement callback OK`);
                         executeOnStatement(statement);
                     });
                 }
             };
 
+            pendingStage = 'attach-or-start-transaction';
             this._attachAndStartTransaction(id, options, runQuery, wrapReject);
         });
     }
@@ -328,13 +340,13 @@ export class QueryExecutor {
         const tm = TransactionManager.getInstance(id);
 
         const startTransaction = (db: Firebird.Database) => {
-            console.log(`[FB] db.transaction calling...`);
+            FirebirdLog.info(`[FB] db.transaction calling...`);
             db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err, tr) => {
                 if (err) {
-                    console.log(`[FB] db.transaction ERROR | ${err.message}`);
+                    FirebirdLog.error(`[FB] db.transaction ERROR | ${err.message}`);
                     return onError(err);
                 }
-                console.log(`[FB] db.transaction callback OK`);
+                FirebirdLog.info(`[FB] db.transaction callback OK`);
                 tm.transaction = tr;
                 tm.notifyStateChange();
                 onTransaction(tr);
@@ -342,27 +354,27 @@ export class QueryExecutor {
         };
 
         if (tm.transaction) {
-            console.log(`[FB] reusing existing transaction`);
+            FirebirdLog.info(`[FB] reusing existing transaction`);
             onTransaction(tm.transaction);
             return;
         }
 
         if (tm.db) {
-            console.log(`[FB] reusing existing db connection`);
+            FirebirdLog.info(`[FB] reusing existing db connection`);
             startTransaction(tm.db);
             return;
         }
 
-        console.log(`[FB] Firebird.attach calling | host=${options.host} | db=${options.database}`);
+        FirebirdLog.info(`[FB] Firebird.attach calling | host=${options.host} | db=${options.database}`);
         Firebird.attach(options, (err, db) => {
             if (err) {
-                console.log(`[FB] Firebird.attach ERROR | ${err.message}`);
+                FirebirdLog.error(`[FB] Firebird.attach ERROR | ${err.message}`);
                 return onError(err);
             }
-            console.log(`[FB] Firebird.attach callback OK`);
+            FirebirdLog.info(`[FB] Firebird.attach callback OK`);
 
             (db as FbDatabaseWithEvents).on('error', (dbErr) => {
-                console.log(`[FB] db socket error | ${dbErr.message}`);
+                FirebirdLog.error(`[FB] db socket error | ${dbErr.message}`);
                 if (tm.currentReject) {
                     tm.currentReject(dbErr);
                 }

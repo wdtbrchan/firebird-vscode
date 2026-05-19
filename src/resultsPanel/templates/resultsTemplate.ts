@@ -38,6 +38,22 @@ export function extractTableName(query: string | undefined): string | undefined 
 }
 
 /**
+ * Keeps inline editing limited to result sets where the target table is
+ * reasonably unambiguous. SQL parsing stays intentionally conservative here.
+ */
+export function getEditableTableName(query: string | undefined): string | undefined {
+    if (!query) return undefined;
+    const normalized = query.replace(/\s+/g, ' ').trim();
+    if (!/^select\b/i.test(normalized)) return undefined;
+    if (/\b(join|union|intersect|except|group\s+by|having)\b/i.test(normalized)) return undefined;
+    const fromMatch = normalized.match(/\bfrom\s+([^\s,;()+]+)/i);
+    if (!fromMatch) return undefined;
+    const afterFrom = normalized.slice((fromMatch.index || 0) + fromMatch[0].length);
+    if (/^\s*,/.test(afterFrom)) return undefined;
+    return fromMatch[1].replace(/['"]/g, '');
+}
+
+/**
  * Assembles the full HTML page for the results webview.
  */
 export function getResultsPageHtml(extensionUri: vscode.Uri, params: ResultsPageParams): string {
@@ -80,9 +96,10 @@ export function getResultsPageHtml(extensionUri: vscode.Uri, params: ResultsPage
     } else {
         const encoding = params.currentConnection?.charset || 'UTF8';
         const tableName = extractTableName(params.currentQuery);
+        const editableTableName = getEditableTableName(params.currentQuery);
         const config = vscode.workspace.getConfiguration('firebird');
         const decimalSeparator = config.get<string>('csvDecimalSeparator', '.');
-        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction, encoding, tableName, decimalSeparator);
+        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction, encoding, tableName, decimalSeparator, editableTableName);
     }
 
     // --- Static Files ---

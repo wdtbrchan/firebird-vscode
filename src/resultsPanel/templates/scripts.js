@@ -1,4 +1,6 @@
 const vscode = acquireVsCodeApi();
+const editedRows = new Map();
+let activeEditCell = null;
 
 function init() {
     const data = window.INITIAL_DATA;
@@ -115,6 +117,18 @@ window.addEventListener('message', event => {
                 updateTimer();
             }
         }
+    }
+
+    if (message.command === 'primaryKeyColumns') {
+        const input = document.getElementById('savePrimaryKeys');
+        if (input && !input.value.trim()) {
+            input.value = (message.columns || []).join(', ');
+        }
+    }
+
+    if (message.command === 'updateScriptError') {
+        const error = document.getElementById('saveChangesError');
+        if (error) error.innerText = message.message || 'Unable to generate SQL.';
     }
 });
 
@@ -347,6 +361,153 @@ function updateTimer() {
 
 })();
 
+function getCellValue(cell) {
+    const kind = cell.dataset.kind || 'string';
+    if (kind === 'null') return { kind: 'null', value: null };
+    return { kind, value: cell.dataset.raw || '' };
+}
+
+function renderCellValue(cell, value) {
+    cell.dataset.kind = value.kind;
+    cell.dataset.raw = value.value === null ? '' : value.value;
+    cell.dataset.null = value.kind === 'null' ? 'true' : 'false';
+    if (value.kind === 'null') {
+        cell.innerHTML = '<span class="null-value">[NULL]</span>';
+    } else {
+        cell.innerText = value.value || '';
+    }
+}
+
+function valuesEqual(left, right) {
+    return left.kind === right.kind && left.value === right.value;
+}
+
+function ensureEditedRow(row) {
+    const rowId = row.dataset.rowId;
+    if (!editedRows.has(rowId)) {
+        const originalValues = {};
+        row.querySelectorAll('td[data-column-name]').forEach(cell => {
+            originalValues[cell.dataset.columnName] = getCellValue(cell);
+        });
+        editedRows.set(rowId, {
+            rowIndex: Number(rowId),
+            row,
+            originalValues,
+            changedValues: {}
+        });
+    }
+    return editedRows.get(rowId);
+}
+
+function updateChangeState() {
+    let changedCells = 0;
+    editedRows.forEach(entry => {
+        const rowChanged = Object.keys(entry.changedValues).length > 0;
+        entry.row.classList.toggle('modified-row', rowChanged);
+        changedCells += Object.keys(entry.changedValues).length;
+    });
+
+    const changedRows = Array.from(editedRows.values()).filter(entry => Object.keys(entry.changedValues).length > 0).length;
+    const bar = document.getElementById('changesBar');
+    const summary = document.getElementById('changesSummary');
+    if (bar) bar.classList.toggle('visible', changedRows > 0);
+    if (summary) summary.innerText = `${changedRows} changed row${changedRows === 1 ? '' : 's'}, ${changedCells} changed cell${changedCells === 1 ? '' : 's'}`;
+}
+
+window.hideEditModal = function() {
+    document.getElementById('editModalOverlay')?.classList.remove('visible');
+    activeEditCell = null;
+};
+
+window.applyCellEdit = function() {
+    if (!activeEditCell) return;
+    const textarea = document.getElementById('editValueTextarea');
+    const nullCheckbox = document.getElementById('editValueNull');
+    const newValue = nullCheckbox && nullCheckbox.checked
+        ? { kind: 'null', value: null }
+        : { kind: activeEditCell.dataset.kind === 'null' ? 'string' : (activeEditCell.dataset.kind || 'string'), value: textarea ? textarea.value : '' };
+    const row = activeEditCell.closest('tr');
+    const editedRow = ensureEditedRow(row);
+    const columnName = activeEditCell.dataset.columnName;
+    const originalValue = editedRow.originalValues[columnName];
+    renderCellValue(activeEditCell, newValue);
+    if (valuesEqual(originalValue, newValue)) {
+        delete editedRow.changedValues[columnName];
+        activeEditCell.classList.remove('modified-cell');
+    } else {
+        editedRow.changedValues[columnName] = newValue;
+        activeEditCell.classList.add('modified-cell');
+    }
+    if (Object.keys(editedRow.changedValues).length === 0) {
+        editedRows.delete(row.dataset.rowId);
+    }
+    updateChangeState();
+    window.hideEditModal();
+};
+
+window.discardAllChanges = function() {
+    editedRows.forEach(entry => {
+        entry.row.querySelectorAll('td[data-column-name]').forEach(cell => {
+            renderCellValue(cell, entry.originalValues[cell.dataset.columnName]);
+            cell.classList.remove('modified-cell');
+        });
+        entry.row.classList.remove('modified-row');
+    });
+    editedRows.clear();
+    updateChangeState();
+};
+
+window.showSaveChangesModal = function() {
+    const overlay = document.getElementById('saveChangesModalOverlay');
+    const tableName = document.querySelector('.table-container')?.dataset.editableTable || '';
+    const tableInput = document.getElementById('saveTableName');
+    const error = document.getElementById('saveChangesError');
+    if (tableInput && !tableInput.value.trim()) tableInput.value = tableName;
+    if (error) error.innerText = '';
+    overlay?.classList.add('visible');
+    if (tableName) vscode.postMessage({ command: 'requestPrimaryKeyColumns', tableName });
+};
+
+window.hideSaveChangesModal = function() {
+    document.getElementById('saveChangesModalOverlay')?.classList.remove('visible');
+};
+
+window.generateUpdateScript = function() {
+    const tableName = document.getElementById('saveTableName')?.value.trim() || '';
+    const primaryKeyColumns = (document.getElementById('savePrimaryKeys')?.value || '')
+        .split(',')
+        .map(part => part.trim())
+        .filter(Boolean);
+    const rows = Array.from(editedRows.values())
+        .filter(entry => Object.keys(entry.changedValues).length > 0)
+        .map(entry => ({
+            rowIndex: entry.rowIndex,
+            originalValues: entry.originalValues,
+            changedValues: entry.changedValues
+        }));
+    const error = document.getElementById('saveChangesError');
+    if (!tableName || primaryKeyColumns.length === 0) {
+        if (error) error.innerText = 'Table and primary key columns are required.';
+        return;
+    }
+    vscode.postMessage({ command: 'generateUpdateScript', tableName, primaryKeyColumns, rows });
+};
+
+document.addEventListener('click', event => {
+    const cell = event.target.closest('td[data-column-name]');
+    if (!cell || cell.dataset.editable === 'false') return;
+    if (!cell.closest('.table-container')?.dataset.editableTable) return;
+    activeEditCell = cell;
+    const textarea = document.getElementById('editValueTextarea');
+    const nullCheckbox = document.getElementById('editValueNull');
+    const title = document.getElementById('editModalTitle');
+    if (textarea) textarea.value = cell.dataset.raw || '';
+    if (nullCheckbox) nullCheckbox.checked = cell.dataset.kind === 'null';
+    if (title) title.innerText = `Edit ${cell.dataset.columnName}`;
+    document.getElementById('editModalOverlay')?.classList.add('visible');
+    textarea?.focus();
+});
+
 // --- CSV Export Modal ---
 window.showCsvModal = function() {
     const overlay = document.getElementById('csvModalOverlay');
@@ -381,4 +542,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target === overlay) window.hideCsvModal();
         });
     }
+    ['editModalOverlay', 'saveChangesModalOverlay'].forEach(id => {
+        const modalOverlay = document.getElementById(id);
+        if (modalOverlay) {
+            modalOverlay.addEventListener('click', function(e) {
+                if (e.target === modalOverlay) modalOverlay.classList.remove('visible');
+            });
+        }
+    });
 });

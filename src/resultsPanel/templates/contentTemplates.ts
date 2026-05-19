@@ -90,10 +90,43 @@ export function getNoResultsHtml(affectedRows: number | undefined): string {
 
 import { iconChevronDown } from './icons';
 
+function getCellKind(rowVal: unknown): 'null' | 'number' | 'date' | 'string' | 'blob' {
+    if (rowVal === null) return 'null';
+    if (rowVal instanceof Uint8Array) return 'blob';
+    if (typeof rowVal === 'number') return 'number';
+    if (rowVal instanceof Date) return 'date';
+    return 'string';
+}
+
+function getRawValue(rowVal: unknown): string {
+    if (rowVal === null || rowVal instanceof Uint8Array) return '';
+    if (rowVal instanceof Date) {
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const isDateOnly = rowVal.getHours() === 0 && rowVal.getMinutes() === 0 && rowVal.getSeconds() === 0 && rowVal.getMilliseconds() === 0;
+        return isDateOnly
+            ? `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())}`
+            : `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())} ${pad(rowVal.getHours())}:${pad(rowVal.getMinutes())}:${pad(rowVal.getSeconds())}`;
+    }
+    return String(rowVal);
+}
+
+function getCellAttributes(column: string, rowVal: unknown): string {
+    const kind = getCellKind(rowVal);
+    const attributes = [
+        ` data-column-name="${escapeHtml(column)}"`,
+        ` data-kind="${kind}"`,
+        ` data-raw="${escapeHtml(getRawValue(rowVal))}"`
+    ];
+    if (kind === 'null') attributes.push(' data-null="true"');
+    if (kind === 'number') attributes.push(' data-isnum="true"');
+    if (kind === 'blob') attributes.push(' data-editable="false"');
+    return attributes.join('');
+}
+
 /**
  * Returns the HTML for the results data table.
  */
-export function getResultsTableHtml(results: Record<string, unknown>[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string, encoding?: string, tableName?: string, decimalSeparator?: string): string {
+export function getResultsTableHtml(results: Record<string, unknown>[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string, encoding?: string, tableName?: string, decimalSeparator?: string, editableTableName?: string): string {
     const columns = Object.keys(results[0]);
     const headerRow = '<th></th>' + columns.map((col, idx) => `
         <th data-col-index="${idx + 1}">
@@ -107,27 +140,9 @@ export function getResultsTableHtml(results: Record<string, unknown>[], locale: 
         const cells = columns.map(col => {
             const rowVal = row[col];
             const val = formatCellValue(rowVal, locale);
-            let attributes: string;
-            if (rowVal === null) {
-                attributes = ` data-null="true"`;
-            } else if (typeof rowVal === 'number') {
-                attributes = ` data-isnum="true" data-raw="${rowVal.toString()}"`;
-            } else if (rowVal instanceof Date) {
-                const pad = (n: number) => n.toString().padStart(2, '0');
-                const isDateOnly = rowVal.getHours() === 0 && rowVal.getMinutes() === 0 && rowVal.getSeconds() === 0 && rowVal.getMilliseconds() === 0;
-                let rawDate: string;
-                if (isDateOnly) {
-                    rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())}`;
-                } else {
-                    rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())} ${pad(rowVal.getHours())}:${pad(rowVal.getMinutes())}:${pad(rowVal.getSeconds())}`;
-                }
-                attributes = ` data-raw="${escapeHtml(rawDate)}"`;
-            } else {
-                attributes = ` data-raw="${escapeHtml(String(rowVal))}"`;
-            }
-            return `<td${attributes}>${val}</td>`;
+            return `<td${getCellAttributes(col, rowVal)}>${val}</td>`;
         }).join('');
-        return `<tr><td class="row-index">${index + 1}</td>${cells}</tr>`;
+        return `<tr data-row-id="${index + 1}"><td class="row-index">${index + 1}</td>${cells}</tr>`;
     }).join('');
 
     let loadMoreButtonHtml = '';
@@ -151,12 +166,51 @@ export function getResultsTableHtml(results: Record<string, unknown>[], locale: 
         <div class="export-bar">
             <button id="exportCsvBtn" onclick="showCsvModal()">⤓ Export CSV</button>
         </div>
-        <div class="table-container">
+        <div class="table-container" data-editable-table="${editableTableName ? escapeHtml(editableTableName) : ''}">
             <table>
                 <thead><tr>${headerRow}</tr></thead>
                 <tbody>${rowsHtml}</tbody>
             </table>
             ${loadMoreButtonHtml}
+        </div>
+        <div class="changes-bar" id="changesBar">
+            <div id="changesSummary"></div>
+            <div class="changes-actions">
+                <button class="btn-secondary" onclick="discardAllChanges()">Discard changes</button>
+                <button class="btn-primary" onclick="showSaveChangesModal()">Save changes</button>
+            </div>
+        </div>
+        <div class="edit-modal-overlay" id="editModalOverlay">
+            <div class="edit-modal">
+                <h3 id="editModalTitle">Edit value</h3>
+                <textarea id="editValueTextarea"></textarea>
+                <label class="checkbox-row">
+                    <input type="checkbox" id="editValueNull" />
+                    <span>Set NULL</span>
+                </label>
+                <div class="edit-modal-buttons">
+                    <button class="btn-secondary" onclick="hideEditModal()">Cancel</button>
+                    <button class="btn-primary" onclick="applyCellEdit()">Save value</button>
+                </div>
+            </div>
+        </div>
+        <div class="edit-modal-overlay" id="saveChangesModalOverlay">
+            <div class="edit-modal">
+                <h3>Generate UPDATE script</h3>
+                <div class="csv-modal-field">
+                    <label for="saveTableName">Table</label>
+                    <input type="text" id="saveTableName" value="${editableTableName ? escapeHtml(editableTableName) : ''}" />
+                </div>
+                <div class="csv-modal-field">
+                    <label for="savePrimaryKeys">Primary key columns</label>
+                    <input type="text" id="savePrimaryKeys" placeholder="ID or ID, TENANT_ID" />
+                </div>
+                <div id="saveChangesError" class="modal-error"></div>
+                <div class="edit-modal-buttons">
+                    <button class="btn-secondary" onclick="hideSaveChangesModal()">Cancel</button>
+                    <button class="btn-primary" onclick="generateUpdateScript()">Generate SQL</button>
+                </div>
+            </div>
         </div>
         <div class="csv-modal-overlay" id="csvModalOverlay">
             <div class="csv-modal">
@@ -207,26 +261,8 @@ export function generateRowsHtml(rows: Record<string, unknown>[], startIndex: nu
         const cells = columns.map(col => {
             const rowVal = row[col];
             const val = formatCellValue(rowVal, locale);
-            let attributes: string;
-            if (rowVal === null) {
-                attributes = ` data-null="true"`;
-            } else if (typeof rowVal === 'number') {
-                attributes = ` data-isnum="true" data-raw="${rowVal.toString()}"`;
-            } else if (rowVal instanceof Date) {
-                const pad = (n: number) => n.toString().padStart(2, '0');
-                const isDateOnly = rowVal.getHours() === 0 && rowVal.getMinutes() === 0 && rowVal.getSeconds() === 0 && rowVal.getMilliseconds() === 0;
-                let rawDate: string;
-                if (isDateOnly) {
-                    rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())}`;
-                } else {
-                    rawDate = `${rowVal.getFullYear()}-${pad(rowVal.getMonth()+1)}-${pad(rowVal.getDate())} ${pad(rowVal.getHours())}:${pad(rowVal.getMinutes())}:${pad(rowVal.getSeconds())}`;
-                }
-                attributes = ` data-raw="${escapeHtml(rawDate)}"`;
-            } else {
-                attributes = ` data-raw="${escapeHtml(String(rowVal))}"`;
-            }
-            return `<td${attributes}>${val}</td>`;
+            return `<td${getCellAttributes(col, rowVal)}>${val}</td>`;
         }).join('');
-        return `<tr><td class="row-index">${rowIndex}</td>${cells}</tr>`;
+        return `<tr data-row-id="${rowIndex}"><td class="row-index">${rowIndex}</td>${cells}</tr>`;
     }).join('');
 }

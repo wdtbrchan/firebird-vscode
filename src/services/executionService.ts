@@ -4,6 +4,7 @@ import * as os from 'os';
 import { Database } from '../database';
 import { DatabaseConnection } from '../database/types';
 import { TransactionManager } from '../database/transactionManager';
+import { FirebirdLog } from '../logger';
 
 export interface ExecutionDataEvent {
     results: Record<string, unknown>[];
@@ -95,17 +96,17 @@ export class ExecutionService {
         this._lastExecutionTime = undefined;
 
         const qPreview = query.trim().replace(/\s+/g, ' ').substring(0, 80);
-        console.log(`[FB] executeNewQuery START | id=${this.id} | db=${context || 'unknown'} | query="${qPreview}"`);
+        FirebirdLog.info(`[FB] executeNewQuery START | id=${this.id} | db=${context || 'unknown'} | query="${qPreview}"`, true);
 
         this._onStart.fire({ connection, context });
-        console.log(`[FB] onStart fired`);
+        FirebirdLog.info(`[FB] onStart fired`);
         const start = performance.now();
         try {
             await this._fetchAndEmit(false);
         } finally {
             this._isExecuting = false;
             const elapsed = ((performance.now() - start) / 1000).toFixed(3);
-            console.log(`[FB] executeNewQuery END | id=${this.id} | total=${elapsed}s`);
+            FirebirdLog.info(`[FB] executeNewQuery END | id=${this.id} | total=${elapsed}s`);
             this._checkAndPlayAudioCue(parseFloat(elapsed));
         }
     }
@@ -123,6 +124,7 @@ export class ExecutionService {
         this._currentContext = context;
         this._lastExecutionTime = undefined;
 
+        FirebirdLog.info(`[FB] explainQuery START | id=${this.id} | db=${context || 'unknown'}`, true);
         this._onStart.fire({ connection, context });
         const start = performance.now();
         try {
@@ -159,6 +161,7 @@ export class ExecutionService {
         this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
         this._allResults = [];
 
+        FirebirdLog.info(`[FB] executeScript START | id=${this.id} | db=${context || 'unknown'} | statements=${statements.length}`, true);
         this._onStart.fire({ connection, context });
         this._onMessage.fire({ text: 'Executing script...' });
 
@@ -209,23 +212,23 @@ export class ExecutionService {
         try {
             await this._fetchAndEmit(true);
         } catch (e) {
-            console.error('Load more failed', e);
+            FirebirdLog.error('[FB] Load more failed', e);
         }
     }
 
     private async _fetchAndEmit(append: boolean) {
         if (!this._currentQuery) return;
 
-        console.log(`[FB] _fetchAndEmit START | append=${append} | offset=${this._currentOffset} | limit=${this._limit}`);
+        FirebirdLog.info(`[FB] _fetchAndEmit START | append=${append} | offset=${this._currentOffset} | limit=${this._limit}`);
         const start = performance.now();
         try {
-            console.log(`[FB] Database.executeQuery calling...`);
+            FirebirdLog.info(`[FB] Database.executeQuery calling...`);
             const queryResult = await Database.executeQuery(this.id, this._currentQuery, this._currentConnection, {
                 limit: this._limit,
                 offset: this._currentOffset
             });
             const elapsed = ((performance.now() - start) / 1000).toFixed(3);
-            console.log(`[FB] Database.executeQuery returned | rows=${queryResult.rows.length} | affectedRows=${queryResult.affectedRows} | hasMore=${queryResult.hasMore} | elapsed=${elapsed}s`);
+            FirebirdLog.info(`[FB] Database.executeQuery returned | rows=${queryResult.rows.length} | affectedRows=${queryResult.affectedRows} | hasMore=${queryResult.hasMore} | elapsed=${elapsed}s`);
 
             if (!append) {
                 this._lastExecutionTime = parseFloat(elapsed);
@@ -242,7 +245,7 @@ export class ExecutionService {
                 this._allResults = results;
             }
 
-            console.log(`[FB] _onData firing | rows=${results.length} | hasTransaction=${hasTransaction}`);
+            FirebirdLog.info(`[FB] _onData firing | rows=${results.length} | hasTransaction=${hasTransaction}`);
             this._onData.fire({
                 results: append ? results : this._allResults,
                 affectedRows,
@@ -255,11 +258,11 @@ export class ExecutionService {
                 connection: this._currentConnection,
                 executionTime: this._lastExecutionTime
             });
-            console.log(`[FB] _onData fired`);
+            FirebirdLog.info(`[FB] _onData fired`);
 
         } catch (err) {
             const elapsed = ((performance.now() - start) / 1000).toFixed(3);
-            console.log(`[FB] _fetchAndEmit ERROR | elapsed=${elapsed}s | message=${(err as Error).message}`);
+            FirebirdLog.error(`[FB] _fetchAndEmit ERROR | elapsed=${elapsed}s | message=${(err as Error).message}`);
             if (!append) {
                 this._lastExecutionTime = parseFloat(elapsed);
             }

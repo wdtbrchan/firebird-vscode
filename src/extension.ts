@@ -10,8 +10,11 @@ import { ActiveConnectionCodeLensProvider } from './providers/activeConnectionCo
 import { registerContextKeys } from './contextKeys';
 import { createStatusBar } from './statusBar';
 import { registerAllCommands } from './commands';
+import { FirebirdLog } from './logger';
 
 export function activate(context: vscode.ExtensionContext) {
+    context.subscriptions.push({ dispose: () => FirebirdLog.dispose() });
+    FirebirdLog.info('[FB] Extension activating');
 
     // --- Context Key Management ---
     registerContextKeys(context);
@@ -88,13 +91,15 @@ export function activate(context: vscode.ExtensionContext) {
 
         // --- Register All Commands ---
         registerAllCommands(context, databaseTreeDataProvider, ddlProvider);
+        FirebirdLog.info('[FB] Extension activated');
 
     } catch (e) {
-        console.error('Firebird extension activation failed:', e);
+        FirebirdLog.error('[FB] Extension activation failed', e, true);
         vscode.window.showErrorMessage('Firebird extension activation failed: ' + (e as Error).message);
     }
 }
 
 export function deactivate() {
+    FirebirdLog.info('[FB] Extension deactivating');
     Database.detachAll();
 }
