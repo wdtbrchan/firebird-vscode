@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.9.5]
 - **Diagnostics**: Added a dedicated `Firebird SQL` Output Channel with structured logging for extension activation, connection selection/checks, query execution stages, transaction lifecycle, cancellation, kill, detach, and auto-rollback events.
 - **Diagnostics**: Added the `Firebird: Show Firebird SQL Log` command to open the log explicitly from the Command Palette without showing it automatically during normal use.
 - **Webviews**: Removed an invalid local `codicon.css` resource reference from the connection editor webview.
