@@ -121,14 +121,19 @@ window.addEventListener('message', event => {
 
     if (message.command === 'primaryKeyColumns') {
         const input = document.getElementById('savePrimaryKeys');
-        if (input && !input.value.trim()) {
+        if (input && message.columns && message.columns.length > 0 && (!input.value.trim() || input.dataset.autoFilled === 'true')) {
             input.value = (message.columns || []).join(', ');
+            input.dataset.autoFilled = 'true';
         }
     }
 
     if (message.command === 'updateScriptError') {
         const error = document.getElementById('saveChangesError');
         if (error) error.innerText = message.message || 'Unable to generate SQL.';
+    }
+
+    if (message.command === 'updateScriptGenerated') {
+        window.hideSaveChangesModal();
     }
 });
 
@@ -461,8 +466,18 @@ window.showSaveChangesModal = function() {
     const overlay = document.getElementById('saveChangesModalOverlay');
     const tableName = document.querySelector('.table-container')?.dataset.editableTable || '';
     const tableInput = document.getElementById('saveTableName');
+    const primaryKeysInput = document.getElementById('savePrimaryKeys');
     const error = document.getElementById('saveChangesError');
     if (tableInput && !tableInput.value.trim()) tableInput.value = tableName;
+    if (primaryKeysInput && !primaryKeysInput.value.trim()) {
+        const idColumn = Array.from(document.querySelectorAll('th .col-name'))
+            .map(cell => cell.innerText.trim())
+            .find(column => column.toUpperCase() === 'ID');
+        if (idColumn) {
+            primaryKeysInput.value = idColumn;
+            primaryKeysInput.dataset.autoFilled = 'true';
+        }
+    }
     if (error) error.innerText = '';
     overlay?.classList.add('visible');
     if (tableName) vscode.postMessage({ command: 'requestPrimaryKeyColumns', tableName });
@@ -471,6 +486,22 @@ window.showSaveChangesModal = function() {
 window.hideSaveChangesModal = function() {
     document.getElementById('saveChangesModalOverlay')?.classList.remove('visible');
 };
+
+function hideVisibleModal() {
+    if (document.getElementById('saveChangesModalOverlay')?.classList.contains('visible')) {
+        window.hideSaveChangesModal();
+        return true;
+    }
+    if (document.getElementById('editModalOverlay')?.classList.contains('visible')) {
+        window.hideEditModal();
+        return true;
+    }
+    if (document.getElementById('csvModalOverlay')?.classList.contains('visible')) {
+        window.hideCsvModal();
+        return true;
+    }
+    return false;
+}
 
 window.generateUpdateScript = function() {
     const tableName = document.getElementById('saveTableName')?.value.trim() || '';
@@ -506,6 +537,13 @@ document.addEventListener('click', event => {
     if (title) title.innerText = `Edit ${cell.dataset.columnName}`;
     document.getElementById('editModalOverlay')?.classList.add('visible');
     textarea?.focus();
+});
+
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && hideVisibleModal()) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
 });
 
 // --- CSV Export Modal ---
@@ -550,4 +588,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     });
+    const primaryKeysInput = document.getElementById('savePrimaryKeys');
+    if (primaryKeysInput) {
+        primaryKeysInput.addEventListener('input', () => {
+            primaryKeysInput.dataset.autoFilled = 'false';
+        });
+    }
 });

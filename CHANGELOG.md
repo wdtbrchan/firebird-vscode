@@ -1,3 +1,9 @@
+## [ upcoming ]
+- **Query Results**: Added inline editing for simple table result sets with UPDATE script generation, primary key prefill, case-insensitive primary key matching, and safer generated SQL identifiers.
+- **Script Execution**: Added a dedicated script summary result table with per-statement status, row counts, affected rows, errors, and total affected rows.
+- **Script Execution**: Fixed script execution for generated SQL headers, comment-only blocks, parameter-injected statements, and non-string command arguments from editor UI actions.
+- **Results Panel**: Improved generated SQL and script summary UX with main-editor SQL opening, ESC modal closing, hidden CSV export for script summaries, alternate summary styling, and full cell text in tooltips.
+
 ## [1.9.5]
 - **Diagnostics**: Added a dedicated `Firebird SQL` Output Channel with structured logging for extension activation, connection selection/checks, query execution stages, transaction lifecycle, cancellation, kill, detach, and auto-rollback events.
 - **Diagnostics**: Added the `Firebird: Show Firebird SQL Log` command to open the log explicitly from the Command Palette without showing it automatically during normal use.

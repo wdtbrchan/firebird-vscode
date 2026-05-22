@@ -35,9 +35,9 @@ async function runTests() {
             }]
         });
 
-        assert.ok(sql.includes('UPDATE "USERS"'));
-        assert.ok(sql.includes('"NAME" = \'O\'\'Reilly\''));
-        assert.ok(sql.includes('"ID" = 1'));
+        assert.ok(sql.includes('UPDATE USERS'));
+        assert.ok(sql.includes('NAME = \'O\'\'Reilly\''));
+        assert.ok(sql.includes('ID = 1'));
     });
 
     test('uses original primary key value when key is edited', () => {
@@ -55,8 +55,27 @@ async function runTests() {
             }]
         });
 
-        assert.ok(sql.includes('"ID" = 11'));
-        assert.ok(sql.includes('WHERE\n    "ID" = 10'));
+        assert.ok(sql.includes('ID = 11'));
+        assert.ok(sql.includes('WHERE\n    ID = 10'));
+    });
+
+    test('matches primary key columns case-insensitively', () => {
+        const sql = buildUpdateScript({
+            tableName: 'USERS',
+            primaryKeyColumns: ['id'],
+            rows: [{
+                rowIndex: 5,
+                originalValues: {
+                    ID: { kind: 'number', value: '12' },
+                    NAME: { kind: 'string', value: 'Old' }
+                },
+                changedValues: {
+                    NAME: { kind: 'string', value: 'New' }
+                }
+            }]
+        });
+
+        assert.ok(sql.includes('WHERE\n    ID = 12'));
     });
 
     test('rejects missing primary key values', () => {

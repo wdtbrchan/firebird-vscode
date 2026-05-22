@@ -1,4 +1,4 @@
-import { escapeSqlString, quoteIdentifier } from '../database/sqlIdentifier';
+import { escapeSqlString } from '../database/sqlIdentifier';
 
 export type EditableCellValueKind = 'null' | 'number' | 'date' | 'string';
 
@@ -30,6 +30,32 @@ function serializeValue(value: EditableCellValue): string {
     return `'${escapeSqlString(value.value)}'`;
 }
 
+function formatIdentifier(name: string): string {
+    const trimmed = name.trim();
+    if (!trimmed) {
+        throw new Error('Identifier name is required.');
+    }
+    return trimmed;
+}
+
+function resolveColumnName(column: string, row: EditedRowPayload): string {
+    const requested = formatIdentifier(column);
+    const availableColumns = Object.keys(row.originalValues);
+    if (Object.prototype.hasOwnProperty.call(row.originalValues, requested)) {
+        return requested;
+    }
+
+    const matches = availableColumns.filter(name => name.toUpperCase() === requested.toUpperCase());
+    if (matches.length === 1) {
+        return matches[0];
+    }
+    if (matches.length > 1) {
+        throw new Error(`Primary key column "${column}" is ambiguous in row ${row.rowIndex}.`);
+    }
+
+    throw new Error(`Primary key column "${column}" is missing in row ${row.rowIndex}.`);
+}
+
 export function buildUpdateScript(request: UpdateScriptRequest): string {
     if (!request.tableName.trim()) {
         throw new Error('Table name is required.');
@@ -41,7 +67,7 @@ export function buildUpdateScript(request: UpdateScriptRequest): string {
         throw new Error('There are no changed rows to save.');
     }
 
-    const quotedTable = quoteIdentifier(request.tableName);
+    const tableName = formatIdentifier(request.tableName);
     const statements = request.rows.map(row => {
         const changedColumns = Object.keys(row.changedValues);
         if (changedColumns.length === 0) {
@@ -49,21 +75,19 @@ export function buildUpdateScript(request: UpdateScriptRequest): string {
         }
 
         const setClause = changedColumns
-            .map(column => `    ${quoteIdentifier(column)} = ${serializeValue(row.changedValues[column])}`)
+            .map(column => `    ${formatIdentifier(column)} = ${serializeValue(row.changedValues[column])}`)
             .join(',\n');
 
         const whereClause = request.primaryKeyColumns.map(column => {
-            const originalValue = row.originalValues[column];
-            if (!originalValue) {
-                throw new Error(`Primary key column "${column}" is missing in row ${row.rowIndex}.`);
-            }
+            const resolvedColumn = resolveColumnName(column, row);
+            const originalValue = row.originalValues[resolvedColumn];
             if (originalValue.kind === 'null') {
                 throw new Error(`Primary key column "${column}" is NULL in row ${row.rowIndex}.`);
             }
-            return `    ${quoteIdentifier(column)} = ${serializeValue(originalValue)}`;
+            return `    ${formatIdentifier(resolvedColumn)} = ${serializeValue(originalValue)}`;
         }).join('\n    AND ');
 
-        return `UPDATE ${quotedTable}\nSET\n${setClause}\nWHERE\n${whereClause};`;
+        return `UPDATE ${tableName}\nSET\n${setClause}\nWHERE\n${whereClause};`;
     });
 
     return [

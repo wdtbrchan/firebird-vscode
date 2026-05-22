@@ -193,6 +193,42 @@ body.vscode-light th { background-color: #e0e0e0; color: #333; border-right: 1px
 body.vscode-light .row-index { background-color: #f0f0f0; color: #666; border-right: 2px solid #ccc; }
 body.vscode-light .no-results-bar { background-color: #e0e0e0; color: #333; }
 
+body.script-summary .export-bar {
+    display: none;
+}
+body.script-summary .table-container {
+    background-color: rgba(86, 156, 214, 0.08);
+    border-top: 1px solid rgba(86, 156, 214, 0.28);
+}
+body.script-summary table {
+    background-color: rgba(30, 30, 30, 0.7);
+}
+body.script-summary th {
+    background-color: rgba(86, 156, 214, 0.18);
+}
+body.script-summary td {
+    white-space: normal;
+    vertical-align: top;
+    line-height: 1.35;
+    max-width: 520px;
+}
+body.script-summary tbody tr:last-child td {
+    font-weight: 600;
+    background-color: rgba(86, 156, 214, 0.16);
+}
+body.vscode-light.script-summary .table-container {
+    background-color: rgba(0, 122, 204, 0.08);
+}
+body.vscode-light.script-summary table {
+    background-color: #f6fbff;
+}
+body.vscode-light.script-summary th {
+    background-color: #d9ecfb;
+}
+body.vscode-light.script-summary tbody tr:last-child td {
+    background-color: #d9ecfb;
+}
+
 .null-value { color: #888; font-style: italic; }
 
 /* Load More */
@@ -385,6 +421,12 @@ body.vscode-light .no-results-bar { background-color: #e0e0e0; color: #333; }
 .csv-modal-field input:focus,
 .csv-modal-field select:focus {
     border-color: var(--vscode-focusBorder, #007fd4);
+}
+.field-help {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: #8f8f8f;
 }
 .csv-modal-buttons {
     display: flex;

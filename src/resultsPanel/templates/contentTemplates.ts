@@ -123,11 +123,23 @@ function getCellAttributes(column: string, rowVal: unknown): string {
     return attributes.join('');
 }
 
+function getCellTitle(rowVal: unknown): string {
+    if (rowVal === null) return '[NULL]';
+    if (rowVal instanceof Uint8Array) return '[Blob]';
+    return getRawValue(rowVal);
+}
+
+function truncateText(value: unknown, maxLength: number): unknown {
+    if (typeof value !== 'string' || value.length <= maxLength) return value;
+    return `${value.substring(0, maxLength - 3)}...`;
+}
+
 /**
  * Returns the HTML for the results data table.
  */
-export function getResultsTableHtml(results: Record<string, unknown>[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string, encoding?: string, tableName?: string, decimalSeparator?: string, editableTableName?: string): string {
+export function getResultsTableHtml(results: Record<string, unknown>[], locale: string, hasMore: boolean, showButtons: boolean = true, transactionAction?: string, encoding?: string, tableName?: string, decimalSeparator?: string, editableTableName?: string, resultKind: 'query' | 'scriptSummary' = 'query'): string {
     const columns = Object.keys(results[0]);
+    const isScriptSummary = resultKind === 'scriptSummary';
     const headerRow = '<th></th>' + columns.map((col, idx) => `
         <th data-col-index="${idx + 1}">
             <div class="col-header-content">
@@ -139,8 +151,9 @@ export function getResultsTableHtml(results: Record<string, unknown>[], locale: 
     const rowsHtml = results.map((row, index) => {
         const cells = columns.map(col => {
             const rowVal = row[col];
-            const val = formatCellValue(rowVal, locale);
-            return `<td${getCellAttributes(col, rowVal)}>${val}</td>`;
+            const displayVal = isScriptSummary && col === 'Statement' ? truncateText(rowVal, 80) : rowVal;
+            const val = formatCellValue(displayVal, locale);
+            return `<td${getCellAttributes(col, rowVal)} title="${escapeHtml(getCellTitle(rowVal))}">${val}</td>`;
         }).join('');
         return `<tr data-row-id="${index + 1}"><td class="row-index">${index + 1}</td>${cells}</tr>`;
     }).join('');
@@ -204,6 +217,7 @@ export function getResultsTableHtml(results: Record<string, unknown>[], locale: 
                 <div class="csv-modal-field">
                     <label for="savePrimaryKeys">Primary key columns</label>
                     <input type="text" id="savePrimaryKeys" placeholder="ID or ID, TENANT_ID" />
+                    <div class="field-help">Multiple columns can be separated by commas. Column matching is case-insensitive.</div>
                 </div>
                 <div id="saveChangesError" class="modal-error"></div>
                 <div class="edit-modal-buttons">
@@ -261,7 +275,7 @@ export function generateRowsHtml(rows: Record<string, unknown>[], startIndex: nu
         const cells = columns.map(col => {
             const rowVal = row[col];
             const val = formatCellValue(rowVal, locale);
-            return `<td${getCellAttributes(col, rowVal)}>${val}</td>`;
+            return `<td${getCellAttributes(col, rowVal)} title="${escapeHtml(getCellTitle(rowVal))}">${val}</td>`;
         }).join('');
         return `<tr data-row-id="${rowIndex}"><td class="row-index">${rowIndex}</td>${cells}</tr>`;
     }).join('');

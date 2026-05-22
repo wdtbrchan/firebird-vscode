@@ -57,6 +57,23 @@ SELECT 2 FROM RDB$DATABASE`;
         assert.ok(result[0].includes('SELECT 2'));
     });
 
+    test('Empty line separator ignores generated comment header', () => {
+        const text = `-- Generated from edited query results
+
+-- Table: zbozi
+
+-- Rows: 1
+
+UPDATE zbozi
+SET
+    nazev = 'Test'
+WHERE
+    ID = 1;`;
+        const result = ScriptParser.split(text, true);
+        assert.strictEqual(result.length, 1);
+        assert.ok(result[0].startsWith('UPDATE zbozi'), `got: ${result[0]}`);
+    });
+
     test('Respect SET TERM', () => {
         const text = `SET TERM ^ ;
 CREATE PROCEDURE P AS BEGIN END^

@@ -23,14 +23,15 @@ export function registerQueryCommands(
         }
     }));
 
-    context.subscriptions.push(vscode.commands.registerCommand('firebird.executeScript', async (script?: string) => {
+    context.subscriptions.push(vscode.commands.registerCommand('firebird.executeScript', async (script?: unknown) => {
         const editor = vscode.window.activeTextEditor;
-        if (!editor && !script) {
+        const scriptText = typeof script === 'string' ? script : undefined;
+        if (!editor && !scriptText) {
             vscode.window.showErrorMessage('No active text editor');
             return;
         }
 
-        const query = script || (editor ? editor.document.getText() : '');
+        const query = scriptText || (editor ? editor.document.getText() : '');
         
         if (!query.trim()) {
              vscode.window.showWarningMessage('Script is empty.');
@@ -55,7 +56,8 @@ export function registerQueryCommands(
             if (panel) {
                 const config = vscode.workspace.getConfiguration('firebird');
                 const useEmptyLineAsSeparator = config.get<boolean>('useEmptyLineAsSeparator', false);
-                const statements = ScriptParser.split(query, useEmptyLineAsSeparator);
+                const executableScript = ParameterInjector.inject(query);
+                const statements = ScriptParser.split(executableScript, useEmptyLineAsSeparator);
                 if (statements.length === 0) {
                     vscode.window.showWarningMessage('No valid SQL statements found in script.');
                     return;
@@ -272,4 +274,3 @@ async function handleExportQueryToCsv(
 
     ExportConfigPanel.show(context.extensionUri, cleanQuery, activeConn);
 }
-

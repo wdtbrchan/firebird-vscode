@@ -9,11 +9,11 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 
 ## Features
 
-- **SQL Execution**: Run queries (`CTRL+Enter`) and scripts (`CTRL+ALT+Enter`). Supports **Explain Query Plan** (`CTRL+SHIFT+ENTER`) to retrieve Firebird execution plans. Supports SQL from other files (e.g. PHP) with parameter injection.
+- **SQL Execution**: Run queries (`CTRL+Enter`) and scripts (`CTRL+ALT+Enter`). Script execution displays a per-statement summary with affected row totals. Supports **Explain Query Plan** (`CTRL+SHIFT+ENTER`) to retrieve Firebird execution plans. Supports SQL from other files (e.g. PHP) with parameter injection.
 - **Transaction Support**: Explicit Commit/Rollback support.
 - **Explorer**: View databases, tables, views, procedures, triggers and more. Indexes show their columns (or `COMPUTED BY` expression) directly in the tree.
 - **Table Info**: Detailed view of table structure with PK/FK tags, index column tooltips, and grouped trigger views.
-- **Query Results**: Horizontal scrollbar for tables with many columns. Context menu to copy values, columns (as raw values or as comma-separated list), or entire tables (Excel-formatted) to clipboard. Configurable panel location (side or bottom).
+- **Query Results**: Horizontal scrollbar for tables with many columns. Context menu to copy values, columns (as raw values or as comma-separated list), or entire tables (Excel-formatted) to clipboard. Supports editing simple table result sets by generating UPDATE SQL. Configurable panel location (side or bottom).
 - **CSV Export**: Export query results to CSV with configurable delimiter, qualifier, encoding, and decimal separator. 
 - **CodeLens Integration**: Interactive CodeLens for running queries and blocks (`Run Query`) directly from the editor. Also supports full scripts (`Run Script`) for complex blocks.
 - **Object Search**: Quickly filter and find database objects.

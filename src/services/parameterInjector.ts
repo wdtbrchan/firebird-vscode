@@ -32,7 +32,7 @@ export class ParameterInjector {
                 // Example: "WHERE typ=?"       becomes "WHERE typ='SG0A'"
                 // Example: "WHERE typ=:myval"  becomes "WHERE typ='SG0A'"
                 // The comment is consumed by the regex.
-                return `${whitespace}${val}`; 
+                return val;
             }
             return match;
         });

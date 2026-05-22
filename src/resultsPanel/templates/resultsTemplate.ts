@@ -26,6 +26,7 @@ export interface ResultsPageParams {
     lastExecutionTime: number | undefined;
     autoRollbackAt: number;
     locale: string;
+    resultKind?: 'query' | 'scriptSummary';
 }
 
 /**
@@ -99,7 +100,7 @@ export function getResultsPageHtml(extensionUri: vscode.Uri, params: ResultsPage
         const editableTableName = getEditableTableName(params.currentQuery);
         const config = vscode.workspace.getConfiguration('firebird');
         const decimalSeparator = config.get<string>('csvDecimalSeparator', '.');
-        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction, encoding, tableName, decimalSeparator, editableTableName);
+        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction, encoding, tableName, decimalSeparator, editableTableName, params.resultKind || 'query');
     }
 
     // --- Static Files ---
@@ -127,6 +128,11 @@ export function getResultsPageHtml(extensionUri: vscode.Uri, params: ResultsPage
         iconRollback: iconRollback
     };
 
+    const bodyClasses = [
+        params.showButtons ? 'has-transaction' : '',
+        params.resultKind === 'scriptSummary' ? 'script-summary' : ''
+    ].filter(Boolean).join(' ');
+
     return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -135,7 +141,7 @@ export function getResultsPageHtml(extensionUri: vscode.Uri, params: ResultsPage
             <script>window.INITIAL_DATA = ${JSON.stringify(initialData)};</script>
             <script>${scripts}</script>
         </head>
-        <body class="${params.showButtons ? 'has-transaction' : ''}">
+        <body class="${bodyClasses}">
             ${headerHtml}
             ${infoBarHtml}
             <div class="content-area">

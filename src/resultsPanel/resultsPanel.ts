@@ -32,6 +32,7 @@ export class ResultsPanel {
     private _hasMore: boolean = false;
     private _affectedRows: number | undefined;
     private _startTime: number | undefined;
+    private _lastResultKind: 'query' | 'scriptSummary' = 'query';
 
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, id: string) {
@@ -99,12 +100,13 @@ export class ResultsPanel {
             this._currentConnection = e.connection;
             this._currentContext = e.context;
             this._lastExecutionTime = e.executionTime;
+            this._lastResultKind = e.resultKind || 'query';
 
             if (e.append) {
                 this._appendRowsToWebview(e.results, this._lastResults.length, e.hasMore, e.affectedRows);
                 this._lastResults = [...this._lastResults, ...e.results];
             } else if (e.results.length > 0 || (e.affectedRows !== undefined && e.affectedRows >= 0)) {
-                this._updateContentForTable(e.results, e.hasTransaction, e.context, e.hasMore, e.affectedRows);
+                this._updateContentForTable(e.results, e.hasTransaction, e.context, e.hasMore, e.affectedRows, e.resultKind);
             } else {
                 this._updateContentForTable([], e.hasTransaction, e.context, false, undefined);
             }
@@ -226,9 +228,10 @@ export class ResultsPanel {
 
 
 
-    private _updateContentForTable(results: Record<string, unknown>[], hasTransaction: boolean, context?: string, hasMore: boolean = false, affectedRows?: number) {
+    private _updateContentForTable(results: Record<string, unknown>[], hasTransaction: boolean, context?: string, hasMore: boolean = false, affectedRows?: number, resultKind: 'query' | 'scriptSummary' = 'query') {
          this._isLoading = false;
          this._lastResults = results;
+         this._lastResultKind = resultKind;
          this._lastMessage = undefined;
          this._lastTransactionAction = undefined;
          this._showButtons = hasTransaction;
@@ -287,6 +290,7 @@ export class ResultsPanel {
             lastExecutionTime: this._lastExecutionTime,
             autoRollbackAt: this._currentAutoRollbackAt || 0,
             locale,
+            resultKind: this._lastResultKind,
         });
     }
 
@@ -308,7 +312,12 @@ export class ResultsPanel {
         try {
             const script = buildUpdateScript({ tableName, primaryKeyColumns, rows });
             const doc = await vscode.workspace.openTextDocument({ language: 'sql', content: script });
-            await vscode.window.showTextDocument(doc);
+            await vscode.window.showTextDocument(doc, {
+                viewColumn: vscode.ViewColumn.One,
+                preview: false,
+                preserveFocus: false
+            });
+            this._panel.webview.postMessage({ command: 'updateScriptGenerated' });
         } catch (err) {
             this._panel.webview.postMessage({
                 command: 'updateScriptError',

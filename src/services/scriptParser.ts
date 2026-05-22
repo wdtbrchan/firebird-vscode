@@ -10,6 +10,42 @@ export class ScriptParser {
         return this.parseCharByChar(script, useEmptyLineAsSeparator);
     }
 
+    private static hasExecutableSql(statement: string): boolean {
+        return statement
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/--.*$/gm, '')
+            .trim().length > 0;
+    }
+
+    private static trimExecutableStatement(statement: string): string {
+        let remaining = statement.trim();
+        let changed = true;
+
+        while (changed) {
+            changed = false;
+            if (remaining.startsWith('--')) {
+                const lineEnd = remaining.indexOf('\n');
+                remaining = lineEnd === -1 ? '' : remaining.slice(lineEnd + 1).trimStart();
+                changed = true;
+            } else if (remaining.startsWith('/*')) {
+                const blockEnd = remaining.indexOf('*/');
+                if (blockEnd === -1) return remaining;
+                remaining = remaining.slice(blockEnd + 2).trimStart();
+                changed = true;
+            }
+        }
+
+        return remaining.trim();
+    }
+
+    private static pushStatement(statements: string[], buffer: string): void {
+        if (!this.hasExecutableSql(buffer)) return;
+        const statement = this.trimExecutableStatement(buffer);
+        if (statement.length > 0) {
+            statements.push(statement);
+        }
+    }
+
     private static parseCharByChar(script: string, useEmptyLineAsSeparator: boolean): string[] {
         const statements: string[] = [];
         let buffer = '';
@@ -122,9 +158,7 @@ export class ScriptParser {
                 // Regular delimiter check
                 if (script.substr(i, delimiter.length) === delimiter) {
                      // Found statement end
-                     if (buffer.trim().length > 0) {
-                         statements.push(buffer.trim());
-                     }
+                     this.pushStatement(statements, buffer);
                      buffer = '';
                      i += delimiter.length;
                      continue;
@@ -140,9 +174,7 @@ export class ScriptParser {
                     const rest = script.substring(i);
                     const match = /^(\r?\n\s*){2,}/.exec(rest);
                     if (match) {
-                        if (buffer.trim().length > 0) {
-                            statements.push(buffer.trim());
-                        }
+                        this.pushStatement(statements, buffer);
                         buffer = '';
                         i += match[0].length;
                         continue;
@@ -154,9 +186,7 @@ export class ScriptParser {
             i++;
         }
 
-        if (buffer.trim().length > 0) {
-            statements.push(buffer.trim());
-        }
+        this.pushStatement(statements, buffer);
 
         return statements;
     }

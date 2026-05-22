@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import * as os from 'os';
 import { Database } from '../database';
-import { DatabaseConnection } from '../database/types';
+import { DatabaseConnection, QueryResult } from '../database/types';
 import { TransactionManager } from '../database/transactionManager';
 import { FirebirdLog } from '../logger';
 
@@ -19,6 +19,17 @@ export interface ExecutionDataEvent {
     displayQuery?: string;
     connection?: DatabaseConnection;
     executionTime?: number;
+    resultKind?: 'query' | 'scriptSummary';
+}
+
+interface ScriptStatementSummary {
+    index: number;
+    statement: string;
+    type: string;
+    rows: number;
+    affectedRows?: number;
+    status: 'OK' | 'ERROR';
+    error?: string;
 }
 
 export class ExecutionService {
@@ -180,30 +191,107 @@ export class ExecutionService {
             this._displayQuery = `${getPrefix(statements[0])} ... ${getPrefix(statements[total - 1])}`;
         }
 
-        let executedCount = 0;
         const start = performance.now();
+        const summaries: ScriptStatementSummary[] = [];
 
         try {
             for (let i = 0; i < total; i++) {
                 const stmt = statements[i];
                 this._currentQuery = stmt;
-
-                if (i === total - 1) {
-                    this._currentOffset = 0;
-                    await this._fetchAndEmit(false);
-                } else {
-                    await Database.executeQuery(this.id, stmt, connection, { limit: 1000, offset: 0 });
-                }
-                executedCount++;
+                const queryResult = await Database.executeQuery(this.id, stmt, connection, { limit: this._limit, offset: 0 });
+                summaries.push(this._buildScriptSummary(i + 1, stmt, queryResult));
             }
         } catch (err) {
-            const hasTransaction = Database.hasActiveTransaction(this.id);
-            this._onError.fire({ message: `Script error at statement ${executedCount + 1}: ${(err as Error).message}`, hasTransaction });
+            const failedIndex = summaries.length + 1;
+            const failedStatement = statements[failedIndex - 1] || '';
+            summaries.push({
+                index: failedIndex,
+                statement: this._getStatementText(failedStatement),
+                type: this._getStatementType(failedStatement),
+                rows: 0,
+                status: 'ERROR',
+                error: (err as Error).message
+            });
         } finally {
             this._isExecuting = false;
             const end = performance.now();
-            this._checkAndPlayAudioCue((end - start) / 1000);
+            const elapsed = (end - start) / 1000;
+            this._lastExecutionTime = parseFloat(elapsed.toFixed(3));
+            if (summaries.length > 0) {
+                this._emitScriptSummary(summaries, total);
+            }
+            this._checkAndPlayAudioCue(elapsed);
         }
+    }
+
+    private _buildScriptSummary(index: number, statement: string, queryResult: QueryResult): ScriptStatementSummary {
+        return {
+            index,
+            statement: this._getStatementText(statement),
+            type: this._getStatementType(statement),
+            rows: queryResult.rows.length,
+            affectedRows: queryResult.affectedRows,
+            status: 'OK'
+        };
+    }
+
+    private _emitScriptSummary(summaries: ScriptStatementSummary[], totalStatements: number) {
+        const totalAffectedRows = summaries.reduce((sum, item) => sum + (typeof item.affectedRows === 'number' ? item.affectedRows : 0), 0);
+        const failedCount = summaries.filter(item => item.status === 'ERROR').length;
+        const successfulCount = summaries.filter(item => item.status === 'OK').length;
+        const hasTransaction = Database.hasActiveTransaction(this.id);
+        const results: Record<string, unknown>[] = summaries.map(item => ({
+            '#': item.index,
+            'Statement': item.statement,
+            'Type': item.type,
+            'Rows': item.rows,
+            'Affected Rows': item.affectedRows ?? '',
+            'Status': item.status,
+            'Error': item.error || ''
+        }));
+
+        results.push({
+            '#': '',
+            'Statement': 'TOTAL',
+            'Type': '',
+            'Rows': summaries.reduce((sum, item) => sum + item.rows, 0),
+            'Affected Rows': totalAffectedRows,
+            'Status': failedCount > 0 ? `${successfulCount}/${totalStatements} OK` : 'OK',
+            'Error': failedCount > 0 ? `${failedCount} error${failedCount === 1 ? '' : 's'}` : ''
+        });
+
+        this._allResults = results;
+        this._currentQuery = undefined;
+        this._displayQuery = `Script summary: ${successfulCount}/${totalStatements} statements OK`;
+        this._onData.fire({
+            results,
+            affectedRows: totalAffectedRows,
+            hasMore: false,
+            append: false,
+            hasTransaction,
+            context: this._currentContext,
+            query: undefined,
+            displayQuery: this._displayQuery,
+            connection: this._currentConnection,
+            executionTime: this._lastExecutionTime,
+            resultKind: 'scriptSummary'
+        });
+    }
+
+    private _getStatementType(statement: string): string {
+        const cleaned = statement
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/--.*$/gm, '')
+            .trim();
+        return (/^([A-Za-z]+)/.exec(cleaned)?.[1] || 'SQL').toUpperCase();
+    }
+
+    private _getStatementText(statement: string): string {
+        return statement
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/--.*$/gm, '')
+            .trim()
+            .replace(/\s+/g, ' ');
     }
 
     public async loadMore() {
