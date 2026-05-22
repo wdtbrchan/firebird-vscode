@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.10.0]
 - **Query Results**: Added inline editing for simple table result sets with UPDATE script generation, primary key prefill, case-insensitive primary key matching, and safer generated SQL identifiers.
 - **Script Execution**: Added a dedicated script summary result table with per-statement status, row counts, affected rows, errors, and total affected rows.
 - **Script Execution**: Fixed script execution for generated SQL headers, comment-only blocks, parameter-injected statements, and non-string command arguments from editor UI actions.
