@@ -29,6 +29,7 @@ export class ResultsPanel {
     private _lastContext: string | undefined;
     private _lastIsError: boolean = false;
     private _isLoading: boolean = false;
+    private _autoCommitOnce: boolean = false;
     private _hasMore: boolean = false;
     private _affectedRows: number | undefined;
     private _startTime: number | undefined;
@@ -52,6 +53,9 @@ export class ResultsPanel {
                         return;
                     case 'rollback':
                         vscode.commands.executeCommand('firebird.rollback', this._id);
+                        return;
+                    case 'setAutoCommitOnce':
+                        this._autoCommitOnce = !!message.enabled;
                         return;
                     case 'loadMore':
                         ExecutionService.getInstance(this._id).loadMore();
@@ -110,6 +114,13 @@ export class ResultsPanel {
             } else {
                 this._updateContentForTable([], e.hasTransaction, e.context, false, undefined);
             }
+            const shouldAutoCommit = !e.append && this._autoCommitOnce;
+            if (shouldAutoCommit) {
+                this._autoCommitOnce = false;
+                if (e.hasTransaction) {
+                    void vscode.commands.executeCommand('firebird.commit', this._id);
+                }
+            }
             FirebirdLog.info(`[FB] ResultsPanel webview HTML updated`);
         }, this, this._disposables);
 
@@ -161,13 +172,14 @@ export class ResultsPanel {
 
     public showLoading() {
         this._isLoading = true;
+        this._autoCommitOnce = false;
         this._startTime = Date.now();
         
         const connectionColor = resolveConnectionColor(this._currentConnection?.color);
         const contextTitle = this._currentContext || 'Unknown Database';
         const headerHtml = getHeaderHtml(contextTitle, connectionColor);
 
-        this._panel.webview.html = getLoadingHtml(this._extensionUri, headerHtml, this._startTime!);
+        this._panel.webview.html = getLoadingHtml(this._extensionUri, headerHtml, this._startTime!, this._autoCommitOnce);
     }
 
     public showSuccess(message: string, hasTransaction: boolean, context?: string) {

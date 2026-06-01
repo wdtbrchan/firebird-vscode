@@ -1,3 +1,6 @@
+## [1.11.0]
+- **Transactions**: Added a one-shot Auto commit checkbox to the query execution bar so long-running queries can commit automatically when they finish.
+
 ## [1.10.0]
 - **Query Results**: Added inline editing for simple table result sets with UPDATE script generation, primary key prefill, case-insensitive primary key matching, and safer generated SQL identifiers.
 - **Script Execution**: Added a dedicated script summary result table with per-statement status, row counts, affected rows, errors, and total affected rows.

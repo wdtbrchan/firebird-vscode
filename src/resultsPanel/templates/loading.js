@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const data = window.INITIAL_DATA;
     if (!data) return;
+    const vscode = acquireVsCodeApi();
     
     const startTime = data.startTime;
     const timerEl = document.getElementById('executing-timer');
@@ -17,8 +18,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const cancelBtn = document.getElementById('cancel-query-btn');
     const killBtn = document.getElementById('kill-query-btn');
+    const autoCommitCheckbox = document.getElementById('autoCommitOnce');
+    if (autoCommitCheckbox) {
+        autoCommitCheckbox.checked = !!data.autoCommitOnce;
+        autoCommitCheckbox.addEventListener('change', () => {
+            vscode.postMessage({ command: 'setAutoCommitOnce', enabled: autoCommitCheckbox.checked });
+        });
+    }
+
     if (cancelBtn) {
-        const vscode = acquireVsCodeApi();
         cancelBtn.addEventListener('click', () => {
             vscode.postMessage({ command: 'cancelQuery' });
             cancelBtn.textContent = 'Cancelling...';

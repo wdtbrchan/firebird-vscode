@@ -24,6 +24,18 @@
 }
 .executing-bar > div { margin-left: 15px; }
     /* span removed from direct descendants */
+.auto-commit-once {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 12px;
+    color: inherit;
+    cursor: pointer;
+    user-select: none;
+}
+.auto-commit-once input {
+    margin: 0;
+}
 .spinner {
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-radius: 50%;

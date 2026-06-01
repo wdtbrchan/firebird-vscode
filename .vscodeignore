@@ -10,6 +10,9 @@ tsconfig.json
 *.vsix
 eslint.config.mjs
 build_extension.ps1
+release_extension.ps1
+.release.env
+.release.env.example
 firebird-vscode.code-workspace
 TODO.md
 .test.sql
