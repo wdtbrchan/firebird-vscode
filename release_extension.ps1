@@ -127,9 +127,6 @@ if ($SkipPublish) {
 if (!$env:OVSX_PAT) {
     throw "OVSX_PAT is missing. Set it in the environment or in local .release.env."
 }
-if (!$env:VSCE_PAT) {
-    throw "VSCE_PAT is missing. Set it in the environment or in local .release.env."
-}
 
 Write-Step "Publishing to Open VSX"
 ovsx publish $vsix
