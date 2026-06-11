@@ -10,7 +10,7 @@ export class OperationItem extends vscode.TreeItem {
         commandOverride?: vscode.Command
     ) {
         super(label, vscode.TreeItemCollapsibleState.None);
-        
+
         if (type === 'create') {
             this.iconPath = new vscode.ThemeIcon('new-file');
             this.contextValue = 'script-create';

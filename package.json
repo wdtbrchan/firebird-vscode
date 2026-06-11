@@ -252,6 +252,16 @@
         "icon": "$(trash)"
       },
       {
+        "command": "firebird.copyDDL",
+        "title": "Copy DDL",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "firebird.compareWithActiveFile",
+        "title": "Compare with Active File",
+        "icon": "$(diff)"
+      },
+      {
         "command": "firebird.deleteObject",
         "title": "Drop",
         "icon": "$(trash)"
@@ -612,6 +622,16 @@
           "command": "firebird.openSourceInfo",
           "when": "view == firebird.databases && (viewItem == trigger || viewItem == procedure || viewItem == view || viewItem == function)",
           "group": "inline"
+        },
+        {
+          "command": "firebird.copyDDL",
+          "when": "view == firebird.databases && (viewItem == procedure || viewItem == view || viewItem == trigger || viewItem == function || viewItem == generator)",
+          "group": "9_copyDDL"
+        },
+        {
+          "command": "firebird.compareWithActiveFile",
+          "when": "view == firebird.databases && viewItem == procedure",
+          "group": "9_copyDDL"
         },
         {
           "command": "firebird.openGeneratorInfo",
