@@ -630,7 +630,7 @@
         },
         {
           "command": "firebird.compareWithActiveFile",
-          "when": "view == firebird.databases && viewItem == procedure",
+          "when": "view == firebird.databases && (viewItem == procedure || viewItem == view || viewItem == trigger || viewItem == function || viewItem == generator)",
           "group": "9_copyDDL"
         },
         {

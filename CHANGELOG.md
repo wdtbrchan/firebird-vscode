@@ -1,3 +1,7 @@
+## [1.12.0]
+- **DB Explorer**: Added "Copy DDL" and "Compare with Active File" context menu commands to database objects. Both produce the same output as the DDL Script item (SET TERM + CREATE OR ALTER + GRANT).
+- **DB Explorer**: Extended "Compare with Active File" to all supported object types (view, trigger, function, generator) — previously it was available only for procedures.
+
 ## [1.11.0]
 - **Transactions**: Added a one-shot Auto commit checkbox to the query execution bar so long-running queries can commit automatically when they finish.
 
