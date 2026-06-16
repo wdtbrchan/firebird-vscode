@@ -625,12 +625,12 @@
         },
         {
           "command": "firebird.copyDDL",
-          "when": "view == firebird.databases && (viewItem == procedure || viewItem == view || viewItem == trigger || viewItem == function || viewItem == generator)",
+          "when": "view == firebird.databases && (viewItem == procedure || viewItem == view || viewItem == trigger || viewItem == function || viewItem == generator || viewItem == procedure-favorite || viewItem == view-favorite || viewItem == trigger-favorite || viewItem == function-favorite || viewItem == generator-favorite)",
           "group": "9_copyDDL"
         },
         {
           "command": "firebird.compareWithActiveFile",
-          "when": "view == firebird.databases && (viewItem == procedure || viewItem == view || viewItem == trigger || viewItem == function || viewItem == generator)",
+          "when": "view == firebird.databases && (viewItem == procedure || viewItem == view || viewItem == trigger || viewItem == function || viewItem == generator || viewItem == procedure-favorite || viewItem == view-favorite || viewItem == trigger-favorite || viewItem == function-favorite || viewItem == generator-favorite)",
           "group": "9_copyDDL"
         },
         {

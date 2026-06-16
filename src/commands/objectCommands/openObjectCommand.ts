@@ -97,7 +97,7 @@ export function registerOpenObjectCommands(
             const ddlUri = vscode.Uri.parse(`${DDLProvider.scheme}:///diff-${name}.sql`);
             ddlProvider.reportContent(ddlUri, ddl);
             const activeFileName = activeEditor.document.fileName.replace(/.*[\\/]/, '');
-            await vscode.commands.executeCommand('vscode.diff', activeEditor.document.uri, ddlUri, `${activeFileName} ↔ ${name} (DB)`);
+            await vscode.commands.executeCommand('vscode.diff', ddlUri, activeEditor.document.uri, `${name} (DB) ↔ ${activeFileName}`);
         } catch (err) {
             vscode.window.showErrorMessage(`Error comparing with ${name}: ${(err as Error).message}`);
         }
