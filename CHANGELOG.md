@@ -1,6 +1,7 @@
 ## [ upcoming ]
 - **DB Explorer**: "Compare with Active File" now shows the database DDL as the base (left) side and the active editor file as the changed (right) side.
 - **DB Explorer**: Added "Copy DDL" and "Compare with Active File" context menu commands to objects in the Favorites list (procedures, views, triggers, functions, generators).
+- **DB Explorer**: Fixed the "View source" / generator info inline button disappearing after adding an object to favorites via the heart icon.
 
 ## [1.12.0]
 - **DB Explorer**: Added "Copy DDL" and "Compare with Active File" context menu commands to database objects. Both produce the same output as the DDL Script item (SET TERM + CREATE OR ALTER + GRANT).

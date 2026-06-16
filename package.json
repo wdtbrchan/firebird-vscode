@@ -620,7 +620,7 @@
         },
         {
           "command": "firebird.openSourceInfo",
-          "when": "view == firebird.databases && (viewItem == trigger || viewItem == procedure || viewItem == view || viewItem == function)",
+          "when": "view == firebird.databases && (viewItem == trigger || viewItem == procedure || viewItem == view || viewItem == function || viewItem == trigger-favorite || viewItem == procedure-favorite || viewItem == view-favorite || viewItem == function-favorite)",
           "group": "inline"
         },
         {
@@ -635,7 +635,7 @@
         },
         {
           "command": "firebird.openGeneratorInfo",
-          "when": "view == firebird.databases && viewItem == generator",
+          "when": "view == firebird.databases && (viewItem == generator || viewItem == generator-favorite)",
           "group": "inline"
         },
         {
