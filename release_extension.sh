@@ -169,12 +169,15 @@ if ${skip_publish}; then
 fi
 
 : "${OVSX_PAT:?OVSX_PAT is missing. Set it in the environment or .release.env.}"
-: "${VSCE_PAT:?VSCE_PAT is missing. Set it in the environment or .release.env.}"
 
 step "Publishing to Open VSX"
-npx ovsx publish "${vsix}" -p "${OVSX_PAT}"
+npx ovsx publish "${vsix}"
 
-step "Publishing to VS Code Marketplace"
-npx vsce publish -p "${VSCE_PAT}"
+if [[ -n "${VSCE_PAT:-}" ]]; then
+    step "Publishing to VS Code Marketplace"
+    npx vsce publish --packagePath "${vsix}"
+else
+    step "Skipping VS Code Marketplace (VSCE_PAT is not configured)"
+fi
 
 step "Release ${version} complete"
