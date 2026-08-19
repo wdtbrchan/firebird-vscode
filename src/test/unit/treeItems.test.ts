@@ -72,7 +72,7 @@ async function runTests() {
     test('TriggerItem: should correctly set properties and description', () => {
         const item = new TriggerItem(mockConn, 'TEST_TRG', 10, true); // inactive
         assert.strictEqual(item.label, 'TEST_TRG');
-        assert.strictEqual(item.contextValue, 'trigger-item');
+        assert.strictEqual(item.contextValue, 'trigger');
         const desc = item.description as string;
         assert.ok(desc?.includes('(10)'));
         assert.ok(desc?.includes('INACTIVE'));

@@ -38,6 +38,36 @@
           "default": 60,
           "description": "Time in seconds before automatic transaction rollback."
         },
+        "firebird.connectionTimeout": {
+          "type": "number",
+          "minimum": 0,
+          "default": 15,
+          "description": "Timeout in seconds for opening a Firebird connection. Set to 0 to disable."
+        },
+        "firebird.driverOperationTimeout": {
+          "type": "number",
+          "minimum": 0,
+          "default": 30,
+          "description": "Timeout in seconds for Firebird driver stages such as starting a transaction, preparing a statement, and fetching rows. Set to 0 to disable."
+        },
+        "firebird.queryTimeout": {
+          "type": "number",
+          "minimum": 0,
+          "default": 7200,
+          "description": "Maximum query execution time in seconds. Set to 0 to disable."
+        },
+        "firebird.blobReadTimeout": {
+          "type": "number",
+          "minimum": 0,
+          "default": 30,
+          "description": "Timeout in seconds for reading an individual BLOB stream. Set to 0 to disable."
+        },
+        "firebird.transactionTimeout": {
+          "type": "number",
+          "minimum": 0,
+          "default": 30,
+          "description": "Timeout in seconds for commit and rollback operations. Set to 0 to disable."
+        },
         "firebird.resultLocale": {
           "type": "string",
           "default": "en-US",
@@ -692,14 +722,16 @@
     "watch": "tsc -watch -p ./",
     "package": "vsce package",
     "lint": "eslint .",
-    "test-unit": "tsc -p ./ && node out/test/unit/queryExtractor.test.js && node out/test/unit/scriptParser.test.js && node out/test/unit/indexInfoTemplate.test.js && node out/test/unit/connectionOptions.test.js && node out/test/unit/treeUtils.test.js && node out/test/unit/queryCleanup.test.js && node out/test/unit/parameterInjector.test.js && node out/test/unit/sqlIdentifier.test.js && node out/test/unit/metadataQueries.test.js && node out/test/unit/passwordStore.test.js && node out/test/unit/csvFormat.test.js && node out/test/unit/infoPanelTemplates.test.js && node out/test/unit/slotArg.test.js && node out/test/unit/scriptService.test.js && node out/test/unit/updateScriptService.test.js && node out/test/unit/connectionManagerPasswords.test.js"
+    "test-unit": "tsc -p ./ && node out/test/runUnitTests.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^18.0.0",
     "@types/uuid": "^10.0.0",
     "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^3.9.2",
     "eslint": "^10.0.2",
+    "ovsx": "^1.1.1",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.56.1"
   },

@@ -39,5 +39,10 @@ export const window = {
     showErrorMessage: () => {},
     showInformationMessage: () => {},
     showInputBox: () => Promise.resolve(''),
-    showQuickPick: () => Promise.resolve(undefined)
+    showQuickPick: () => Promise.resolve(undefined),
+    createOutputChannel: () => ({
+        appendLine: () => {},
+        show: () => {},
+        dispose: () => {}
+    })
 };

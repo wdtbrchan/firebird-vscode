@@ -97,22 +97,21 @@ export class ExecutionService {
         }
 
         this._isExecuting = true;
-        this._currentQuery = query;
-        this._displayQuery = query;
-        this._currentConnection = connection;
-        this._currentContext = context;
-        this._currentOffset = 0;
-        this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
-        this._allResults = [];
-        this._lastExecutionTime = undefined;
-
-        const qPreview = query.trim().replace(/\s+/g, ' ').substring(0, 80);
-        FirebirdLog.info(`[FB] executeNewQuery START | id=${this.id} | db=${context || 'unknown'} | query="${qPreview}"`, true);
-
-        this._onStart.fire({ connection, context });
-        FirebirdLog.info(`[FB] onStart fired`);
         const start = performance.now();
         try {
+            this._currentQuery = query;
+            this._displayQuery = query;
+            this._currentConnection = connection;
+            this._currentContext = context;
+            this._currentOffset = 0;
+            this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
+            this._allResults = [];
+            this._lastExecutionTime = undefined;
+
+            const qPreview = query.trim().replace(/\s+/g, ' ').substring(0, 80);
+            FirebirdLog.info(`[FB] executeNewQuery START | id=${this.id} | db=${context || 'unknown'} | query="${qPreview}"`, true);
+            this._onStart.fire({ connection, context });
+            FirebirdLog.info('[FB] onStart fired');
             await this._fetchAndEmit(false);
         } finally {
             this._isExecuting = false;
@@ -129,16 +128,16 @@ export class ExecutionService {
         }
 
         this._isExecuting = true;
-        this._currentQuery = query;
-        this._displayQuery = query;
-        this._currentConnection = connection;
-        this._currentContext = context;
-        this._lastExecutionTime = undefined;
-
-        FirebirdLog.info(`[FB] explainQuery START | id=${this.id} | db=${context || 'unknown'}`, true);
-        this._onStart.fire({ connection, context });
         const start = performance.now();
         try {
+            this._currentQuery = query;
+            this._displayQuery = query;
+            this._currentConnection = connection;
+            this._currentContext = context;
+            this._lastExecutionTime = undefined;
+
+            FirebirdLog.info(`[FB] explainQuery START | id=${this.id} | db=${context || 'unknown'}`, true);
+            this._onStart.fire({ connection, context });
             const plan = await Database.getPlan(this.id, query, connection);
             const end = performance.now();
             this._lastExecutionTime = (end - start) / 1000;
@@ -167,34 +166,33 @@ export class ExecutionService {
         }
 
         this._isExecuting = true;
-        this._currentConnection = connection;
-        this._currentContext = context;
-        this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
-        this._allResults = [];
-
-        FirebirdLog.info(`[FB] executeScript START | id=${this.id} | db=${context || 'unknown'} | statements=${statements.length}`, true);
-        this._onStart.fire({ connection, context });
-        this._onMessage.fire({ text: 'Executing script...' });
-
         const total = statements.length;
-
-        if (total === 0) {
-            this._displayQuery = undefined;
-        } else if (total === 1) {
-            this._displayQuery = statements[0];
-        } else {
-            const getPrefix = (stmt: string) => {
-                const trimmed = stmt.trim();
-                const firstLine = trimmed.split(/\r?\n/)[0].trim();
-                return firstLine.length > 40 ? firstLine.substring(0, 40) : firstLine;
-            };
-            this._displayQuery = `${getPrefix(statements[0])} ... ${getPrefix(statements[total - 1])}`;
-        }
-
         const start = performance.now();
         const summaries: ScriptStatementSummary[] = [];
 
         try {
+            this._currentConnection = connection;
+            this._currentContext = context;
+            this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
+            this._allResults = [];
+
+            FirebirdLog.info(`[FB] executeScript START | id=${this.id} | db=${context || 'unknown'} | statements=${total}`, true);
+            this._onStart.fire({ connection, context });
+            this._onMessage.fire({ text: 'Executing script...' });
+
+            if (total === 0) {
+                this._displayQuery = undefined;
+            } else if (total === 1) {
+                this._displayQuery = statements[0];
+            } else {
+                const getPrefix = (stmt: string) => {
+                    const trimmed = stmt.trim();
+                    const firstLine = trimmed.split(/\r?\n/)[0].trim();
+                    return firstLine.length > 40 ? firstLine.substring(0, 40) : firstLine;
+                };
+                this._displayQuery = `${getPrefix(statements[0])} ... ${getPrefix(statements[total - 1])}`;
+            }
+
             for (let i = 0; i < total; i++) {
                 const stmt = statements[i];
                 this._currentQuery = stmt;
@@ -296,11 +294,21 @@ export class ExecutionService {
 
     public async loadMore() {
         if (!this._currentQuery) return;
-        this._currentOffset += this._limit;
+        if (this._isExecuting) {
+            vscode.window.showWarningMessage('A Firebird operation is already running in this editor.');
+            return;
+        }
+
+        const previousOffset = this._currentOffset;
+        this._isExecuting = true;
+        this._currentOffset = previousOffset + this._limit;
         try {
             await this._fetchAndEmit(true);
         } catch (e) {
+            this._currentOffset = previousOffset;
             FirebirdLog.error('[FB] Load more failed', e);
+        } finally {
+            this._isExecuting = false;
         }
     }
 

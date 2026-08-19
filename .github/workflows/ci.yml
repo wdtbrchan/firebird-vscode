@@ -1,12 +1,13 @@
-name: Publish to Open VSX
+name: CI
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - '**'
+  pull_request:
 
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,11 +28,3 @@ jobs:
 
       - name: Run unit tests
         run: npm run test-unit
-
-      - name: Package VSIX
-        run: npm run package
-
-      - name: Publish to Open VSX
-        run: npx ovsx publish *.vsix -p "$OVSX_TOKEN"
-        env:
-          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}

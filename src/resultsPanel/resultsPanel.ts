@@ -58,7 +58,7 @@ export class ResultsPanel {
                         this._autoCommitOnce = !!message.enabled;
                         return;
                     case 'loadMore':
-                        ExecutionService.getInstance(this._id).loadMore();
+                        void ExecutionService.getInstance(this._id).loadMore();
                         return;
                     case 'cancelQuery':
                         ExecutionService.getInstance(this._id).cancelCurrentQuery();
@@ -316,8 +316,16 @@ export class ResultsPanel {
 
     private async _sendPrimaryKeyColumns(tableName: string) {
         if (!this._currentConnection || !tableName) return;
-        const columns = await MetadataService.getPrimaryKeyColumns(this._currentConnection, tableName);
-        this._panel.webview.postMessage({ command: 'primaryKeyColumns', columns });
+        try {
+            const columns = await MetadataService.getPrimaryKeyColumns(this._currentConnection, tableName);
+            await this._panel.webview.postMessage({ command: 'primaryKeyColumns', columns });
+        } catch (err) {
+            FirebirdLog.error(`[FB] Unable to load primary key columns for ${tableName}`, err);
+            await this._panel.webview.postMessage({
+                command: 'updateScriptError',
+                message: `Unable to load primary key columns: ${(err as Error).message}`
+            });
+        }
     }
 
     private async _generateUpdateScript(tableName: string, primaryKeyColumns: string[], rows: EditedRowPayload[]) {

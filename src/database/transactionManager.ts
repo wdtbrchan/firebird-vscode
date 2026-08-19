@@ -4,9 +4,16 @@ import { FirebirdLog } from '../logger';
 
 type StateChangeHandler = (hasTransaction: boolean, autoRollbackAt?: number, lastAction?: string) => void;
 
+interface PendingOperation {
+    id: number;
+    reject: (err: Error) => void;
+}
+
+type TransactionAction = 'commit' | 'rollback';
+
 /**
- * Manages database transactions, auto-rollback timer, and connection lifecycle.
- * All members are static – singleton pattern matching the original Database class.
+ * Manages a single editor's database connection, transaction, and in-flight
+ * operation. Only one driver operation or transaction action may run at once.
  */
 export class TransactionManager {
     public static instances: Map<string, TransactionManager> = new Map();
@@ -25,7 +32,7 @@ export class TransactionManager {
 
     public static cleanupAll() {
         FirebirdLog.info(`[FB] Cleaning up all transaction managers | count=${this.instances.size}`);
-        this.instances.forEach(instance => instance.cleanupConnection());
+        this.instances.forEach(instance => instance.dispose());
         this.instances.clear();
     }
 
@@ -37,10 +44,12 @@ export class TransactionManager {
     public activeStatement: unknown;
     public activeQuery: string | undefined;
     public activeConnectionInfo: string | undefined;
-    public currentReject: ((err: Error) => void) | undefined;
 
     private onStateChangeHandlers: StateChangeHandler[] = [];
-    
+    private operationSequence = 0;
+    private pendingOperation: PendingOperation | undefined;
+    private transactionAction: TransactionAction | undefined;
+
     private constructor(private id: string) {}
 
     public onTransactionChange(handler: StateChangeHandler) {
@@ -49,185 +58,263 @@ export class TransactionManager {
 
     public notifyStateChange(lastAction?: string) {
         const isActive = this.hasActiveTransaction;
-        this.onStateChangeHandlers.forEach(h => h(isActive, this.autoRollbackDeadline, lastAction));
-        TransactionManager.globalStateChangeHandlers.forEach(h => h(this.id, isActive, this.autoRollbackDeadline, lastAction));
+        this.onStateChangeHandlers.forEach(handler => {
+            try {
+                handler(isActive, this.autoRollbackDeadline, lastAction);
+            } catch (err) {
+                FirebirdLog.error(`[FB] Transaction state listener failed | id=${this.id}`, err);
+            }
+        });
+        TransactionManager.globalStateChangeHandlers.forEach(handler => {
+            try {
+                handler(this.id, isActive, this.autoRollbackDeadline, lastAction);
+            } catch (err) {
+                FirebirdLog.error(`[FB] Global transaction state listener failed | id=${this.id}`, err);
+            }
+        });
+    }
+
+    /** Acquire the per-editor driver-operation slot synchronously. */
+    public beginOperation(reject: (err: Error) => void): number {
+        if (this.pendingOperation) {
+            throw new Error('Another Firebird operation is already running for this editor.');
+        }
+        if (this.transactionAction) {
+            throw new Error(`Cannot start a query while transaction ${this.transactionAction} is in progress.`);
+        }
+
+        const operationId = ++this.operationSequence;
+        this.pendingOperation = { id: operationId, reject };
+        return operationId;
+    }
+
+    public isOperationActive(operationId: number): boolean {
+        return this.pendingOperation?.id === operationId;
+    }
+
+    public completeOperation(operationId: number): void {
+        if (this.pendingOperation?.id === operationId) {
+            this.pendingOperation = undefined;
+        }
+    }
+
+    /**
+     * Abort exactly one operation. Clearing the slot before rejecting makes
+     * late driver callbacks stale and prevents them from reviving the session.
+     */
+    public abortOperation(operationId: number, error: Error, lastAction: string = 'Failed', force: boolean = true): boolean {
+        if (this.pendingOperation?.id !== operationId) return false;
+
+        const pending = this.pendingOperation;
+        this.pendingOperation = undefined;
+        this.cleanupConnection(force);
+        pending.reject(error);
+        this.notifyStateChange(lastAction);
+        return true;
+    }
+
+    public handleConnectionError(db: Firebird.Database, error: Error): void {
+        // An error from a connection that has already been replaced must not
+        // reject a newer operation.
+        if (this.db !== db) return;
+
+        const pending = this.pendingOperation;
+        this.pendingOperation = undefined;
+        this.cleanupConnection(true);
+        pending?.reject(error);
+        this.notifyStateChange('Connection lost');
     }
 
     public async commit(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            if (this.transaction) {
-                FirebirdLog.info(`[FB] Transaction commit calling | id=${this.id}`);
-                this.transaction.commit((err) => {
-                    this.transaction = undefined;
-                    this.notifyStateChange('Committed'); 
-                    this.cleanupConnection();
-                    if (err) {
-                        FirebirdLog.error(`[FB] Transaction commit failed | id=${this.id} | message=${err.message}`);
-                        reject(err);
-                    } else {
-                        FirebirdLog.info(`[FB] Transaction commit OK | id=${this.id}`);
-                        resolve();
-                    }
-                });
-            } else {
-                FirebirdLog.info(`[FB] Transaction commit skipped; no active transaction | id=${this.id}`);
-                resolve();
-            }
-        });
+        return this.runTransactionAction('commit', 'Committed');
     }
 
     public async rollback(reason: string = 'Rolled back'): Promise<void> {
+        return this.runTransactionAction('rollback', reason);
+    }
+
+    private async runTransactionAction(action: TransactionAction, successAction: string): Promise<void> {
+        if (this.pendingOperation) {
+            throw new Error(`Cannot ${action} while a database operation is still running.`);
+        }
+        if (this.transactionAction) {
+            throw new Error(`Transaction ${this.transactionAction} is already in progress.`);
+        }
+
+        const transaction = this.transaction;
+        if (!transaction) {
+            FirebirdLog.info(`[FB] Transaction ${action} skipped; no active transaction | id=${this.id}`);
+            this.cleanupConnection();
+            return;
+        }
+
+        this.transactionAction = action;
+        this.pauseAutoRollback();
+        FirebirdLog.info(`[FB] Transaction ${action} calling | id=${this.id}`);
+
         return new Promise((resolve, reject) => {
-            if (this.transaction) {
-                FirebirdLog.info(`[FB] Transaction rollback calling | id=${this.id} | reason=${reason}`);
-                this.transaction.rollback((err) => {
-                    this.transaction = undefined;
-                    this.notifyStateChange(reason); 
-                    this.cleanupConnection();
-                    if (err) {
-                        FirebirdLog.error(`[FB] Transaction rollback failed | id=${this.id} | message=${err.message}`);
-                        reject(err);
-                    } else {
-                        FirebirdLog.info(`[FB] Transaction rollback OK | id=${this.id} | reason=${reason}`);
-                        resolve();
-                    }
-                });
-            } else {
-                FirebirdLog.info(`[FB] Transaction rollback skipped; no active transaction | id=${this.id} | reason=${reason}`);
-                this.cleanupConnection(); 
-                resolve();
+            let settled = false;
+            const timeoutMs = this.getTimeoutMs('transactionTimeout', 30_000);
+            let timeout: NodeJS.Timeout | undefined;
+
+            const finish = (err?: Error | null, force: boolean = false) => {
+                if (settled) return;
+                settled = true;
+                if (timeout) clearTimeout(timeout);
+                this.transactionAction = undefined;
+                this.cleanupConnection(force || !!err);
+                this.notifyStateChange(err ? `${action} failed` : successAction);
+
+                if (err) {
+                    FirebirdLog.error(`[FB] Transaction ${action} failed | id=${this.id} | message=${err.message}`);
+                    reject(err);
+                } else {
+                    FirebirdLog.info(`[FB] Transaction ${action} OK | id=${this.id}`);
+                    resolve();
+                }
+            };
+
+            if (timeoutMs > 0) {
+                timeout = setTimeout(() => {
+                    finish(new Error(`Transaction ${action} timed out after ${Math.round(timeoutMs / 1000)} seconds.`), true);
+                }, timeoutMs);
+            }
+
+            try {
+                if (action === 'commit') {
+                    transaction.commit(err => finish(err));
+                } else {
+                    transaction.rollback(err => finish(err));
+                }
+            } catch (err) {
+                finish(this.asError(err), true);
             }
         });
     }
 
-    public cleanupConnection() {
-        if (this.autoRollbackTimer) {
-            clearTimeout(this.autoRollbackTimer);
-            this.autoRollbackTimer = undefined;
-        }
-        if (this.activeStatement) {
-            try { (this.activeStatement as { close(): void }).close(); } catch { /* ignore */ }
-            this.activeStatement = undefined;
-            FirebirdLog.info(`[FB] Active statement closed | id=${this.id}`);
-        }
+    public cleanupConnection(force: boolean = false) {
+        this.pauseAutoRollback();
+        this.closeActiveStatement();
         this.activeQuery = undefined;
         this.activeConnectionInfo = undefined;
+        this.transaction = undefined;
+
         if (this.db) {
-            try {
-                this.db.detach();
-                FirebirdLog.info(`[FB] Database connection detached | id=${this.id}`);
-            } catch { /* ignore */ }
+            const db = this.db;
             this.db = undefined;
-            this.currentOptions = undefined;
+            try {
+                if (force) this.destroyDatabase(db);
+                else db.detach();
+                FirebirdLog.info(`[FB] Database connection ${force ? 'destroyed' : 'detached'} | id=${this.id}`);
+            } catch (err) {
+                FirebirdLog.error(`[FB] Database connection cleanup failed | id=${this.id}`, err);
+            }
         }
-        this.autoRollbackDeadline = undefined;
+        this.currentOptions = undefined;
     }
 
     public cancelConnection() {
-        FirebirdLog.info(`[FB] Query cancel requested | id=${this.id}`, true);
-        if (this.autoRollbackTimer) {
-            clearTimeout(this.autoRollbackTimer);
-            this.autoRollbackTimer = undefined;
-        }
-        this.autoRollbackDeadline = undefined;
-        
-        // This will kill the running query immediately and break the connection
-        if (this.db) {
-            try {
-                this.db.detach();
-                FirebirdLog.info(`[FB] Database connection detached by cancel | id=${this.id}`);
-            } catch { /* ignore */ }
-            this.db = undefined;
-        }
-        this.transaction = undefined;
-        this.currentOptions = undefined;
-        this.activeStatement = undefined;
-        
-        if (this.currentReject) {
-            this.currentReject(new Error('Cancelled by user'));
-            this.currentReject = undefined;
-        }
-
-        this.notifyStateChange('Cancelled');
+        this.abortCurrentConnection(new Error('Cancelled by user'), 'Cancelled', false);
     }
 
     public killConnection() {
-        FirebirdLog.info(`[FB] Query kill requested | id=${this.id}`, true);
+        this.abortCurrentConnection(new Error('Killed by user'), 'Killed', true);
+    }
+
+    private abortCurrentConnection(error: Error, lastAction: string, force: boolean): void {
+        FirebirdLog.info(`[FB] Query ${lastAction.toLowerCase()} requested | id=${this.id}`, true);
+        const pending = this.pendingOperation;
+        this.pendingOperation = undefined;
+        this.cleanupConnection(force);
+        pending?.reject(error);
+        this.notifyStateChange(lastAction);
+    }
+
+    public pauseAutoRollback(): void {
         if (this.autoRollbackTimer) {
             clearTimeout(this.autoRollbackTimer);
             this.autoRollbackTimer = undefined;
         }
         this.autoRollbackDeadline = undefined;
-
-        if (this.db) {
-            try {
-                // Forcefully destroy the socket connection if available in node-firebird.
-                // node-firebird does not export typings for these internals.
-                interface InternalSocket { destroy?(): void }
-                interface InternalDbConnection { _socket?: InternalSocket; destroy?(): void }
-                interface InternalDb { connection?: InternalDbConnection; destroy?(): void }
-                const dbInternal = this.db as unknown as InternalDb;
-                const conn = dbInternal.connection;
-                if (conn?._socket?.destroy) {
-                    conn._socket.destroy();
-                } else if (conn?.destroy) {
-                    conn.destroy();
-                } else if (dbInternal.destroy) {
-                    dbInternal.destroy();
-                } else {
-                    this.db.detach();
-                }
-                FirebirdLog.info(`[FB] Database connection killed/detached | id=${this.id}`);
-            } catch (e) {
-                FirebirdLog.error(`[FB] Error forcefully killing connection | id=${this.id}`, e, true);
-            }
-            this.db = undefined;
-        }
-        this.transaction = undefined;
-        this.currentOptions = undefined;
-        this.activeStatement = undefined;
-
-        if (this.currentReject) {
-            this.currentReject(new Error('Killed by user'));
-            this.currentReject = undefined;
-        }
-
-        this.notifyStateChange('Killed');
     }
 
     public resetAutoRollback() {
-        if (this.autoRollbackTimer) {
-            clearTimeout(this.autoRollbackTimer);
-        }
-        
+        this.pauseAutoRollback();
+
+        // Never create a timer after attach failure, cancel, kill, or cleanup.
+        if (!this.transaction || this.transactionAction) return;
+
         const config = vscode.workspace.getConfiguration('firebird');
         let timeoutSeconds = config.get<number>('autoRollbackTimeout', 60);
         if (!timeoutSeconds || typeof timeoutSeconds !== 'number' || isNaN(timeoutSeconds)) {
-             timeoutSeconds = 60;
+            timeoutSeconds = 60;
         }
 
         if (timeoutSeconds <= 0) {
-            this.autoRollbackDeadline = undefined;
-            if (this.transaction) {
-                 this.notifyStateChange();
-            }
+            this.notifyStateChange();
             return;
         }
 
         this.autoRollbackDeadline = Date.now() + (timeoutSeconds * 1000);
-
         this.autoRollbackTimer = setTimeout(() => {
             FirebirdLog.info(`[FB] Auto rollback timeout reached | id=${this.id}`);
-            vscode.window.showInformationMessage('Firebird transaction auto-rolled back due to inactivity.');
-            this.rollback('Auto-rolled back');
+            void this.rollback('Auto-rolled back')
+                .then(() => vscode.window.showInformationMessage('Firebird transaction auto-rolled back due to inactivity.'))
+                .catch(err => FirebirdLog.error(`[FB] Auto rollback failed | id=${this.id}`, err, true));
         }, timeoutSeconds * 1000);
 
-        if (this.transaction) {
-            this.notifyStateChange();
-        }
+        this.notifyStateChange();
     }
 
     public get hasActiveTransaction(): boolean {
         return !!this.transaction;
+    }
+
+    private closeActiveStatement(): void {
+        if (!this.activeStatement) return;
+        try {
+            (this.activeStatement as { close(): void }).close();
+        } catch (err) {
+            FirebirdLog.error(`[FB] Active statement close failed | id=${this.id}`, err);
+        }
+        this.activeStatement = undefined;
+        FirebirdLog.info(`[FB] Active statement closed | id=${this.id}`);
+    }
+
+    private destroyDatabase(db: Firebird.Database): void {
+        interface InternalSocket { destroy?(): void }
+        interface InternalDbConnection { _socket?: InternalSocket; destroy?(): void }
+        interface InternalDb { connection?: InternalDbConnection; destroy?(): void }
+
+        const dbInternal = db as unknown as InternalDb;
+        const connection = dbInternal.connection;
+        if (connection?._socket?.destroy) connection._socket.destroy();
+        else if (connection?.destroy) connection.destroy();
+        else if (dbInternal.destroy) dbInternal.destroy();
+        else db.detach();
+    }
+
+    private getTimeoutMs(key: string, fallbackMs: number): number {
+        try {
+            const seconds = vscode.workspace.getConfiguration('firebird').get<number>(key, fallbackMs / 1000);
+            return typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0
+                ? seconds * 1000
+                : 0;
+        } catch (err) {
+            FirebirdLog.error(`[FB] Unable to read timeout setting ${key}; using default`, err);
+            return fallbackMs;
+        }
+    }
+
+    private asError(err: unknown): Error {
+        return err instanceof Error ? err : new Error(String(err));
+    }
+
+    private dispose(): void {
+        const pending = this.pendingOperation;
+        this.pendingOperation = undefined;
+        this.cleanupConnection(true);
+        pending?.reject(new Error('Firebird extension deactivated.'));
+        this.onStateChangeHandlers = [];
     }
 }

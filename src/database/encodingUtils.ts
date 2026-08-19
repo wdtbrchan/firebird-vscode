@@ -47,7 +47,12 @@ export function getUniqueColumnNames(outputs: StatementOutputColumn[]): string[]
  * Processes result rows from node-firebird, decoding buffers and BLOBs
  * according to the configured charset encoding.
  */
-export async function processResultRows(result: unknown[], encodingConf: string, columnNames?: string[]): Promise<ResultRow[]> {
+export async function processResultRows(
+    result: unknown[],
+    encodingConf: string,
+    columnNames?: string[],
+    blobTimeoutMs: number = 30_000
+): Promise<ResultRow[]> {
     if (!Array.isArray(result)) return [];
 
     return Promise.all(result.map(async (rawRow): Promise<ResultRow> => {
@@ -72,20 +77,55 @@ export async function processResultRows(result: unknown[], encodingConf: string,
                 // It's a BLOB (function): val(cb) where cb yields a stream EventEmitter.
                 const blobReader = val as BlobReader;
                 val = await new Promise<string>((resolve, reject) => {
-                    blobReader((err, _name, emitter) => {
-                        if (err) return reject(err);
-                        const chunks: Buffer[] = [];
-                        emitter.on('data', (chunk: Buffer) => chunks.push(chunk));
-                        emitter.on('end', () => {
-                            const buf = Buffer.concat(chunks);
-                            if (iconv.encodingExists(encodingConf)) {
-                                resolve(iconv.decode(buf, encodingConf));
-                            } else {
-                                resolve(buf.toString());
-                            }
+                    let settled = false;
+                    let activeEmitter: NodeJS.EventEmitter | undefined;
+
+                    const cleanup = () => {
+                        if (timeout) clearTimeout(timeout);
+                        if (activeEmitter) {
+                            activeEmitter.removeListener('data', onData);
+                            activeEmitter.removeListener('end', onEnd);
+                            activeEmitter.removeListener('error', onError);
+                        }
+                    };
+                    const finishResolve = (value: string) => {
+                        if (settled) return;
+                        settled = true;
+                        cleanup();
+                        resolve(value);
+                    };
+                    const finishReject = (err: unknown) => {
+                        if (settled) return;
+                        settled = true;
+                        cleanup();
+                        reject(err instanceof Error ? err : new Error(String(err)));
+                    };
+
+                    const chunks: Buffer[] = [];
+                    const onData = (chunk: Buffer) => chunks.push(chunk);
+                    const onEnd = () => {
+                        const buf = Buffer.concat(chunks);
+                        finishResolve(iconv.encodingExists(encodingConf)
+                            ? iconv.decode(buf, encodingConf)
+                            : buf.toString());
+                    };
+                    const onError = (err: unknown) => finishReject(err);
+                    const timeout = blobTimeoutMs > 0
+                        ? setTimeout(() => finishReject(new Error(`BLOB read timed out after ${Math.round(blobTimeoutMs / 1000)} seconds.`)), blobTimeoutMs)
+                        : undefined;
+
+                    try {
+                        blobReader((err, _name, emitter) => {
+                            if (settled) return;
+                            if (err) return finishReject(err);
+                            activeEmitter = emitter;
+                            emitter.on('data', onData);
+                            emitter.on('end', onEnd);
+                            emitter.on('error', onError);
                         });
-                        emitter.on('error', reject);
-                    });
+                    } catch (err) {
+                        finishReject(err);
+                    }
                 });
             } else if (typeof val === 'string') {
                 if (iconv.encodingExists(encodingConf)) {

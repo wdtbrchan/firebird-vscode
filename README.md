@@ -70,4 +70,5 @@ $sql = "
 ```
 **Configuration:**
 - Add the language identifier (e.g., "php") to `firebird.allowedLanguages` in VS Code settings to enable this feature for those files.
+- Firebird operations have configurable safety timeouts: `firebird.connectionTimeout` (15 s), `firebird.driverOperationTimeout` (30 s), `firebird.queryTimeout` (7,200 s / 2 h), `firebird.blobReadTimeout` (30 s), and `firebird.transactionTimeout` (30 s). Set an individual value to `0` to disable that timeout.
 - Use `firebird.enableCodeLensInNonSqlFiles` (default: `false`) to control whether CodeLens should be displayed in these files.

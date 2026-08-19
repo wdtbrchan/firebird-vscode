@@ -1,3 +1,8 @@
+## [ upcoming ]
+- **Query Reliability**: Added bounded connection, driver-stage, query, BLOB-read, and transaction timeouts so stalled Firebird callbacks cannot leave an editor permanently blocked. Query timeout defaults to 2 hours.
+- **Lifecycle Safety**: Hardened cancellation, late callbacks, statement cleanup, transaction teardown, pagination locking, and error propagation so every operation settles once and releases its execution slot.
+- **Testing & Tooling**: Added database lifecycle regression tests, automatic unit-test discovery, Linux build/release scripts, and CI verification for lint and unit tests.
+
 ## [1.13.0]
 - **DB Explorer**: "Compare with Active File" now shows the database DDL as the base (left) side and the active editor file as the changed (right) side.
 - **DB Explorer**: Added "Copy DDL" and "Compare with Active File" context menu commands to objects in the Favorites list (procedures, views, triggers, functions, generators).
