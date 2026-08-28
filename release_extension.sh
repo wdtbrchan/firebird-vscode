@@ -173,11 +173,7 @@ fi
 step "Publishing to Open VSX"
 npx ovsx publish "${vsix}"
 
-if [[ -n "${VSCE_PAT:-}" ]]; then
-    step "Publishing to VS Code Marketplace"
-    npx vsce publish --packagePath "${vsix}"
-else
-    step "Skipping VS Code Marketplace (VSCE_PAT is not configured)"
-fi
+step "VS Code Marketplace package ready"
+echo "Upload ${vsix} through the authenticated Marketplace publisher portal."
 
-step "Release ${version} complete"
+step "Open VSX release ${version} complete"
