@@ -1,5 +1,4 @@
-
-
+import { findSqlStatementRange } from './sqlStatementRange';
 
 export class QueryExtractor {
 
@@ -40,49 +39,7 @@ export class QueryExtractor {
             return { ...setTermBlock, type: 'SET_TERM' };
         }
 
-        let start = 0;
-        let end = text.length;
-
-        // Backward scan
-        for (let i = offset - 1; i >= 0; i--) {
-            if (text[i] === ';') {
-                start = i + 1;
-                break;
-            }
-            if (useEmptyLineAsSeparator && (text[i] === '\n' || text[i] === '\r')) {
-                let j = i - 1;
-                while (j >= 0 && (text[j] === ' ' || text[j] === '\t' || text[j] === '\r')) {
-                    j--;
-                }
-                if (j >= 0 && text[j] === '\n') {
-                    start = i + 1;
-                    break;
-                }
-                if (j < 0) { // start of file
-                    start = 0;
-                }
-            }
-        }
-
-        // Forward scan
-        for (let i = offset; i < text.length; i++) {
-             if (text[i] === ';') {
-                 end = i;
-                 break;
-             }
-             if (useEmptyLineAsSeparator && (text[i] === '\n' || text[i] === '\r')) {
-                 let j = i + 1;
-                 if (text[i] === '\r' && text[j] === '\n') j++;
-                 
-                 while (j < text.length && (text[j] === ' ' || text[j] === '\t' || text[j] === '\r')) {
-                     j++;
-                 }
-                 if (j < text.length && text[j] === '\n') {
-                     end = i;
-                     break;
-                 }
-             }
-        }
+        const { start, end } = findSqlStatementRange(text, offset, useEmptyLineAsSeparator);
         
         const content = text.substring(start, end);
         const leadingWhitespace = content.length - content.trimStart().length;

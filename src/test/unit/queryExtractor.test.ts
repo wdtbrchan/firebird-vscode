@@ -186,6 +186,36 @@ $sql = "SELECT * FROM table";`;
         assert.strictEqual(result?.type, 'QUERY');
     });
 
+    test('SQL: Semicolon in leading line comment is not a statement separator', () => {
+        const text = `-- Expected: STATUS='C', ITEM_COUNT=759; no items in status V
+SELECT status, COUNT(*) AS item_count
+FROM items;`;
+        const offset = text.indexOf('SELECT') + 2;
+        const result = QueryExtractor.extract(text, offset, 'sql');
+        assert.strictEqual(result?.text, text.slice(0, -1));
+        assert.strictEqual(result?.startOffset, 0);
+    });
+
+    test('SQL: Semicolon in block comment is not a statement separator', () => {
+        const text = `/* Expected result; one row */
+SELECT 1 FROM RDB$DATABASE;`;
+        const offset = text.indexOf('SELECT') + 2;
+        const result = QueryExtractor.extract(text, offset, 'sql');
+        assert.strictEqual(result?.text, text.slice(0, -1));
+        assert.strictEqual(result?.startOffset, 0);
+    });
+
+    test('SQL: Semicolon in string literal is not a statement separator', () => {
+        const text = `SELECT 'before;after' AS value FROM RDB$DATABASE;`;
+        const expected = text.slice(0, -1);
+
+        const beforeSemicolon = QueryExtractor.extract(text, text.indexOf('before'), 'sql');
+        const afterSemicolon = QueryExtractor.extract(text, text.indexOf('after'), 'sql');
+
+        assert.strictEqual(beforeSemicolon?.text, expected);
+        assert.strictEqual(afterSemicolon?.text, expected);
+    });
+
     test('SQL: Extract query with empty line separator', () => {
         const text = `SELECT 1 FROM RDB$DATABASE
 

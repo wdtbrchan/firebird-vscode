@@ -1,3 +1,6 @@
+## [ upcoming ]
+- **Query Execution**: Fixed current-statement detection so semicolons inside SQL comments and quoted values no longer split queries before execution.
+
 ## [1.13.1]
 - **Query Reliability**: Added bounded connection, driver-stage, query, BLOB-read, and transaction timeouts so stalled Firebird callbacks cannot leave an editor permanently blocked. Query timeout defaults to 2 hours.
 - **Lifecycle Safety**: Hardened cancellation, late callbacks, statement cleanup, transaction teardown, pagination locking, and error propagation so every operation settles once and releases its execution slot.
