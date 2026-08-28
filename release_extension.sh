@@ -173,7 +173,7 @@ fi
 step "Publishing to Open VSX"
 npx ovsx publish "${vsix}"
 
-step "VS Code Marketplace package ready"
-echo "Upload ${vsix} through the authenticated Marketplace publisher portal."
+step "Publishing to VS Code Marketplace"
+npx vsce publish --packagePath "${vsix}"
 
-step "Open VSX release ${version} complete"
+step "Release ${version} complete"

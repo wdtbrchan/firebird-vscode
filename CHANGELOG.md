@@ -1,6 +1,6 @@
 ## [1.13.2]
 - **Query Execution**: Fixed current-statement detection so semicolons inside SQL comments and quoted values no longer split queries before execution.
-- **Release Workflow**: Removed the unused VS Code Marketplace PAT requirement; Marketplace packages are uploaded through the authenticated publisher portal.
+- **Release Workflow**: Removed the unused VS Code Marketplace PAT requirement; Marketplace publishing now uses credentials stored by `vsce`.
 
 ## [1.13.1]
 - **Query Reliability**: Added bounded connection, driver-stage, query, BLOB-read, and transaction timeouts so stalled Firebird callbacks cannot leave an editor permanently blocked. Query timeout defaults to 2 hours.
