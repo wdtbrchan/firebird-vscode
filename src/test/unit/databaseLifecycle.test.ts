@@ -182,6 +182,22 @@ async function runTests() {
         );
     });
 
+    await test('passes Unicode SQL unchanged to node-firebird', async () => {
+        const query = "select 'Brodský Tomáš' from rdb$database";
+        let receivedQuery: string | undefined;
+        firebirdMock.attach = (_options, callback) => callback(null, {
+            on: () => {},
+            query: (sql: string, _params: unknown[], done: (err: Error | null, rows: unknown[]) => void) => {
+                receivedQuery = sql;
+                done(null, []);
+            },
+            detach: () => {}
+        });
+
+        await QueryExecutor.runMetaQuery('unicode-query', connection, query);
+        assert.strictEqual(receivedQuery, query);
+    });
+
     await test('commit callback timeout clears the transaction state', async () => {
         const fixture = createDmlDatabase();
         const manager = TransactionManager.getInstance('commit-timeout');

@@ -6,5 +6,5 @@
 export { Database } from './database';
 export { TransactionManager } from './transactionManager';
 export { QueryExecutor } from './queryExecutor';
-export { processResultRows, prepareQueryBuffer } from './encodingUtils';
+export { processResultRows } from './encodingUtils';
 export { QueryOptions, QueryResult } from './types';

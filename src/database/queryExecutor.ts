@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import * as Firebird from 'node-firebird';
 import { TransactionManager } from './transactionManager';
-import { processResultRows, prepareQueryBuffer, getUniqueColumnNames } from './encodingUtils';
+import { processResultRows, getUniqueColumnNames } from './encodingUtils';
 import { QueryOptions, QueryResult, DatabaseConnection } from './types';
 import { RowCounter } from './rowCounter';
 import { ConnectionChecker } from './connectionChecker';
-import { toFirebirdOptions } from './connectionOptions';
+import { DRIVER_TEXT_ENCODING, toFirebirdOptions } from './connectionOptions';
 import { FirebirdLog } from '../logger';
 
 interface PreparedExecution {
@@ -154,8 +154,7 @@ class DriverOperation<T> {
 /** Handles query execution, affected row counting, and metadata queries. */
 export class QueryExecutor {
     public static async runMetaQuery(id: string, connection: DatabaseConnection, query: string): Promise<Record<string, unknown>[]> {
-        const config = vscode.workspace.getConfiguration('firebird');
-        const encodingConf = connection.charset || config.get<string>('charset', 'UTF8');
+        const encodingConf = DRIVER_TEXT_ENCODING;
         const options = toFirebirdOptions(connection);
         const timeouts = this.getTimeouts();
 
@@ -211,16 +210,9 @@ export class QueryExecutor {
                         if (!settled && db === attachedDb) finishReject(dbErr, true);
                     });
 
-                    let finalQuery: string;
-                    try {
-                        finalQuery = prepareQueryBuffer(query, encodingConf);
-                    } catch (prepareErr) {
-                        return finishReject(this.asError(prepareErr));
-                    }
-
                     armTimeout('executing metadata query', timeouts.driver);
                     try {
-                        attachedDb.query(finalQuery, [], (queryErr, result) => {
+                        attachedDb.query(query, [], (queryErr, result) => {
                             if (settled) return;
                             if (queryErr) return finishReject(queryErr);
 
@@ -294,7 +286,7 @@ export class QueryExecutor {
             const timeouts = this.getTimeouts();
             operation.setStage('preparing execution plan', timeouts.driver);
             void this._prepareForExecution(id, connection)
-                .then(({ options, encodingConf }) => {
+                .then(({ options }) => {
                     operation.invoke(() => {
                         this._attachAndStartTransaction(id, options, operation, timeouts, tr => {
                             operation.invoke(() => {
@@ -305,14 +297,13 @@ export class QueryExecutor {
                                     return;
                                 }
 
-                                const queryString = prepareQueryBuffer(cleanQuery, encodingConf);
                                 if (manager.activeStatement) {
                                     this.closeStatement(manager.activeStatement as FbStatement);
                                     manager.activeStatement = undefined;
                                 }
 
                                 operation.setStage('preparing execution plan', timeouts.driver);
-                                fbConnection.prepare(tr, queryString, true, (err, statement) => {
+                                fbConnection.prepare(tr, cleanQuery, true, (err, statement) => {
                                     operation.invoke(() => {
                                         if (err) {
                                             operation.reject(err);
@@ -349,7 +340,6 @@ export class QueryExecutor {
     ): void {
         operation.invoke(() => {
             const trExt = tr as FbTransactionWithExt;
-            const queryString = prepareQueryBuffer(cleanQuery, encodingConf);
             const limit = queryOptions?.limit || 1000;
             const reqOffset = queryOptions?.offset || 0;
             const connectionInfo = `${options.host}:${options.database}`;
@@ -453,7 +443,7 @@ export class QueryExecutor {
             }
 
             operation.setStage('creating SQL statement', timeouts.driver);
-            trExt.newStatement(queryString, (err, statement) => {
+            trExt.newStatement(cleanQuery, (err, statement) => {
                 operation.invoke(() => {
                     if (err) {
                         operation.reject(err);
@@ -472,8 +462,7 @@ export class QueryExecutor {
             throw new Error('Database path is not configured. Please select a database in the explorer.');
         }
 
-        const config = vscode.workspace.getConfiguration('firebird');
-        const encodingConf = connection.charset || config.get<string>('charset', 'UTF8');
+        const encodingConf = DRIVER_TEXT_ENCODING;
         const options = toFirebirdOptions(connection);
 
         const manager = TransactionManager.getInstance(id);

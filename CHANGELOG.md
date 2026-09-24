@@ -1,3 +1,6 @@
+## [ upcoming ]
+- **Query Results**: Fixed text corruption for databases using legacy character sets such as WIN1250 by using UTF-8 client conversion and preserving decoded strings.
+
 ## [1.14.0]
 - **DB Explorer**: Added a filterable UDF Functions section and declaration DDL for external functions.
 

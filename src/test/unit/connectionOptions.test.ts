@@ -38,10 +38,20 @@ async function runTests() {
         assert.strictEqual(opts.password, 'masterkey');
     });
 
-    test('Forces encoding NONE and lowercase_keys false', () => {
+    test('Uses UTF8 client encoding and preserves column names', () => {
         const opts = toFirebirdOptions(baseConn) as any;
-        assert.strictEqual(opts.encoding, 'NONE');
+        assert.strictEqual(opts.encoding, 'UTF8');
         assert.strictEqual(opts.lowercase_keys, false);
+    });
+
+    test('Uses UTF8 on the wire for a WIN1250 database', () => {
+        const opts = toFirebirdOptions({ ...baseConn, charset: 'WIN1250' });
+        assert.strictEqual(opts.encoding, 'UTF8');
+    });
+
+    test('Preserves an explicit NONE client charset', () => {
+        const opts = toFirebirdOptions({ ...baseConn, charset: 'NONE' });
+        assert.strictEqual(opts.encoding, 'NONE');
     });
 
     test('Passes optional role when provided', () => {

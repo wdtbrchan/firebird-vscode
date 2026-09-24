@@ -44,8 +44,8 @@ export function getUniqueColumnNames(outputs: StatementOutputColumn[]): string[]
 }
 
 /**
- * Processes result rows from node-firebird, decoding buffers and BLOBs
- * according to the configured charset encoding.
+ * Processes result rows from node-firebird. The driver already decodes text
+ * columns, while buffers and BLOB streams still need decoding.
  */
 export async function processResultRows(
     result: unknown[],
@@ -127,24 +127,9 @@ export async function processResultRows(
                         finishReject(err);
                     }
                 });
-            } else if (typeof val === 'string') {
-                if (iconv.encodingExists(encodingConf)) {
-                    const buf = Buffer.from(val, 'binary');
-                    val = iconv.decode(buf, encodingConf);
-                }
             }
             newRow[key] = val;
         }
         return newRow;
     }));
-}
-
-/**
- * Encodes a query string into a binary buffer using the configured charset.
- */
-export function prepareQueryBuffer(query: string, encodingConf: string): string {
-    const queryBuffer: Buffer = iconv.encodingExists(encodingConf)
-        ? iconv.encode(query, encodingConf)
-        : Buffer.from(query, 'utf8');
-    return queryBuffer.toString('binary');
 }
