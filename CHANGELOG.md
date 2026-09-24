@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.14.1]
 - **Query Results**: Fixed text corruption for databases using legacy character sets such as WIN1250 by using UTF-8 client conversion and preserving decoded strings.
 
 ## [1.14.0]
