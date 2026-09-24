@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.14.0]
 - **DB Explorer**: Added a filterable UDF Functions section and declaration DDL for external functions.
 
 ## [1.13.2]
