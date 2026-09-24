@@ -1,6 +1,7 @@
 export * from './metadata/types';
 export { TableService } from './metadata/tableService';
 export { ProcedureService } from './metadata/procedureService';
+export { UdfService } from './metadata/udfService';
 export { ViewService } from './metadata/viewService';
 export { TriggerService } from './metadata/triggerService';
 export { IndexService } from './metadata/indexService';
@@ -10,6 +11,7 @@ export { PermissionService } from './metadata/permissionService';
 import { DatabaseConnection } from '../database/types';
 import { TableService } from './metadata/tableService';
 import { ProcedureService } from './metadata/procedureService';
+import { UdfService } from './metadata/udfService';
 import { ViewService } from './metadata/viewService';
 import { TriggerService } from './metadata/triggerService';
 import { IndexService } from './metadata/indexService';
@@ -33,6 +35,9 @@ export class MetadataService {
 
     public static async getProcedures(conn: DatabaseConnection) { return ProcedureService.getProcedures(conn); }
     public static async getProcedureSource(conn: DatabaseConnection, name: string) { return ProcedureService.getProcedureSource(conn, name); }
+
+    public static async getUdfFunctions(conn: DatabaseConnection) { return UdfService.getUdfFunctions(conn); }
+    public static async getUdfDDL(conn: DatabaseConnection, name: string) { return UdfService.getUdfDDL(conn, name); }
 
     public static async getViews(conn: DatabaseConnection) { return ViewService.getViews(conn); }
     public static async getViewSource(conn: DatabaseConnection, name: string) { return ViewService.getViewSource(conn, name); }

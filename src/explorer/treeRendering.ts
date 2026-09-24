@@ -204,6 +204,8 @@ export async function getTreeChildren(
                     }
                     case 'procedures':
                         return loadObjectList(element.connection, 'procedure', MetadataService.getProcedures.bind(MetadataService), filter, ctx);
+                    case 'functions':
+                        return loadObjectList(element.connection, 'function', MetadataService.getUdfFunctions.bind(MetadataService), filter, ctx);
                     case 'generators':
                         return loadObjectList(element.connection, 'generator', MetadataService.getGenerators.bind(MetadataService), filter, ctx);
                 }
@@ -245,6 +247,7 @@ export async function getTreeChildren(
                 new FolderItem('Views', 'views', element),
                 new TriggerFolderItem(element, ctx.getTriggerViewMode(element.id, 'main')),
                 new FolderItem('Procedures', 'procedures', element),
+                new FolderItem('UDF Functions', 'functions', element),
                 new FolderItem('Generators', 'generators', element),
                 new FolderItem('Local Scripts', 'local-scripts', element),
                 new FolderItem('Global Scripts', 'global-scripts', element)
@@ -268,7 +271,7 @@ export async function getTreeChildren(
  */
 async function loadObjectList(
     connection: DatabaseConnection, 
-    type: 'table' | 'view' | 'procedure' | 'generator', 
+    type: 'table' | 'view' | 'procedure' | 'function' | 'generator',
     fetchFn: (conn: DatabaseConnection) => Promise<string[]>, 
     filter: string,
     ctx: TreeRenderingContext
@@ -276,9 +279,14 @@ async function loadObjectList(
     const items = await fetchFn(connection);
     const sortedItems = [...items].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
     const filteredItems = ctx.applyFilter(sortedItems, filter);
-    const result: (ObjectItem | FilterItem)[] = [
-        new FilterItem(connection, type === 'table' ? 'tables' : type === 'view' ? 'views' : type === 'procedure' ? 'procedures' : 'generators', filter)
-    ];
+    const folderTypes = {
+        table: 'tables',
+        view: 'views',
+        procedure: 'procedures',
+        function: 'functions',
+        generator: 'generators'
+    } as const;
+    const result: (ObjectItem | FilterItem)[] = [new FilterItem(connection, folderTypes[type], filter)];
     
     result.push(...filteredItems.map(name => new ObjectItem(
         name, 
@@ -290,4 +298,3 @@ async function loadObjectList(
     
     return result;
 }
-

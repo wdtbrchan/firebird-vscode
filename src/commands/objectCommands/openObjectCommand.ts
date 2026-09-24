@@ -9,6 +9,7 @@ async function fetchDDL(type: string, name: string, connection: DatabaseConnecti
         case 'view': return MetadataService.getViewSource(connection, name);
         case 'trigger': return MetadataService.getTriggerSource(connection, name);
         case 'procedure': return MetadataService.getProcedureSource(connection, name);
+        case 'function': return MetadataService.getUdfDDL(connection, name);
         case 'generator': return MetadataService.getGeneratorDDL(connection, name);
         case 'index': return MetadataService.getIndexDDL(connection, name);
         default: return `-- Unknown object type: ${type}`;

@@ -63,6 +63,7 @@ export function registerScriptCommands(
                         if (permsSql) script += `\n\n${permsSql}`;
                         break;
                     }
+                    case 'function': script = await MetadataService.getUdfDDL(connection, name); break;
                     case 'generator': script = await MetadataService.getGeneratorDDL(connection, name); break;
                 }
             } else {
@@ -106,6 +107,9 @@ export function registerScriptCommands(
                         script = `ALTER SEQUENCE ${name} RESTART WITH ${nextVal}; -- Set to desired value`;
                         break;
                     }
+                    case 'function':
+                        script = await MetadataService.getUdfDDL(connection, name);
+                        break;
                 }
             }
 

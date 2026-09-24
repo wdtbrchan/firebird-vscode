@@ -85,6 +85,11 @@ async function runTests() {
         assert.ok(q.includes('RDB$PARAMETER_TYPE = 0'));
     });
 
+    test('UDF metadata queries escape the function name', () => {
+        assert.deepStrictEqual(literalSegments(MetadataQueries.getUdfDefinition("F'OO")), ["F''OO"]);
+        assert.deepStrictEqual(literalSegments(MetadataQueries.getUdfArguments("F'OO")), ["F''OO"]);
+    });
+
     test('getTableFields / getTableColumnsDetailed: escapes apostrophe', () => {
         const q1 = MetadataQueries.getTableFields("T'");
         const q2 = MetadataQueries.getTableColumnsDetailed("T'");
@@ -142,6 +147,8 @@ async function runTests() {
     test('Static queries (no name) are returned as-is', () => {
         assert.ok(MetadataQueries.getTables.includes('FROM RDB$RELATIONS'));
         assert.ok(MetadataQueries.getProcedures.includes('FROM RDB$PROCEDURES'));
+        assert.ok(MetadataQueries.getUdfFunctions.includes('FROM RDB$FUNCTIONS'));
+        assert.ok(MetadataQueries.getUdfFunctions.includes('RDB$MODULE_NAME IS NOT NULL'));
         assert.ok(MetadataQueries.getGenerators.includes('FROM RDB$GENERATORS'));
         // Triggers without a table filter shouldn't include the AND clause.
         assert.ok(!MetadataQueries.getTriggers().includes('AND RDB$RELATION_NAME ='));

@@ -49,6 +49,32 @@ export const MetadataQueries = {
         ORDER BY RDB$PROCEDURE_NAME
     `,
 
+    getUdfFunctions: `
+        SELECT RDB$FUNCTION_NAME
+        FROM RDB$FUNCTIONS
+        WHERE RDB$MODULE_NAME IS NOT NULL
+          AND (RDB$SYSTEM_FLAG IS NULL OR RDB$SYSTEM_FLAG = 0)
+        ORDER BY RDB$FUNCTION_NAME
+    `,
+
+    getUdfDefinition: (name: string) => `
+        SELECT RDB$MODULE_NAME, RDB$ENTRYPOINT, RDB$RETURN_ARGUMENT
+        FROM RDB$FUNCTIONS
+        WHERE RDB$FUNCTION_NAME = '${esc(name)}'
+          AND RDB$MODULE_NAME IS NOT NULL
+    `,
+
+    getUdfArguments: (name: string) => `
+        SELECT a.RDB$ARGUMENT_POSITION, a.RDB$MECHANISM,
+               a.RDB$FIELD_TYPE, a.RDB$FIELD_SUB_TYPE, a.RDB$FIELD_PRECISION,
+               a.RDB$FIELD_SCALE, a.RDB$FIELD_LENGTH, a.RDB$CHARACTER_LENGTH,
+               cs.RDB$CHARACTER_SET_NAME
+        FROM RDB$FUNCTION_ARGUMENTS a
+        LEFT JOIN RDB$CHARACTER_SETS cs ON cs.RDB$CHARACTER_SET_ID = a.RDB$CHARACTER_SET_ID
+        WHERE a.RDB$FUNCTION_NAME = '${esc(name)}'
+        ORDER BY a.RDB$ARGUMENT_POSITION
+    `,
+
     getGenerators: `
         SELECT RDB$GENERATOR_NAME
         FROM RDB$GENERATORS

@@ -1,3 +1,6 @@
+## [ upcoming ]
+- **DB Explorer**: Added a filterable UDF Functions section and declaration DDL for external functions.
+
 ## [1.13.2]
 - **Query Execution**: Fixed current-statement detection so semicolons inside SQL comments and quoted values no longer split queries before execution.
 - **Release Workflow**: Removed the unused VS Code Marketplace PAT requirement; Marketplace publishing now uses credentials stored by `vsce`.

@@ -29,7 +29,7 @@ export class SourceCodePanel extends BaseInfoPanel {
             case 'procedure': return MetadataService.getProcedureSource(connection, name);
             case 'view': return MetadataService.getViewSource(connection, name);
             case 'generator': return MetadataService.getGeneratorDDL(connection, name);
-            case 'function': return `-- Function source retrieval not implemented yet`;
+            case 'function': return MetadataService.getUdfDDL(connection, name);
             default: return `-- Unknown object type: ${type as string}`;
         }
     }

@@ -9,7 +9,7 @@ export interface ConnectionGroup {
 export class FolderItem extends vscode.TreeItem {
     constructor(
         public readonly label: string,
-        public readonly type: 'tables' | 'views' | 'triggers' | 'procedures' | 'generators' | 'local-scripts' | 'global-scripts',
+        public readonly type: 'tables' | 'views' | 'triggers' | 'procedures' | 'functions' | 'generators' | 'local-scripts' | 'global-scripts',
         public readonly connection: DatabaseConnection
     ) {
         super(label, vscode.TreeItemCollapsibleState.Collapsed);
@@ -21,6 +21,7 @@ export class FolderItem extends vscode.TreeItem {
             case 'views': this.iconPath = new vscode.ThemeIcon('eye'); break;
             case 'triggers': this.iconPath = new vscode.ThemeIcon('zap'); break;
             case 'procedures': this.iconPath = new vscode.ThemeIcon('gear'); break;
+            case 'functions': this.iconPath = new vscode.ThemeIcon('symbol-function'); break;
             case 'generators': this.iconPath = new vscode.ThemeIcon('list-ordered'); break;
             case 'local-scripts': 
                 this.iconPath = new vscode.ThemeIcon('file-code'); 
@@ -74,7 +75,7 @@ export class ObjectItem extends vscode.TreeItem {
 export class FilterItem extends vscode.TreeItem {
     constructor(
         public readonly connection: DatabaseConnection,
-        public readonly type: 'tables' | 'views' | 'triggers' | 'procedures' | 'generators',
+        public readonly type: 'tables' | 'views' | 'triggers' | 'procedures' | 'functions' | 'generators',
         public readonly filterValue: string
     ) {
         super(filterValue ? `🔍 Filter: ${filterValue}` : '🔍 Click to filter...', vscode.TreeItemCollapsibleState.None);

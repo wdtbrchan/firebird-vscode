@@ -61,6 +61,12 @@ async function runTests() {
         assert.strictEqual((item.iconPath as mock.ThemeIcon).id, 'table');
     });
 
+    test('FolderItem: UDF functions have their own context and icon', () => {
+        const item = new FolderItem('UDF Functions', 'functions', mockConn);
+        assert.strictEqual(item.contextValue, 'functions');
+        assert.strictEqual((item.iconPath as mock.ThemeIcon).id, 'symbol-function');
+    });
+
     test('ObjectItem: should correctly set properties for table', () => {
         const item = new ObjectItem('USERS', 'table', mockConn);
         assert.strictEqual(item.label, 'USERS');
