@@ -124,6 +124,17 @@ import_release_env
 step "Checking git state"
 require_clean_git_tree
 
+# Entra authentication must take precedence over any legacy PAT configuration.
+unset VSCE_PAT
+if [[ -z "${AZURE_TENANT_ID:-}" ]]; then unset AZURE_TENANT_ID; fi
+if ! ${skip_publish}; then
+    : "${OVSX_PAT:?OVSX_PAT is missing. Set it in the environment or .release.env.}"
+    command -v az >/dev/null 2>&1 || { echo "Azure CLI is missing. Install it and run az login before releasing." >&2; exit 1; }
+    publisher="$(node -p "require('./package.json').publisher")"
+    step "Verifying Microsoft Entra access for ${publisher}"
+    npx --no-install vsce verify-pat "${publisher}" --azure-credential
+fi
+
 current_version="$(node -p "require('./package.json').version")"
 
 if ${use_existing_version}; then
@@ -132,7 +143,9 @@ if ${use_existing_version}; then
 else
     version="$(next_version "${current_version}" "${version_type}")"
     step "Preparing changelog for ${version}"
+    changelog_changed=false
     if update_changelog_version "${version}"; then
+        changelog_changed=true
         if ! ${skip_changelog_commit}; then
             git add CHANGELOG.md
             git commit -m "chore: prepare ${version} changelog"
@@ -147,7 +160,14 @@ else
     fi
 
     step "Bumping npm version (${version_type})"
-    npm version "${version_type}"
+    if ${changelog_changed} && ${skip_changelog_commit}; then
+        npm version "${version_type}" --no-git-tag-version
+        git add CHANGELOG.md package.json package-lock.json
+        git commit -m "${version}"
+        git tag -a "v${version}" -m "${version}"
+    else
+        npm version "${version_type}"
+    fi
     version="$(node -p "require('./package.json').version")"
 fi
 
@@ -168,12 +188,10 @@ if ${skip_publish}; then
     exit 0
 fi
 
-: "${OVSX_PAT:?OVSX_PAT is missing. Set it in the environment or .release.env.}"
-
 step "Publishing to Open VSX"
-npx ovsx publish "${vsix}"
+npx --no-install ovsx publish "${vsix}"
 
 step "Publishing to VS Code Marketplace"
-npx vsce publish --packagePath "${vsix}"
+npx --no-install vsce publish --azure-credential --packagePath "${vsix}"
 
 step "Release ${version} complete"

@@ -72,3 +72,28 @@ $sql = "
 - Add the language identifier (e.g., "php") to `firebird.allowedLanguages` in VS Code settings to enable this feature for those files.
 - Firebird operations have configurable safety timeouts: `firebird.connectionTimeout` (15 s), `firebird.driverOperationTimeout` (30 s), `firebird.queryTimeout` (7,200 s / 2 h), `firebird.blobReadTimeout` (30 s), and `firebird.transactionTimeout` (30 s). Set an individual value to `0` to disable that timeout.
 - Use `firebird.enableCodeLensInNonSqlFiles` (default: `false`) to control whether CodeLens should be displayed in these files.
+
+## Building and Publishing
+
+Run `./build_extension.sh` to install locked dependencies, compile the extension,
+and create `firebird-vscode-<version>.vsix`.
+
+For releases, copy `.release.env.example` to the git-ignored `.release.env` and
+set `OVSX_PAT` for Open VSX. Marketplace publishing uses Microsoft Entra ID:
+install Azure CLI, run `az login --tenant <tenant-id> --allow-no-subscriptions`,
+and grant that identity Contributor access to the existing `wdtbrchan` publisher.
+Optionally set `AZURE_TENANT_ID` in `.release.env` to select the publishing tenant.
+Legacy `VSCE_PAT` values are ignored; no Marketplace token belongs in this file.
+
+Install local release tools with `npm ci` before the first release. With a clean
+working tree and release notes under `## [ upcoming ]`, run
+`./release_extension.sh --version-type major|minor|patch` using the desired bump.
+The script verifies Entra access before version changes, commits the changelog,
+creates a version commit and tag, builds the VSIX, pushes, and publishes to both
+registries. Marketplace validation can take time after the upload is accepted.
+
+`--skip-changelog-commit` includes the changelog in the version commit.
+`--skip-publish` still pushes commits and tags; use the build script for local
+packaging only. After an interrupted release, inspect both registries before
+retrying the existing version. If one registry already accepted it, publish only
+to the missing registry without another version bump.
