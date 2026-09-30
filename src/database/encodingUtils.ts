@@ -1,4 +1,5 @@
 import * as iconv from 'iconv-lite';
+import type { Transaction } from 'node-firebird';
 
 /**
  * Shape of one entry in node-firebird's `statement.output` array.
@@ -12,7 +13,11 @@ interface StatementOutputColumn {
  * BLOB callback exposed by node-firebird. Invoking it yields a name and an
  * EventEmitter that streams the BLOB data.
  */
-type BlobReader = (cb: (err: unknown, name: unknown, emitter: NodeJS.EventEmitter) => void) => void;
+type BlobCallback = (err: unknown, name: unknown, emitter: NodeJS.EventEmitter) => void;
+type BlobReader = {
+    (cb: BlobCallback): void;
+    (transaction: Transaction, cb: BlobCallback): void;
+};
 
 export type ResultRow = Record<string, unknown>;
 
@@ -51,7 +56,8 @@ export async function processResultRows(
     result: unknown[],
     encodingConf: string,
     columnNames?: string[],
-    blobTimeoutMs: number = 30_000
+    blobTimeoutMs: number = 30_000,
+    transaction?: Transaction
 ): Promise<ResultRow[]> {
     if (!Array.isArray(result)) return [];
 
@@ -74,7 +80,7 @@ export async function processResultRows(
                     val = val.toString();
                 }
             } else if (typeof val === 'function') {
-                // It's a BLOB (function): val(cb) where cb yields a stream EventEmitter.
+                // Reuse the query transaction so transaction-scoped BLOB IDs remain valid.
                 const blobReader = val as BlobReader;
                 val = await new Promise<string>((resolve, reject) => {
                     let settled = false;
@@ -115,14 +121,16 @@ export async function processResultRows(
                         : undefined;
 
                     try {
-                        blobReader((err, _name, emitter) => {
+                        const onBlob: BlobCallback = (err, _name, emitter) => {
                             if (settled) return;
                             if (err) return finishReject(err);
                             activeEmitter = emitter;
                             emitter.on('data', onData);
                             emitter.on('end', onEnd);
                             emitter.on('error', onError);
-                        });
+                        };
+                        if (transaction) blobReader(transaction, onBlob);
+                        else blobReader(onBlob);
                     } catch (err) {
                         finishReject(err);
                     }

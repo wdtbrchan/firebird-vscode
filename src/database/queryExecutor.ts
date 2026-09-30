@@ -187,7 +187,7 @@ export class QueryExecutor {
                 resolve(rows);
             };
 
-            const finishReject = (err: Error, force: boolean = false) => {
+            const finishReject = (err: Error, force: boolean = true) => {
                 if (settled) return;
                 settled = true;
                 if (timer) clearTimeout(timer);
@@ -210,15 +210,39 @@ export class QueryExecutor {
                         if (!settled && db === attachedDb) finishReject(dbErr, true);
                     });
 
-                    armTimeout('executing metadata query', timeouts.driver);
+                    armTimeout('starting metadata transaction', timeouts.driver);
                     try {
-                        attachedDb.query(query, [], (queryErr, result) => {
-                            if (settled) return;
-                            if (queryErr) return finishReject(queryErr);
+                        // Database.query commits before returning its lazy BLOB readers.
+                        // Keep the metadata transaction alive until every BLOB is read.
+                        attachedDb.transaction(Firebird.ISOLATION_READ_COMMITTED, (transactionErr, tr) => {
+                            if (settled) {
+                                if (tr) this.rollbackStaleTransaction(tr);
+                                return;
+                            }
+                            if (transactionErr) return finishReject(transactionErr);
 
-                            void processResultRows(result, encodingConf, undefined, timeouts.blob)
-                                .then(finishResolve)
-                                .catch(readErr => finishReject(this.asError(readErr), true));
+                            armTimeout('executing metadata query', timeouts.driver);
+                            try {
+                                tr.query(query, [], (queryErr, result) => {
+                                    if (settled) return;
+                                    if (queryErr) return finishReject(queryErr);
+
+                                    armTimeout('reading metadata results', Math.max(timeouts.driver, timeouts.blob));
+                                    void processResultRows(result, encodingConf, undefined, timeouts.blob, tr)
+                                        .then(rows => {
+                                            if (settled) return;
+                                            armTimeout('committing metadata transaction', timeouts.driver);
+                                            tr.commit(commitErr => {
+                                                if (settled) return;
+                                                if (commitErr) return finishReject(commitErr);
+                                                finishResolve(rows);
+                                            });
+                                        })
+                                        .catch(readErr => finishReject(this.asError(readErr)));
+                                });
+                            } catch (queryErr) {
+                                finishReject(this.asError(queryErr));
+                            }
                         });
                     } catch (queryErr) {
                         finishReject(this.asError(queryErr), true);
@@ -348,7 +372,7 @@ export class QueryExecutor {
                 const columnNames = getUniqueColumnNames(stmt.output);
                 const hasMore = !ret.fetched && (ret.data?.length === limit);
                 operation.setStage('processing result rows', Math.max(timeouts.driver, timeouts.blob));
-                void processResultRows(ret.data || [], encodingConf, columnNames, timeouts.blob)
+                void processResultRows(ret.data || [], encodingConf, columnNames, timeouts.blob, tr)
                     .then(processed => {
                         operation.invoke(() => {
                             if (!hasMore) {

@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import * as Module from 'module';
+import { EventEmitter } from 'events';
 
 type AttachCallback = (err: Error | null, db: any) => void;
 
@@ -98,6 +99,51 @@ function createDmlDatabase(closeThrows: boolean = false) {
     };
 }
 
+function createMetadataDatabase(rows: unknown[]) {
+    const events: string[] = [];
+    let active = false;
+    const transaction = {
+        query: (_query: string, _params: unknown[], callback: (err: Error | null, rows: unknown[]) => void) => {
+            events.push('query');
+            callback(null, rows);
+        },
+        commit: (callback: (err: Error | null) => void) => {
+            events.push('commit');
+            active = false;
+            callback(null);
+        },
+        rollback: (callback: (err: Error | null) => void) => {
+            events.push('rollback');
+            active = false;
+            callback(null);
+        }
+    };
+    const database = {
+        on: () => {},
+        transaction: (_isolation: number, callback: (err: Error | null, value: typeof transaction) => void) => {
+            events.push('begin');
+            active = true;
+            callback(null, transaction);
+        },
+        // Reproduce the driver's auto-commit path used before the fix.
+        query: (sql: string, params: unknown[], callback: (err: Error | null, rows: unknown[]) => void) => {
+            transaction.query(sql, params, (err, result) => {
+                transaction.commit(() => callback(err, result));
+            });
+        },
+        detach: () => { events.push('detach'); },
+        connection: {
+            _socket: {
+                destroy: () => {
+                    events.push('destroy');
+                    active = false;
+                }
+            }
+        }
+    };
+    return { database, transaction, events, get active() { return active; } };
+}
+
 async function delay(ms: number): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -185,17 +231,111 @@ async function runTests() {
     await test('passes Unicode SQL unchanged to node-firebird', async () => {
         const query = "select 'Brodský Tomáš' from rdb$database";
         let receivedQuery: string | undefined;
-        firebirdMock.attach = (_options, callback) => callback(null, {
-            on: () => {},
-            query: (sql: string, _params: unknown[], done: (err: Error | null, rows: unknown[]) => void) => {
-                receivedQuery = sql;
-                done(null, []);
-            },
-            detach: () => {}
-        });
+        const fixture = createMetadataDatabase([]);
+        fixture.transaction.query = (sql, _params, done) => {
+            receivedQuery = sql;
+            done(null, []);
+        };
+        firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
 
         await QueryExecutor.runMetaQuery('unicode-query', connection, query);
         assert.strictEqual(receivedQuery, query);
+        assert.deepStrictEqual(fixture.events, ['begin', 'commit', 'detach']);
+    });
+
+    await test('reads complete metadata BLOBs in the query transaction before committing', async () => {
+        const rawRows: unknown[] = [];
+        const fixture = createMetadataDatabase(rawRows);
+        const source = `AS\nBEGIN\n/* Brodský Tomáš ${'x'.repeat(40_000)} */\nEND`;
+        const blob = (text: string) => (
+            tr: unknown,
+            callback: (err: Error | null, name: string, emitter: EventEmitter) => void
+        ) => {
+            if (tr !== fixture.transaction || !fixture.active) {
+                throw new Error('Invalid BLOB ID');
+            }
+            const emitter = new EventEmitter();
+            callback(null, 'SOURCE', emitter);
+            setImmediate(() => {
+                const buffer = Buffer.from(text, 'utf8');
+                emitter.emit('data', buffer.subarray(0, 25));
+                emitter.emit('data', buffer.subarray(25));
+                fixture.events.push('blob-end');
+                emitter.emit('end');
+            });
+        };
+        rawRows.push({ RDB$TRIGGER_SOURCE: blob(source), RDB$TRIGGER_SEQUENCE: 0, DESCRIPTION: null });
+        rawRows.push({ RDB$TRIGGER_SOURCE: blob('AS BEGIN END') });
+        firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+
+        const rows = await QueryExecutor.runMetaQuery('trigger-source', connection, 'select rdb$trigger_source from rdb$triggers');
+        assert.deepStrictEqual(rows, [
+            { RDB$TRIGGER_SOURCE: source, RDB$TRIGGER_SEQUENCE: 0, DESCRIPTION: null },
+            { RDB$TRIGGER_SOURCE: 'AS BEGIN END' }
+        ]);
+        assert.deepStrictEqual(fixture.events, ['begin', 'query', 'blob-end', 'blob-end', 'commit', 'detach']);
+    });
+
+    await test('metadata BLOB failure closes the connection and permits the next request', async () => {
+        const fixture = createMetadataDatabase([{
+            RDB$TRIGGER_SOURCE: () => { throw new Error('Invalid BLOB ID'); }
+        }]);
+        firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+        await assert.rejects(
+            QueryExecutor.runMetaQuery('trigger-source', connection, 'select source'),
+            /Invalid BLOB ID/
+        );
+        assert.deepStrictEqual(fixture.events, ['begin', 'query', 'destroy']);
+        assert.strictEqual(fixture.active, false);
+
+        const next = createMetadataDatabase([{ RDB$TRIGGER_SOURCE: null }]);
+        firebirdMock.attach = (_options, callback) => callback(null, next.database);
+        assert.deepStrictEqual(await QueryExecutor.runMetaQuery('trigger-source', connection, 'select source'), [
+            { RDB$TRIGGER_SOURCE: null }
+        ]);
+        assert.deepStrictEqual(next.events, ['begin', 'query', 'commit', 'detach']);
+    });
+
+    await test('metadata BLOB timeout closes the connection without committing', async () => {
+        const fixture = createMetadataDatabase([{ RDB$TRIGGER_SOURCE: () => {} }]);
+        firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+        await assert.rejects(
+            QueryExecutor.runMetaQuery('blob-timeout', connection, 'select source'),
+            /BLOB read timed out/i
+        );
+        assert.deepStrictEqual(fixture.events, ['begin', 'query', 'destroy']);
+    });
+
+    await test('metadata query and commit errors close their connections', async () => {
+        for (const stage of ['query', 'commit'] as const) {
+            const fixture = createMetadataDatabase([]);
+            if (stage === 'query') {
+                fixture.transaction.query = (_sql, _params, callback) => callback(new Error('query failed'), []);
+            } else {
+                fixture.transaction.commit = callback => callback(new Error('commit failed'));
+            }
+            firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+            await assert.rejects(
+                QueryExecutor.runMetaQuery('metadata-error', connection, 'select source'),
+                new RegExp(`${stage} failed`)
+            );
+            assert.strictEqual(fixture.events.filter(event => event === 'destroy').length, 1);
+            assert.ok(!fixture.events.includes('detach'));
+        }
+    });
+
+    await test('late metadata commit callback after timeout cannot settle or close twice', async () => {
+        const fixture = createMetadataDatabase([]);
+        let commitCallback: ((err: Error | null) => void) | undefined;
+        fixture.transaction.commit = callback => { commitCallback = callback; };
+        firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+        await assert.rejects(
+            QueryExecutor.runMetaQuery('metadata-commit-timeout', connection, 'select source'),
+            /timed out during committing metadata transaction/i
+        );
+        assert.ok(commitCallback);
+        commitCallback!(null);
+        assert.deepStrictEqual(fixture.events, ['begin', 'query', 'destroy']);
     });
 
     await test('commit callback timeout clears the transaction state', async () => {

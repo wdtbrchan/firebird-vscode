@@ -1,3 +1,6 @@
+## [ upcoming ]
+- **DDL & Query Results**: Fixed invalid BLOB IDs by reading metadata and result BLOBs in the original query transaction, keeping metadata transactions open until all source text is loaded.
+
 ## [1.14.1]
 - **Query Results**: Fixed text corruption for databases using legacy character sets such as WIN1250 by using UTF-8 client conversion and preserving decoded strings.
 
