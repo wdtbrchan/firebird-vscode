@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.14.2]
 - **DDL & Query Results**: Fixed invalid BLOB IDs by reading metadata and result BLOBs in the original query transaction, keeping metadata transactions open until all source text is loaded.
 
 ## [1.14.1]
