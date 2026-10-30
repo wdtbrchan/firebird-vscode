@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.14.3]
 - **Query Results**: Use the query timeout when fetching initial and subsequent result pages, and explain how to change or disable it in timeout errors.
 
 ## [1.14.2]
