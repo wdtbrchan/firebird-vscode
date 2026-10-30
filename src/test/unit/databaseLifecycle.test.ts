@@ -144,6 +144,39 @@ function createMetadataDatabase(rows: unknown[]) {
     return { database, transaction, events, get active() { return active; } };
 }
 
+function createSelectDatabase(fetchDelayMs: number) {
+    let fetchCount = 0;
+    const statement = {
+        output: [{ alias: 'VALUE' }],
+        type: 1,
+        execute: (
+            _tr: unknown,
+            _params: unknown[],
+            callback: (err: Error | null, result: unknown, output: unknown, isSelect: boolean) => void
+        ) => callback(null, undefined, undefined, true),
+        fetch: (
+            _tr: unknown,
+            _limit: number,
+            callback: (err: Error | null, result: { data: number[][]; fetched: boolean }) => void
+        ) => {
+            const page = ++fetchCount;
+            setTimeout(() => callback(null, { data: [[page]], fetched: page >= 2 }), fetchDelayMs);
+        },
+        close: () => {},
+        drop: () => {}
+    };
+    const fixture = createDmlDatabase();
+    const transaction = {
+        ...fixture.transaction,
+        newStatement: (_query: string, callback: (err: Error | null, value: typeof statement) => void) => callback(null, statement)
+    };
+    const database = {
+        ...fixture.database,
+        transaction: (_isolation: number, callback: (err: Error | null, value: typeof transaction) => void) => callback(null, transaction)
+    };
+    return { database, statement };
+}
+
 async function delay(ms: number): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -179,6 +212,60 @@ async function runTests() {
         const result = await QueryExecutor.executeQuery('timeout', 'update t set x = 1', connection);
         assert.deepStrictEqual(result.rows, []);
     });
+
+    for (const queryTimeout of [0.2, 0]) {
+        await test(`initial and subsequent result pages use queryTimeout=${queryTimeout} instead of driverOperationTimeout`, async () => {
+            const originalQueryTimeout = configuration.get('queryTimeout')!;
+            const originalDriverTimeout = configuration.get('driverOperationTimeout')!;
+            configuration.set('queryTimeout', queryTimeout);
+            configuration.set('driverOperationTimeout', 0.01);
+            try {
+                const fixture = createSelectDatabase(40);
+                firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+                const query = 'select value from slow_procedure';
+                const first = await QueryExecutor.executeQuery('slow-fetch', query, connection, { limit: 1 });
+                assert.deepStrictEqual(first, { rows: [{ VALUE: 1 }], hasMore: true });
+                const second = await QueryExecutor.executeQuery('slow-fetch', query, connection, { limit: 1, offset: 1 });
+                assert.deepStrictEqual(second, { rows: [{ VALUE: 2 }], hasMore: false });
+            } finally {
+                configuration.set('queryTimeout', originalQueryTimeout);
+                configuration.set('driverOperationTimeout', originalDriverTimeout);
+            }
+        });
+    }
+
+    for (const stage of ['executing SQL statement', 'fetching result rows', 'fetching more result rows']) {
+        await test(`${stage} timeout explains queryTimeout and permits another query`, async () => {
+            const fixture = createSelectDatabase(0);
+            firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+            const query = 'select value from slow_procedure';
+            if (stage === 'executing SQL statement') {
+                fixture.statement.execute = () => {};
+            } else {
+                if (stage === 'fetching more result rows') {
+                    await QueryExecutor.executeQuery('query-timeout', query, connection, { limit: 1 });
+                }
+                fixture.statement.fetch = () => {};
+            }
+            const offset = stage === 'fetching more result rows' ? 1 : 0;
+            await assert.rejects(
+                QueryExecutor.executeQuery('query-timeout', query, connection, { limit: 1, offset }),
+                (err: Error) => {
+                    assert.ok(err.message.includes(`timed out during ${stage}`));
+                    assert.ok(err.message.includes('Increase "firebird.queryTimeout" in VS Code Settings (seconds)'));
+                    assert.ok(err.message.includes('set it to 0 to disable this timeout'));
+                    return true;
+                }
+            );
+            const manager = TransactionManager.getInstance('query-timeout');
+            assert.strictEqual(manager.db, undefined);
+            assert.strictEqual(manager.hasActiveTransaction, false);
+            const next = createDmlDatabase();
+            firebirdMock.attach = (_options, callback) => callback(null, next.database);
+            const result = await QueryExecutor.executeQuery('query-timeout', 'update t set x = 1', connection);
+            assert.deepStrictEqual(result.rows, []);
+        });
+    }
 
     await test('late attach callback after cancel cannot revive the connection', async () => {
         let attachCallback: AttachCallback | undefined;

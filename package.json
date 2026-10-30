@@ -48,13 +48,13 @@
           "type": "number",
           "minimum": 0,
           "default": 30,
-          "description": "Timeout in seconds for Firebird driver stages such as starting a transaction, preparing a statement, and fetching rows. Set to 0 to disable."
+          "description": "Timeout in seconds for Firebird driver stages such as starting a transaction and preparing a statement. Query result fetching uses firebird.queryTimeout. Set to 0 to disable."
         },
         "firebird.queryTimeout": {
           "type": "number",
           "minimum": 0,
           "default": 7200,
-          "description": "Maximum query execution time in seconds. Set to 0 to disable."
+          "description": "Timeout in seconds for executing a query and for fetching each page of query results. Set to 0 to disable."
         },
         "firebird.blobReadTimeout": {
           "type": "number",

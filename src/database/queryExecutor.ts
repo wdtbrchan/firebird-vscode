@@ -84,7 +84,7 @@ class DriverOperation<T> {
         return !this.settled && this.manager.isOperationActive(this.id);
     }
 
-    public setStage(stage: string, timeoutMs: number): void {
+    public setStage(stage: string, timeoutMs: number, timeoutSetting?: string): void {
         if (!this.isActive()) return;
         this.stage = stage;
         if (this.stageTimer) clearTimeout(this.stageTimer);
@@ -93,7 +93,10 @@ class DriverOperation<T> {
         if (timeoutMs > 0) {
             this.stageTimer = setTimeout(() => {
                 const seconds = Math.max(1, Math.round(timeoutMs / 1000));
-                const error = new Error(`Firebird request timed out during ${stage} after ${seconds} seconds.`);
+                const hint = timeoutSetting
+                    ? ` Increase "firebird.${timeoutSetting}" in VS Code Settings (seconds), or set it to 0 to disable this timeout.`
+                    : '';
+                const error = new Error(`Firebird request timed out during ${stage} after ${seconds} seconds.${hint}`);
                 this.manager.abortOperation(this.id, error, 'Timed out', true);
                 FirebirdLog.error(`[FB] ${this.label} TIMEOUT | operation=${this.id} | stage=${stage}`);
             }, timeoutMs);
@@ -391,7 +394,7 @@ export class QueryExecutor {
             };
 
             const fetchRows = (stmt: FbStatement, stage: string) => {
-                operation.setStage(stage, timeouts.driver);
+                operation.setStage(stage, timeouts.query, 'queryTimeout');
                 stmt.fetch(tr, limit, (fetchErr, ret) => {
                     operation.invoke(() => {
                         if (fetchErr) {
@@ -406,7 +409,7 @@ export class QueryExecutor {
             };
 
             const executeStatement = (stmt: FbStatement) => {
-                operation.setStage('executing SQL statement', timeouts.query);
+                operation.setStage('executing SQL statement', timeouts.query, 'queryTimeout');
                 stmt.execute(tr, [], (err, _result, _output, rawIsSelect) => {
                     operation.invoke(() => {
                         if (err) {

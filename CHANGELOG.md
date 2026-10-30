@@ -1,3 +1,6 @@
+## [ upcoming ]
+- **Query Results**: Use the query timeout when fetching initial and subsequent result pages, and explain how to change or disable it in timeout errors.
+
 ## [1.14.2]
 - **DDL & Query Results**: Fixed invalid BLOB IDs by reading metadata and result BLOBs in the original query transaction, keeping metadata transactions open until all source text is loaded.
 
