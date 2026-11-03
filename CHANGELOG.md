@@ -1,4 +1,4 @@
-## [ upcoming ]
+## [1.14.4]
 - **Query Results**: Read cursor and direct statement output, including selectable blocks, procedure output, and DML `RETURNING` rows.
 - **Script Execution**: Show single-statement results with pagination; fully fetch multi-statement results and retain them alongside the summary, with CSV export from fetched data.
 
