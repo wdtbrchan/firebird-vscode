@@ -19,7 +19,21 @@ export interface ExecutionDataEvent {
     displayQuery?: string;
     connection?: DatabaseConnection;
     executionTime?: number;
-    resultKind?: 'query' | 'scriptSummary';
+    resultKind?: 'query' | 'scriptSummary' | 'scriptResult';
+    scriptResults?: ScriptResultOption[];
+    selectedScriptResult?: number;
+    viewOnly?: boolean;
+}
+
+export interface ScriptResultOption {
+    index: number;
+    label: string;
+}
+
+interface ScriptStatementResult extends QueryResult {
+    index: number;
+    statement: string;
+    complete: boolean;
 }
 
 interface ScriptStatementSummary {
@@ -64,6 +78,8 @@ export class ExecutionService {
     private _allResults: Record<string, unknown>[] = [];
     private _lastExecutionTime: number | undefined;
     private _isExecuting: boolean = false;
+    private _scriptResults: ScriptStatementResult[] = [];
+    private _scriptSummary: ExecutionDataEvent | undefined;
 
     private constructor(private id: string) { }
 
@@ -97,6 +113,7 @@ export class ExecutionService {
         }
 
         this._isExecuting = true;
+        this._clearScriptResults();
         const start = performance.now();
         try {
             this._currentQuery = query;
@@ -128,6 +145,7 @@ export class ExecutionService {
         }
 
         this._isExecuting = true;
+        this._clearScriptResults();
         const start = performance.now();
         try {
             this._currentQuery = query;
@@ -160,12 +178,17 @@ export class ExecutionService {
     }
 
     public async executeScript(statements: string[], connection: DatabaseConnection, context?: string) {
+        if (statements.length === 1) {
+            await this.executeNewQuery(statements[0], connection, context);
+            return;
+        }
         if (this._isExecuting) {
             vscode.window.showWarningMessage('A script or query is already running in this editor. Please wait or cancel the current execution.');
             return;
         }
 
         this._isExecuting = true;
+        this._clearScriptResults();
         const total = statements.length;
         const start = performance.now();
         const summaries: ScriptStatementSummary[] = [];
@@ -175,6 +198,8 @@ export class ExecutionService {
             this._currentContext = context;
             this._limit = vscode.workspace.getConfiguration('firebird').get<number>('maxRows', 1000);
             this._allResults = [];
+            this._currentQuery = undefined;
+            this._currentOffset = 0;
 
             FirebirdLog.info(`[FB] executeScript START | id=${this.id} | db=${context || 'unknown'} | statements=${total}`, true);
             this._onStart.fire({ connection, context });
@@ -182,8 +207,6 @@ export class ExecutionService {
 
             if (total === 0) {
                 this._displayQuery = undefined;
-            } else if (total === 1) {
-                this._displayQuery = statements[0];
             } else {
                 const getPrefix = (stmt: string) => {
                     const trimmed = stmt.trim();
@@ -196,8 +219,21 @@ export class ExecutionService {
             for (let i = 0; i < total; i++) {
                 const stmt = statements[i];
                 this._currentQuery = stmt;
-                const queryResult = await Database.executeQuery(this.id, stmt, connection, { limit: this._limit, offset: 0 });
-                summaries.push(this._buildScriptSummary(i + 1, stmt, queryResult));
+                let page = await Database.executeQuery(this.id, stmt, connection, { limit: this._limit, offset: 0 });
+                const result: ScriptStatementResult = { ...page, rows: [...page.rows], index: i + 1, statement: stmt, complete: false };
+                this._scriptResults.push(result);
+                let offset = 0;
+                while (page.hasMore) {
+                    if (page.rows.length === 0) throw new Error('The result cursor returned an empty page before completion.');
+                    offset += page.rows.length;
+                    this._onMessage.fire({ text: `Fetching statement ${i + 1}/${total}: ${result.rows.length} rows...` });
+                    page = await Database.executeQuery(this.id, stmt, connection, { limit: this._limit, offset });
+                    for (const row of page.rows) result.rows.push(row);
+                    if (page.affectedRows !== undefined) result.affectedRows = page.affectedRows;
+                }
+                result.hasMore = false;
+                result.complete = true;
+                summaries.push(this._buildScriptSummary(i + 1, stmt, result));
             }
         } catch (err) {
             const failedIndex = summaries.length + 1;
@@ -206,7 +242,7 @@ export class ExecutionService {
                 index: failedIndex,
                 statement: this._getStatementText(failedStatement),
                 type: this._getStatementType(failedStatement),
-                rows: 0,
+                rows: this._scriptResults.find(result => result.index === failedIndex)?.rows.length || 0,
                 status: 'ERROR',
                 error: (err as Error).message
             });
@@ -220,6 +256,31 @@ export class ExecutionService {
             }
             this._checkAndPlayAudioCue(elapsed);
         }
+    }
+
+    private _clearScriptResults() {
+        this._scriptResults = [];
+        this._scriptSummary = undefined;
+    }
+
+    public selectScriptResult(index: number) {
+        if (this._isExecuting || !this._scriptSummary) return;
+        if (index === 0) {
+            this._onData.fire({ ...this._scriptSummary, hasTransaction: Database.hasActiveTransaction(this.id), viewOnly: true });
+            return;
+        }
+        const result = this._scriptResults.find(item => item.index === index);
+        if (!result) return;
+        this._onData.fire({
+            ...this._scriptSummary,
+            results: result.rows,
+            affectedRows: result.affectedRows,
+            displayQuery: result.statement,
+            resultKind: 'scriptResult',
+            selectedScriptResult: index,
+            hasTransaction: Database.hasActiveTransaction(this.id),
+            viewOnly: true
+        });
     }
 
     private _buildScriptSummary(index: number, statement: string, queryResult: QueryResult): ScriptStatementSummary {
@@ -261,7 +322,7 @@ export class ExecutionService {
         this._allResults = results;
         this._currentQuery = undefined;
         this._displayQuery = `Script summary: ${successfulCount}/${totalStatements} statements OK`;
-        this._onData.fire({
+        this._scriptSummary = {
             results,
             affectedRows: totalAffectedRows,
             hasMore: false,
@@ -272,8 +333,16 @@ export class ExecutionService {
             displayQuery: this._displayQuery,
             connection: this._currentConnection,
             executionTime: this._lastExecutionTime,
-            resultKind: 'scriptSummary'
-        });
+            resultKind: 'scriptSummary',
+            scriptResults: this._scriptResults
+                .filter(result => result.columns?.length || result.rows.length > 0)
+                .map(result => ({
+                    index: result.index,
+                    label: `Statement ${result.index}: ${result.rows.length} rows${result.complete ? '' : ' (incomplete)'}`
+                })),
+            selectedScriptResult: 0
+        };
+        this._onData.fire(this._scriptSummary);
     }
 
     private _getStatementType(statement: string): string {

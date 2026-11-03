@@ -37,7 +37,7 @@ interface FbStatement {
     type: number;
     handle?: number;
     plan?: string;
-    execute(tr: Firebird.Transaction, params: unknown[], cb: (err: FbErr | null, result: unknown, output: unknown, isSelect: boolean) => void, opts?: { asObject?: boolean }): void;
+    execute(tr: Firebird.Transaction, params: unknown[], cb: (err: FbErr | null, result?: FbFetchResult) => void, opts?: { asObject?: boolean }): void;
     fetch(tr: Firebird.Transaction, limit: number, cb: (err: FbErr | null, ret: FbFetchResult) => void): void;
     close(): void;
     drop(): void;
@@ -373,10 +373,17 @@ export class QueryExecutor {
 
             const finishRows = (stmt: FbStatement, ret: FbFetchResult) => {
                 const columnNames = getUniqueColumnNames(stmt.output);
-                const hasMore = !ret.fetched && (ret.data?.length === limit);
+                const hasMore = ret.fetched === undefined ? ret.data?.length === limit : !ret.fetched;
                 operation.setStage('processing result rows', Math.max(timeouts.driver, timeouts.blob));
                 void processResultRows(ret.data || [], encodingConf, columnNames, timeouts.blob, tr)
-                    .then(processed => {
+                    .then(async processed => {
+                        if (!operation.isActive()) return;
+                        let affectedRows: number | undefined;
+                        const dmlType = RowCounter.detectDmlType(cleanQuery);
+                        if (!hasMore && dmlType) {
+                            operation.setStage('reading affected row count', timeouts.driver);
+                            affectedRows = await RowCounter.getAffectedRows(stmt, tr, dmlType);
+                        }
                         operation.invoke(() => {
                             if (!hasMore) {
                                 this.closeStatement(stmt);
@@ -384,7 +391,9 @@ export class QueryExecutor {
                                 manager.activeQuery = undefined;
                                 manager.activeConnectionInfo = undefined;
                             }
-                            operation.resolve({ rows: processed, hasMore });
+                            const result: QueryResult = { rows: processed, columns: columnNames, hasMore };
+                            if (affectedRows !== undefined) result.affectedRows = affectedRows;
+                            operation.resolve(result);
                         }, () => this.closeStatement(stmt));
                     })
                     .catch(readErr => {
@@ -393,9 +402,9 @@ export class QueryExecutor {
                     });
             };
 
-            const fetchRows = (stmt: FbStatement, stage: string) => {
+            const fetchRows = (stmt: FbStatement, stage: string, singleton = false) => {
                 operation.setStage(stage, timeouts.query, 'queryTimeout');
-                stmt.fetch(tr, limit, (fetchErr, ret) => {
+                stmt.fetch(tr, singleton ? 1 : limit, (fetchErr, ret) => {
                     operation.invoke(() => {
                         if (fetchErr) {
                             this.closeStatement(stmt);
@@ -403,14 +412,14 @@ export class QueryExecutor {
                             operation.reject(fetchErr);
                             return;
                         }
-                        finishRows(stmt, ret);
+                        finishRows(stmt, singleton ? { ...ret, fetched: true } : ret);
                     }, () => this.closeStatement(stmt));
                 });
             };
 
             const executeStatement = (stmt: FbStatement) => {
                 operation.setStage('executing SQL statement', timeouts.query, 'queryTimeout');
-                stmt.execute(tr, [], (err, _result, _output, rawIsSelect) => {
+                stmt.execute(tr, [], (err, result) => {
                     operation.invoke(() => {
                         if (err) {
                             this.closeStatement(stmt);
@@ -418,12 +427,20 @@ export class QueryExecutor {
                             return;
                         }
 
-                        const isSelect = rawIsSelect === undefined ? stmt.type === 1 : rawIsSelect;
-                        if (isSelect) {
+                        // The low-level driver callback has no isSelect flag. Type 8
+                        // returns singleton output through execute2 on newer protocols,
+                        // or through one fetch on older protocols. Other output-bearing
+                        // statements expose a cursor, including selectable blocks and
+                        // multi-row DML RETURNING on newer Firebird versions.
+                        if (stmt.output.length > 0) {
+                            if (result && Array.isArray(result.data)) {
+                                finishRows(stmt, { ...result, fetched: true });
+                                return;
+                            }
                             manager.activeStatement = stmt;
                             manager.activeQuery = cleanQuery;
                             manager.activeConnectionInfo = connectionInfo;
-                            fetchRows(stmt, 'fetching result rows');
+                            fetchRows(stmt, 'fetching result rows', stmt.type === 8);
                             return;
                         }
 

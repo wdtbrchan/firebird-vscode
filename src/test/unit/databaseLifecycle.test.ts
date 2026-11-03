@@ -50,6 +50,7 @@ import { QueryExecutor } from '../../database/queryExecutor';
 import { TransactionManager } from '../../database/transactionManager';
 import { processResultRows } from '../../database/encodingUtils';
 import { DatabaseConnection } from '../../database/types';
+import { RowCounter } from '../../database/rowCounter';
 
 const connection: DatabaseConnection = {
     id: 'test',
@@ -177,6 +178,34 @@ function createSelectDatabase(fetchDelayMs: number) {
     return { database, statement };
 }
 
+function createResultDatabase(type: number, columns: string[], executeResult?: { data: unknown[] }) {
+    const fixture = createDmlDatabase();
+    const calls = { execute: 0, fetch: [] as number[], close: 0 };
+    const statement = {
+        type,
+        output: columns.map(alias => ({ alias })),
+        execute: (_tr: unknown, _params: unknown[], callback: (err: Error | null, result?: { data: unknown[] }) => void) => {
+            calls.execute++;
+            callback(null, executeResult);
+        },
+        fetch: (_tr: unknown, limit: number, callback: (err: Error | null, result: { data: unknown[]; fetched: boolean }) => void) => {
+            calls.fetch.push(limit);
+            callback(null, { data: columns.length === 2 ? [[0, 1]] : [[42]], fetched: true });
+        },
+        close: () => { calls.close++; },
+        drop: () => {}
+    };
+    const transaction = {
+        ...fixture.transaction,
+        newStatement: (_query: string, callback: (err: Error | null, value: typeof statement) => void) => callback(null, statement)
+    };
+    const database = {
+        ...fixture.database,
+        transaction: (_isolation: number, callback: (err: Error | null, value: typeof transaction) => void) => callback(null, transaction)
+    };
+    return { database, statement, calls, transaction };
+}
+
 async function delay(ms: number): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -224,15 +253,125 @@ async function runTests() {
                 firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
                 const query = 'select value from slow_procedure';
                 const first = await QueryExecutor.executeQuery('slow-fetch', query, connection, { limit: 1 });
-                assert.deepStrictEqual(first, { rows: [{ VALUE: 1 }], hasMore: true });
+                assert.deepStrictEqual(first, { rows: [{ VALUE: 1 }], columns: ['VALUE'], hasMore: true });
                 const second = await QueryExecutor.executeQuery('slow-fetch', query, connection, { limit: 1, offset: 1 });
-                assert.deepStrictEqual(second, { rows: [{ VALUE: 2 }], hasMore: false });
+                assert.deepStrictEqual(second, { rows: [{ VALUE: 2 }], columns: ['VALUE'], hasMore: false });
             } finally {
                 configuration.set('queryTimeout', originalQueryTimeout);
                 configuration.set('driverOperationTimeout', originalDriverTimeout);
             }
         });
     }
+
+    await test('EXECUTE BLOCK RETURNS fetches rows using low-level statement metadata', async () => {
+        const fixture = createResultDatabase(1, ['UPDATED_CLIENTS', 'SKIPPED_CLIENTS']);
+        firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+        const result = await QueryExecutor.executeQuery('block', `EXECUTE BLOCK
+RETURNS (updated_clients INTEGER, skipped_clients INTEGER)
+AS BEGIN updated_clients = 0; skipped_clients = 1; SUSPEND; END`, connection);
+        assert.deepStrictEqual(result.rows, [{ UPDATED_CLIENTS: 0, SKIPPED_CLIENTS: 1 }]);
+        assert.deepStrictEqual(fixture.calls, { execute: 1, fetch: [1000], close: 1 });
+        assert.strictEqual(TransactionManager.getInstance('block').activeStatement, undefined);
+    });
+
+    for (const type of [1, 2, 12]) {
+        await test(`output-bearing statement type ${type} reads its cursor`, async () => {
+            const fixture = createResultDatabase(type, ['VALUE']);
+            firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+            const result = await QueryExecutor.executeQuery('cursor', 'SQL supplied by caller', connection);
+            assert.deepStrictEqual(result.rows, [{ VALUE: 42 }]);
+            assert.deepStrictEqual(fixture.calls.fetch, [1000]);
+            assert.strictEqual(result.hasMore, false);
+        });
+    }
+
+    for (const data of [[[42]], []]) {
+        await test(`execute2 singleton with ${data.length} rows is consumed without fetching`, async () => {
+            const fixture = createResultDatabase(8, ['VALUE'], { data });
+            firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+            const result = await QueryExecutor.executeQuery('singleton', 'execute procedure p', connection, { limit: 1 });
+            assert.deepStrictEqual(result.rows, data.map(row => ({ VALUE: row[0] })));
+            assert.deepStrictEqual(result.columns, ['VALUE']);
+            assert.strictEqual(result.hasMore, false);
+            assert.deepStrictEqual(fixture.calls, { execute: 1, fetch: [], close: 1 });
+        });
+    }
+
+    await test('legacy singleton output fetches exactly one row and closes even without EOF', async () => {
+        const fixture = createResultDatabase(8, ['VALUE']);
+        fixture.statement.fetch = (_tr, limit, callback) => {
+            fixture.calls.fetch.push(limit);
+            callback(null, { data: [[42]], fetched: false });
+        };
+        firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+        const result = await QueryExecutor.executeQuery('legacy', 'insert into t values (42) returning id', connection, { limit: 1 });
+        assert.deepStrictEqual(result.rows, [{ VALUE: 42 }]);
+        assert.strictEqual(result.hasMore, false);
+        assert.deepStrictEqual(fixture.calls, { execute: 1, fetch: [1], close: 1 });
+    });
+
+    await test('EXECUTE BLOCK without output does not fetch', async () => {
+        const fixture = createResultDatabase(8, []);
+        firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+        const result = await QueryExecutor.executeQuery('no-output', 'execute block as begin end', connection);
+        assert.deepStrictEqual(result.rows, []);
+        assert.deepStrictEqual(fixture.calls, { execute: 1, fetch: [], close: 1 });
+    });
+
+    await test('short cursor pages without EOF remain available until the server reports completion', async () => {
+        const fixture = createResultDatabase(1, ['VALUE']);
+        fixture.statement.fetch = (_tr, limit, callback) => {
+            fixture.calls.fetch.push(limit);
+            callback(null, { data: fixture.calls.fetch.length === 1 ? [[42]] : [], fetched: fixture.calls.fetch.length > 1 });
+        };
+        firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+        const first = await QueryExecutor.executeQuery('short-page', 'select value from p', connection);
+        assert.strictEqual(first.hasMore, true);
+        assert.strictEqual(fixture.calls.close, 0);
+        const last = await QueryExecutor.executeQuery('short-page', 'select value from p', connection, { offset: 1 });
+        assert.strictEqual(last.hasMore, false);
+        assert.strictEqual(fixture.calls.close, 1);
+    });
+
+    await test('RETURNING rows retain affected row counts before statement cleanup', async () => {
+        const originalCounter = RowCounter.getAffectedRows;
+        try {
+            for (const type of [8, 2]) {
+                const fixture = createResultDatabase(type, ['ID'], type === 8 ? { data: [[42]] } : undefined);
+                RowCounter.getAffectedRows = async (stmt, tr, dmlType) => {
+                    assert.strictEqual(stmt, fixture.statement);
+                    assert.strictEqual(tr, fixture.transaction);
+                    assert.strictEqual(dmlType, 'insert');
+                    assert.strictEqual(fixture.calls.close, 0);
+                    return 1;
+                };
+                firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+                const result = await QueryExecutor.executeQuery(`returning-${type}`, 'insert into t values (42) returning id', connection);
+                assert.deepStrictEqual(result.rows, [{ ID: 42 }]);
+                assert.strictEqual(result.affectedRows, 1);
+                assert.strictEqual(fixture.calls.close, 1);
+            }
+        } finally {
+            RowCounter.getAffectedRows = originalCounter;
+        }
+    });
+
+    await test('singleton BLOB output is read in its transaction before statement cleanup', async () => {
+        const fixture = createResultDatabase(8, ['SOURCE'], { data: [] });
+        fixture.statement.execute = (_tr, _params, callback) => callback(null, { data: [[
+            (tr: unknown, done: (err: Error | null, name: string, emitter: EventEmitter) => void) => {
+                assert.strictEqual(tr, fixture.transaction);
+                assert.strictEqual(fixture.calls.close, 0);
+                const emitter = new EventEmitter();
+                done(null, 'SOURCE', emitter);
+                setImmediate(() => { emitter.emit('data', Buffer.from('source')); emitter.emit('end'); });
+            }
+        ]] });
+        firebirdMock.attach = (_options, callback) => callback(null, fixture.database);
+        const result = await QueryExecutor.executeQuery('singleton-blob', 'execute procedure p', connection);
+        assert.deepStrictEqual(result.rows, [{ SOURCE: 'source' }]);
+        assert.strictEqual(fixture.calls.close, 1);
+    });
 
     for (const stage of ['executing SQL statement', 'fetching result rows', 'fetching more result rows']) {
         await test(`${stage} timeout explains queryTimeout and permits another query`, async () => {

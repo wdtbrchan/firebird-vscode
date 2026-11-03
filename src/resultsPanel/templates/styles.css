@@ -538,6 +538,21 @@ body.vscode-light .context-menu-separator {
     background-color: #cecece;
 }
 
+/* Script Results */
+.script-results-bar {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 15px;
+}
+.script-results-bar select {
+    color: var(--vscode-dropdown-foreground);
+    background: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border);
+    padding: 4px 8px;
+}
+
 /* Column Header Dropdown */
 .col-header-content {
     display: flex;

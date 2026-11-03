@@ -9,7 +9,7 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 
 ## Features
 
-- **SQL Execution**: Run queries (`CTRL+Enter`) and scripts (`CTRL+ALT+Enter`). Script execution displays a per-statement summary with affected row totals. Supports **Explain Query Plan** (`CTRL+SHIFT+ENTER`) to retrieve Firebird execution plans. Supports SQL from other files (e.g. PHP) with parameter injection.
+- **SQL Execution**: Run queries (`CTRL+Enter`) and scripts (`CTRL+ALT+Enter`), including `EXECUTE BLOCK ... RETURNS`, procedure output, and DML `RETURNING` rows. Single-statement scripts display returned rows with pagination; multi-statement scripts offer a summary and a Results selector for individual result sets. Supports **Explain Query Plan** (`CTRL+SHIFT+ENTER`) to retrieve Firebird execution plans. Supports SQL from other files (e.g. PHP) with parameter injection.
 - **Transaction Support**: Explicit Commit/Rollback support, with optional one-shot Auto commit while a query is executing.
 - **Explorer**: View databases, tables, views, procedures, triggers, and external UDF functions. UDFs can be filtered and opened as declaration DDL. Indexes show their columns (or `COMPUTED BY` expression) directly in the tree.
 - **Table Info**: Detailed view of table structure with PK/FK tags, index column tooltips, and grouped trigger views.
@@ -47,6 +47,12 @@ Firebird database management extension for VS Code, Antigravity, Cursor and othe
 5. **View Results**: The results will be displayed in a separate panel.
 
 ## Advanced Usage
+
+### Script Results
+
+A script containing one SQL statement uses normal query pagination, including an `EXECUTE BLOCK ... RETURNS` surrounded by `SET TERM` directives. Use Load More Results to read subsequent pages.
+
+Multi-statement scripts fetch each result set to completion before starting the next statement. Use the Results selector to switch between the script summary and individual result sets, including empty results. If fetching fails or is cancelled, the script stops and partial output is marked incomplete. Fetched results are retained in memory until the next execution. CSV export of these result sets uses the stored rows without executing SQL again.
 
 ### SQL Execution in Source Code (Parameter Injection)
 

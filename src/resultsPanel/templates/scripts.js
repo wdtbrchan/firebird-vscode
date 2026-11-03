@@ -13,6 +13,7 @@ function init() {
 
 window.commit = function() { vscode.postMessage({ command: 'commit' }); };
 window.rollback = function() { vscode.postMessage({ command: 'rollback' }); };
+window.selectScriptResult = function(index) { vscode.postMessage({ command: 'selectScriptResult', index: Number(index) }); };
 window.loadMore = function() { 
     const btn = document.getElementById('loadMoreBtn');
     if(btn) {

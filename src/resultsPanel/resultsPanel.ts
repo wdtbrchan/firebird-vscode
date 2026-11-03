@@ -4,7 +4,7 @@ import { getLoadingHtml } from './templates/loadingTemplate';
 import { getResultsPageHtml } from './templates/resultsTemplate';
 import { generateRowsHtml } from './templates/contentTemplates';
 import { ExportService } from './exportService';
-import { ExecutionService } from '../services/executionService';
+import { ExecutionService, ExecutionDataEvent, ScriptResultOption } from '../services/executionService';
 import { DatabaseConnection } from '../database/types';
 import { MetadataService } from '../services/metadataService';
 import { buildUpdateScript, EditedRowPayload } from './updateScriptService';
@@ -33,7 +33,9 @@ export class ResultsPanel {
     private _hasMore: boolean = false;
     private _affectedRows: number | undefined;
     private _startTime: number | undefined;
-    private _lastResultKind: 'query' | 'scriptSummary' = 'query';
+    private _lastResultKind: ExecutionDataEvent['resultKind'] = 'query';
+    private _scriptResults: ScriptResultOption[] = [];
+    private _selectedScriptResult: number = 0;
 
 
     private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, id: string) {
@@ -60,6 +62,9 @@ export class ResultsPanel {
                     case 'loadMore':
                         void ExecutionService.getInstance(this._id).loadMore();
                         return;
+                    case 'selectScriptResult':
+                        ExecutionService.getInstance(this._id).selectScriptResult(message.index);
+                        return;
                     case 'cancelQuery':
                         ExecutionService.getInstance(this._id).cancelCurrentQuery();
                         return;
@@ -67,7 +72,8 @@ export class ResultsPanel {
                         ExecutionService.getInstance(this._id).killCurrentProcess();
                         return;
                     case 'exportCsv':
-                        ExportService.exportCsv(this._panel, this._currentQuery, this._currentConnection, message);
+                        ExportService.exportCsv(this._panel, this._currentQuery, this._currentConnection, message,
+                            this._lastResultKind === 'scriptResult' ? this._lastResults : undefined);
                         return;
                     case 'requestPrimaryKeyColumns':
                         void this._sendPrimaryKeyColumns(message.tableName);
@@ -105,6 +111,8 @@ export class ResultsPanel {
             this._currentContext = e.context;
             this._lastExecutionTime = e.executionTime;
             this._lastResultKind = e.resultKind || 'query';
+            this._scriptResults = e.scriptResults || [];
+            this._selectedScriptResult = e.selectedScriptResult || 0;
 
             if (e.append) {
                 this._appendRowsToWebview(e.results, this._lastResults.length, e.hasMore, e.affectedRows);
@@ -112,9 +120,9 @@ export class ResultsPanel {
             } else if (e.results.length > 0 || (e.affectedRows !== undefined && e.affectedRows >= 0)) {
                 this._updateContentForTable(e.results, e.hasTransaction, e.context, e.hasMore, e.affectedRows, e.resultKind);
             } else {
-                this._updateContentForTable([], e.hasTransaction, e.context, false, undefined);
+                this._updateContentForTable([], e.hasTransaction, e.context, false, undefined, e.resultKind);
             }
-            const shouldAutoCommit = !e.append && this._autoCommitOnce;
+            const shouldAutoCommit = !e.append && !e.viewOnly && this._autoCommitOnce;
             if (shouldAutoCommit) {
                 this._autoCommitOnce = false;
                 if (e.hasTransaction) {
@@ -171,6 +179,8 @@ export class ResultsPanel {
     }
 
     public showLoading() {
+        this._scriptResults = [];
+        this._selectedScriptResult = 0;
         this._isLoading = true;
         this._autoCommitOnce = false;
         this._startTime = Date.now();
@@ -219,7 +229,7 @@ export class ResultsPanel {
         
         const rowsHtml = generateRowsHtml(newRows, startIndex, locale);
 
-        const rowCount = this._lastResults.length;
+        const rowCount = this._lastResults.length + newRows.length;
         let rowsText: string;
         if (hasMore) {
              rowsText = `First ${rowCount} rows fetched`;
@@ -240,7 +250,7 @@ export class ResultsPanel {
 
 
 
-    private _updateContentForTable(results: Record<string, unknown>[], hasTransaction: boolean, context?: string, hasMore: boolean = false, affectedRows?: number, resultKind: 'query' | 'scriptSummary' = 'query') {
+    private _updateContentForTable(results: Record<string, unknown>[], hasTransaction: boolean, context?: string, hasMore: boolean = false, affectedRows?: number, resultKind: ExecutionDataEvent['resultKind'] = 'query') {
          this._isLoading = false;
          this._lastResults = results;
          this._lastResultKind = resultKind;
@@ -303,6 +313,8 @@ export class ResultsPanel {
             autoRollbackAt: this._currentAutoRollbackAt || 0,
             locale,
             resultKind: this._lastResultKind,
+            scriptResults: this._scriptResults,
+            selectedScriptResult: this._selectedScriptResult,
         });
     }
 

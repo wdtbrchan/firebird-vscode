@@ -9,6 +9,7 @@ import { getInfoBarHtml, InfoBarParams } from './infoBarTemplate';
 import { getErrorHtml, getNoResultsHtml, getResultsTableHtml, escapeHtml } from './contentTemplates';
 import { iconCommit, iconRollback } from './icons';
 import { DatabaseConnection } from '../../database/types';
+import type { ExecutionDataEvent, ScriptResultOption } from '../../services/executionService';
 
 export interface ResultsPageParams {
     results: Record<string, unknown>[];
@@ -26,7 +27,9 @@ export interface ResultsPageParams {
     lastExecutionTime: number | undefined;
     autoRollbackAt: number;
     locale: string;
-    resultKind?: 'query' | 'scriptSummary';
+    resultKind?: ExecutionDataEvent['resultKind'];
+    scriptResults?: ScriptResultOption[];
+    selectedScriptResult?: number;
 }
 
 /**
@@ -100,8 +103,17 @@ export function getResultsPageHtml(extensionUri: vscode.Uri, params: ResultsPage
         const editableTableName = getEditableTableName(params.currentQuery);
         const config = vscode.workspace.getConfiguration('firebird');
         const decimalSeparator = config.get<string>('csvDecimalSeparator', '.');
-        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction, encoding, tableName, decimalSeparator, editableTableName, params.resultKind || 'query');
+        contentHtml = getResultsTableHtml(params.results, params.locale, params.hasMore, params.showButtons, params.transactionAction, encoding, tableName, decimalSeparator, editableTableName, params.resultKind === 'scriptSummary' ? 'scriptSummary' : 'query');
     }
+
+    const scriptSelectorHtml = params.scriptResults?.length ? `
+        <div class="script-results-bar">
+            <label for="scriptResultSelect">Results</label>
+            <select id="scriptResultSelect" onchange="selectScriptResult(this.value)">
+                <option value="0" ${!params.selectedScriptResult ? 'selected' : ''}>Script summary</option>
+                ${params.scriptResults.map(result => `<option value="${result.index}" ${params.selectedScriptResult === result.index ? 'selected' : ''}>${escapeHtml(result.label)}</option>`).join('')}
+            </select>
+        </div>` : '';
 
     // --- Static Files ---
     const cssPath = vscode.Uri.joinPath(extensionUri, 'src', 'resultsPanel', 'templates', 'styles.css').fsPath;
@@ -144,6 +156,7 @@ export function getResultsPageHtml(extensionUri: vscode.Uri, params: ResultsPage
         <body class="${bodyClasses}">
             ${headerHtml}
             ${infoBarHtml}
+            ${scriptSelectorHtml}
             <div class="content-area">
                 ${contentHtml}
             </div>

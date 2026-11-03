@@ -9,6 +9,7 @@ export interface QueryOptions {
 
 export interface QueryResult {
     rows: Record<string, unknown>[];
+    columns?: string[];
     affectedRows?: number;
     hasMore?: boolean;
 }

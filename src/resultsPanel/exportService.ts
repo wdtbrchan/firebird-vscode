@@ -24,7 +24,8 @@ export class ExportService {
         panel: vscode.WebviewPanel | undefined,
         currentQuery: string | undefined,
         currentConnection: DatabaseConnection | undefined,
-        message: CsvExportMessage
+        message: CsvExportMessage,
+        cachedRows?: Record<string, unknown>[]
     ) {
         const delimiter: string = message.delimiter || ';';
         const qualifier: string = message.qualifier || '"';
@@ -32,7 +33,7 @@ export class ExportService {
         const filename: string = message.filename || 'export.csv';
         const decimalSeparator: '.' | ',' = (message.decimalSeparator === ',') ? ',' : '.';
 
-        if (!currentQuery || !currentConnection) {
+        if ((!currentQuery && !cachedRows) || !currentConnection) {
             vscode.window.showWarningMessage('No query to export.');
             return;
         }
@@ -49,11 +50,11 @@ export class ExportService {
             }
         };
 
-        reportProgress('Executing query...');
+        reportProgress(cachedRows ? 'Preparing fetched rows...' : 'Executing query...');
 
         try {
-            const cleanQuery = currentQuery.trim().replace(/;$/, '');
-            const allRows = await this._fetchAllRows(connection, cleanQuery, count => {
+            const cleanQuery = currentQuery?.trim().replace(/;$/, '') || '';
+            const allRows = cachedRows ?? await this._fetchAllRows(connection, cleanQuery, count => {
                 reportProgress(`Fetching rows... ${count}`);
             });
 
@@ -94,7 +95,7 @@ export class ExportService {
         } finally {
             // Always release the dedicated export transaction so we never leave it open.
             try {
-                await Database.rollback(EXPORT_TX_ID, 'Export finished');
+                if (!cachedRows) await Database.rollback(EXPORT_TX_ID, 'Export finished');
             } catch (_e) {
                 // ignore – may not exist if attach failed
             }

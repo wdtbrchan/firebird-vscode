@@ -1,3 +1,7 @@
+## [ upcoming ]
+- **Query Results**: Read cursor and direct statement output, including selectable blocks, procedure output, and DML `RETURNING` rows.
+- **Script Execution**: Show single-statement results with pagination; fully fetch multi-statement results and retain them alongside the summary, with CSV export from fetched data.
+
 ## [1.14.3]
 - **Query Results**: Use the query timeout when fetching initial and subsequent result pages, and explain how to change or disable it in timeout errors.
 
